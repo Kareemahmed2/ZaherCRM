@@ -536,8 +536,8 @@ const PIPE_ACCENT={partners:'#185FA5',customers:'#3B6D11',investors:'#0E7474'};
 const OWNERS={partners:{name:'Abdalla Ashraf',role:'Strategy & GTM',ini:'AA'},customers:{name:'Anwar Aly',role:'Founder & CEO',ini:'AN'},investors:{name:'Anwar Aly',role:'Founder & CEO',ini:'AN'}};
 
 // ══════════════ SUPABASE ══════════════
-const SUPABASE_URL = 'YOUR_SUPABASE_URL'; // TODO: paste from Supabase project settings (see supabase_schema.sql)
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // TODO: paste anon/public key
+const SUPABASE_URL = 'https://lzztbjjbtpuyatyxbrke.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_j4touVNQEgeB9jdyaQHsMg_t_n9w_4S';
 const sb = (typeof window!=='undefined' && window.supabase && SUPABASE_URL!=='YOUR_SUPABASE_URL') ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // ══════════════ SEED DATA (fallback until Supabase is configured / seeded) ══════════════
