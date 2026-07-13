@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaher CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue-50:#E6F1FB; --blue-100:#B5D4F4; --blue-400:#378ADD; --blue-600:#185FA5; --blue-800:#0C447C;
+    --green-50:#EAF3DE; --green-400:#639922; --green-600:#3B6D11;
+    --amber-50:#FAEEDA; --amber-400:#EF9F27; --amber-600:#854F0B;
+    --purple-50:#EEEDFE; --purple-400:#7F77DD; --purple-600:#534AB7;
+    --red-50:#FCEBEB; --red-400:#E24B4A;
+    --teal-50:#E0F4F4; --teal-600:#0E7474;
+    --gray-50:#F8F8F7; --gray-100:#F1F0EE; --gray-200:#E2E1DE;
+    --gray-300:#C8C7C3; --gray-500:#888780; --gray-700:#444441; --gray-900:#1C1C1A;
+    --white:#FFFFFF;
+    --border:rgba(0,0,0,0.08); --border-med:rgba(0,0,0,0.14);
+    --shadow-sm:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
+    --shadow-drag:0 16px 40px rgba(0,0,0,0.18),0 4px 12px rgba(0,0,0,0.1);
+    --r-sm:6px; --r-md:10px; --r-lg:14px;
+    --nav-w:236px; --font:'DM Sans',sans-serif; --font-mono:'DM Mono',monospace;
+    --accent:#185FA5; --accent-hover:#0C447C; --accent-bg:#E6F1FB;
+  }
+  body.pl-partners  { --accent:#185FA5; --accent-hover:#0C447C; --accent-bg:#E6F1FB; }
+  body.pl-customers { --accent:#3B6D11; --accent-hover:#2C5210; --accent-bg:#EAF3DE; }
+  body.pl-investors { --accent:#0E7474; --accent-hover:#085858; --accent-bg:#E0F4F4; }
+  body { font-family:var(--font); background:var(--gray-50); color:var(--gray-900); min-height:100vh; display:flex; font-size:14px; line-height:1.5; user-select:none; }
+
+  /* ── SIDEBAR ── */
+  .sidebar { width:var(--nav-w); background:var(--white); border-right:1px solid var(--border); display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:100; }
+  .sidebar-logo { padding:18px 20px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .logo-mark { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:var(--accent); }
+  .logo-mark svg { width:16px; height:16px; fill:white; }
+  .logo-text { font-size:15px; font-weight:600; color:var(--gray-900); letter-spacing:-0.3px; }
+  .logo-sub { font-size:10px; color:var(--gray-500); font-weight:500; }
+  .sidebar-section { padding:14px 12px 6px; }
+  .sidebar-label { font-size:10px; font-weight:600; color:var(--gray-500); text-transform:uppercase; letter-spacing:.09em; padding:0 8px; margin-bottom:4px; }
+  .nav-item { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:var(--r-sm); cursor:pointer; color:var(--gray-700); font-size:13px; font-weight:400; transition:background .12s,color .12s; margin-bottom:1px; }
+  .nav-item:hover { background:var(--gray-100); }
+  .nav-item svg { width:15px; height:15px; flex-shrink:0; opacity:.65; }
+  .nav-item.active { background:var(--accent-bg); color:var(--accent); font-weight:500; }
+  .nav-item.active svg { opacity:1; }
+  .nav-badge { margin-left:auto; font-size:10px; font-weight:600; padding:1px 6px; border-radius:99px; background:var(--accent); color:white; }
+  .sidebar-divider { height:1px; background:var(--border); margin:8px 12px; }
+  /* pipeline switcher */
+  .pl-strip { display:flex; flex-direction:column; gap:3px; padding:10px 12px 4px; }
+  .pl-btn { text-align:left; padding:8px 10px; border-radius:var(--r-sm); font-size:12px; font-weight:500; cursor:pointer; border:none; background:var(--gray-100); color:var(--gray-500); transition:all .15s; display:flex; align-items:center; gap:8px; }
+  .pl-btn .dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .pl-btn.active { color:white; font-weight:600; }
+  .pl-btn[data-pl="partners"].active  { background:#185FA5; }
+  .pl-btn[data-pl="customers"].active { background:#3B6D11; }
+  .pl-btn[data-pl="investors"].active { background:#0E7474; }
+  .sidebar-footer { margin-top:auto; padding:12px; border-top:1px solid var(--border); }
+  .user-chip { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--r-sm); cursor:pointer; }
+  .user-chip:hover { background:var(--gray-100); }
+  .user-av { width:30px; height:30px; border-radius:50%; color:white; font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; background:var(--accent); }
+  .user-name { font-size:12px; font-weight:500; }
+  .user-role { font-size:11px; color:var(--gray-500); }
+
+  /* ── MAIN ── */
+  .main { margin-left:var(--nav-w); flex:1; display:flex; flex-direction:column; min-height:100vh; }
+  .topbar { background:var(--white); border-bottom:1px solid var(--border); padding:0 28px; height:52px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; }
+  .topbar-title { font-size:15px; font-weight:500; color:var(--gray-900); letter-spacing:-0.2px; }
+  .topbar-right { display:flex; align-items:center; gap:10px; }
+  .mode-chip { font-size:11px; font-weight:600; padding:3px 10px; border-radius:99px; background:var(--accent-bg); color:var(--accent); }
+  /* portfolio toggle */
+  .seg { display:inline-flex; background:var(--gray-100); border-radius:var(--r-sm); padding:2px; }
+  .seg-btn { border:none; background:transparent; font-family:var(--font); font-size:12px; font-weight:500; color:var(--gray-500); padding:5px 12px; border-radius:4px; cursor:pointer; transition:all .12s; }
+  .seg-btn.active { background:var(--white); color:var(--accent); box-shadow:var(--shadow-sm); font-weight:600; }
+
+  /* ── BUTTONS ── */
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:var(--r-sm); font-family:var(--font); font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all .12s; }
+  .btn-primary { color:white; background:var(--accent); }
+  .btn-primary:hover { background:var(--accent-hover); }
+  .btn-ghost { background:transparent; color:var(--gray-700); border:1px solid var(--border-med); }
+  .btn-ghost:hover { background:var(--gray-100); }
+  .btn-danger { background:transparent; color:var(--red-400); border:1px solid rgba(226,75,74,0.3); }
+  .btn-danger:hover { background:var(--red-50); }
+  .btn svg { width:14px; height:14px; }
+
+  /* ── PAGES ── */
+  .page { display:none; padding:28px; animation:fadeIn .2s ease; }
+  .page.active { display:block; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);} }
+
+  /* ── CARDS / TABLES ── */
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+  .stat-card { background:var(--white); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px 20px; }
+  .stat-label { font-size:11px; color:var(--gray-500); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; font-weight:500; }
+  .stat-value { font-size:26px; font-weight:600; color:var(--gray-900); letter-spacing:-1px; line-height:1; margin-bottom:6px; }
+  .stat-delta { font-size:12px; color:var(--green-600); }
+  .two-col { display:grid; grid-template-columns:1fr 340px; gap:16px; }
+  .card { background:var(--white); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
+  .card-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .card-title { font-size:13px; font-weight:500; color:var(--gray-900); }
+  .leads-table { width:100%; border-collapse:collapse; }
+  .leads-table th { text-align:left; font-size:11px; color:var(--gray-500); font-weight:500; text-transform:uppercase; letter-spacing:.06em; padding:10px 20px; border-bottom:1px solid var(--border); background:var(--gray-50); }
+  .leads-table td { padding:12px 20px; border-bottom:1px solid var(--border); font-size:13px; }
+  .leads-table tr:last-child td { border-bottom:none; }
+  .leads-table tbody tr:hover td { background:var(--gray-50); cursor:pointer; }
+  .lead-name-cell { display:flex; align-items:center; gap:10px; }
+  .av { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; flex-shrink:0; }
+  .av-blue{background:var(--blue-50);color:var(--blue-600);} .av-green{background:var(--green-50);color:var(--green-600);}
+  .av-amber{background:var(--amber-50);color:var(--amber-600);} .av-purple{background:var(--purple-50);color:var(--purple-600);}
+  .av-red{background:var(--red-50);color:var(--red-400);} .av-teal{background:var(--teal-50);color:var(--teal-600);}
+  .ln{font-size:13px;font-weight:500;} .lc{font-size:11px;color:var(--gray-500);}
+  .stage-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:3px 10px;border-radius:99px;white-space:nowrap;}
+  .tier-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;}
+  .t1{background:var(--green-50);color:var(--green-600);} .t2{background:var(--amber-50);color:var(--amber-600);} .t3{background:var(--gray-100);color:var(--gray-500);}
+  .chip{font-size:9px;font-weight:600;padding:2px 7px;border-radius:99px;white-space:nowrap;}
+  .funnel{padding:16px 20px;} .funnel-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .funnel-row:last-child{margin-bottom:0;} .funnel-label{font-size:11px;color:var(--gray-700);width:120px;flex-shrink:0;}
+  .funnel-bar-bg{flex:1;height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden;}
+  .funnel-bar{height:100%;border-radius:3px;transition:width .6s ease;}
+  .funnel-count{font-size:12px;color:var(--gray-500);width:24px;text-align:right;flex-shrink:0;}
+  .act-feed{padding:4px 0;} .act-item{display:flex;gap:12px;align-items:flex-start;padding:10px 20px;border-bottom:1px solid var(--border);}
+  .act-item:last-child{border-bottom:none;} .act-dot-wrap{padding-top:4px;}
+  .act-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .act-text{font-size:12px;color:var(--gray-700);line-height:1.5;} .act-time{font-size:11px;color:var(--gray-500);margin-top:2px;font-family:var(--font-mono);}
+
+  /* ── CONTROLS ── */
+  .pipeline-controls{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+  .search-box{display:flex;align-items:center;gap:8px;background:var(--white);border:1px solid var(--border-med);border-radius:var(--r-sm);padding:7px 12px;flex:1;max-width:280px;}
+  .search-box svg{width:14px;height:14px;color:var(--gray-500);flex-shrink:0;}
+  .search-box input{border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--gray-900);background:transparent;width:100%;}
+  .search-box input::placeholder{color:var(--gray-500);}
+
+  /* ── KANBAN ── */
+  .kanban-board{display:flex;gap:14px;overflow-x:auto;padding-bottom:16px;align-items:flex-start;}
+  .kanban-col{min-width:236px;flex-shrink:0;border-radius:var(--r-lg);padding:0 0 4px;}
+  .kanban-col.drag-over{background:var(--accent-bg);outline:2px dashed var(--accent);outline-offset:-2px;}
+  .col-header{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 10px;}
+  .col-name{font-size:12px;font-weight:600;color:var(--gray-700);text-transform:uppercase;letter-spacing:.04em;}
+  .col-count{font-size:11px;font-weight:500;background:var(--gray-100);color:var(--gray-500);padding:2px 8px;border-radius:99px;}
+  .col-total{font-size:10px;color:var(--gray-500);margin-top:2px;}
+  .col-cards{min-height:60px;border-radius:var(--r-md);padding:2px 0;}
+  .k-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:8px;cursor:grab;transition:box-shadow .15s,border-color .15s,transform .1s,opacity .2s;}
+  .k-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:var(--accent-bg);}
+  .k-card.dragging{opacity:.4;cursor:grabbing;transform:scale(.97);}
+  .k-card-top{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .k-card-info .kn{font-size:13px;font-weight:500;} .k-card-info .kc{font-size:11px;color:var(--gray-500);}
+  .k-card-value{font-size:14px;font-weight:600;color:var(--gray-900);letter-spacing:-0.3px;}
+  .k-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .k-card-source{font-size:10px;color:var(--gray-500);} .k-card-date{font-size:10px;color:var(--gray-500);font-family:var(--font-mono);}
+  .add-card-btn{width:100%;padding:8px;border:1px dashed var(--gray-200);border-radius:var(--r-md);background:transparent;color:var(--gray-500);font-family:var(--font);font-size:12px;cursor:pointer;text-align:center;transition:all .12s;margin-top:4px;}
+  .add-card-btn:hover{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+  #drag-clone{position:fixed;pointer-events:none;z-index:9999;opacity:0;transition:opacity .1s;transform-origin:top left;}
+
+  /* ── DETAIL ── */
+  .detail-back{display:flex;align-items:center;gap:6px;color:var(--gray-500);font-size:12px;cursor:pointer;margin-bottom:16px;width:fit-content;}
+  .detail-back:hover{color:var(--accent);} .detail-back svg{width:14px;height:14px;}
+  .detail-grid{display:grid;grid-template-columns:1fr 300px;gap:16px;}
+  .detail-profile{background:var(--white);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:16px;}
+  .profile-hero{padding:24px 24px 20px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:16px;}
+  .profile-av{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;flex-shrink:0;}
+  .profile-name{font-size:18px;font-weight:600;letter-spacing:-0.4px;margin-bottom:2px;}
+  .profile-role{font-size:13px;color:var(--gray-500);margin-bottom:10px;}
+  .profile-tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .tag{font-size:11px;padding:3px 10px;border-radius:99px;border:1px solid var(--border-med);color:var(--gray-700);background:var(--gray-50);}
+  .profile-actions{margin-left:auto;display:flex;gap:8px;flex-shrink:0;}
+  .fields-grid{display:grid;grid-template-columns:1fr 1fr;}
+  .field-item{padding:14px 24px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);}
+  .field-item:nth-child(even){border-right:none;}
+  .field-key{font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;font-weight:500;}
+  .field-val{font-size:13px;color:var(--gray-900);font-weight:500;} .field-val.link{color:var(--accent);}
+  .notes-card,.score-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:16px;}
+  .notes-body{padding:16px 20px;font-size:13px;color:var(--gray-700);line-height:1.7;min-height:50px;white-space:pre-wrap;}
+  .stage-tracker{padding:16px 20px 8px;} .stages-list{display:flex;flex-direction:column;}
+  .stage-step{display:flex;align-items:center;gap:10px;padding:3px 0;}
+  .stage-node{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--gray-200);flex-shrink:0;font-size:9px;font-weight:600;cursor:pointer;transition:all .15s;}
+  .stage-node:hover{transform:scale(1.1);border-color:var(--accent);}
+  .stage-node.done{color:white;background:var(--accent);border-color:var(--accent);}
+  .stage-node.current{background:white;border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg);}
+  .stage-line{width:2px;height:12px;background:var(--gray-200);margin-left:9px;}
+  .stage-line.done{background:var(--accent);}
+  .stage-step-name{font-size:12px;color:var(--gray-500);}
+  .stage-step-name.done{color:var(--gray-900);font-weight:500;}
+  .stage-step-name.current{color:var(--accent);font-weight:500;}
+  .stage-actions{padding:8px 20px 16px;display:flex;gap:8px;}
+  .timeline{padding:8px 0;} .tl-item{display:flex;gap:12px;padding:8px 20px;}
+  .tl-dot-col{display:flex;flex-direction:column;align-items:center;}
+  .tl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;background:var(--accent);}
+  .tl-line{width:1px;flex:1;background:var(--gray-200);margin-top:3px;min-height:16px;}
+  .tl-item:last-child .tl-line{display:none;}
+  .tl-text{font-size:12px;color:var(--gray-700);line-height:1.5;margin-bottom:1px;}
+  .tl-date{font-size:11px;color:var(--gray-500);font-family:var(--font-mono);}
+  .score-breakdown{padding:8px 20px 16px;}
+  .score-line{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px dashed var(--border);}
+  .score-line:last-child{border-bottom:none;}
+  .score-big{font-size:34px;font-weight:700;letter-spacing:-1.5px;line-height:1;}
+
+  /* ── MODAL ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:999;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--white);border-radius:var(--r-lg);width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.15);animation:slideUp .2s ease;}
+  @keyframes slideUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+  .modal-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .modal-title{font-size:15px;font-weight:600;}
+  .modal-close{background:none;border:none;cursor:pointer;color:var(--gray-500);padding:4px;border-radius:4px;display:flex;}
+  .modal-close:hover{background:var(--gray-100);}
+  .modal-body{padding:20px 24px;} .modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
+  .form-group{margin-bottom:16px;} .form-label{display:block;font-size:12px;font-weight:500;color:var(--gray-700);margin-bottom:6px;}
+  .form-input{width:100%;padding:8px 12px;border:1px solid var(--border-med);border-radius:var(--r-sm);font-family:var(--font);font-size:13px;color:var(--gray-900);outline:none;transition:border-color .12s;background:var(--white);}
+  .form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg);}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .check-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gray-700);padding:4px 0;cursor:pointer;}
+  .confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:1000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+  .confirm-overlay.open{display:flex;}
+  .confirm-box{background:var(--white);border-radius:var(--r-lg);width:380px;padding:24px;box-shadow:var(--shadow-md);}
+  .confirm-title{font-size:15px;font-weight:600;margin-bottom:8px;}
+  .confirm-msg{font-size:13px;color:var(--gray-500);margin-bottom:20px;line-height:1.6;}
+  .confirm-actions{display:flex;justify-content:flex-end;gap:10px;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--gray-900);color:white;padding:10px 16px;border-radius:var(--r-md);font-size:13px;font-weight:500;z-index:9999;opacity:0;transition:all .2s;pointer-events:none;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* ── ANALYTICS ── */
+  .analytics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+  .an-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  .chart-wrap{padding:20px;} canvas{display:block;}
+  .bar-row{display:flex;align-items:center;gap:10px;padding:8px 20px;border-bottom:1px solid var(--border);}
+  .bar-row:last-child{border-bottom:none;}
+  .bar-name{font-size:12px;font-weight:500;width:170px;flex-shrink:0;}
+  .bar-bg{flex:1;height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:3px;}
+  .big-stat{text-align:center;padding:24px 16px;}
+  .big-stat .val{font-size:30px;font-weight:700;letter-spacing:-1.2px;margin-bottom:4px;}
+  .big-stat .lbl{font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.06em;}
+  .big-stat .sub{font-size:12px;color:var(--green-600);margin-top:4px;}
+
+  /* ── CHATBOT ── */
+  .chat-fab{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--accent);color:white;border:none;cursor:pointer;box-shadow:var(--shadow-md);display:flex;align-items:center;justify-content:center;z-index:800;transition:transform .15s,background .15s;}
+  .chat-fab:hover{transform:scale(1.06);background:var(--accent-hover);}
+  .chat-fab svg{width:24px;height:24px;}
+  .chat-panel{position:fixed;top:0;right:0;bottom:0;width:400px;max-width:92vw;background:var(--white);border-left:1px solid var(--border-med);box-shadow:-8px 0 30px rgba(0,0,0,0.08);z-index:900;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease;}
+  .chat-panel.open{transform:translateX(0);}
+  .chat-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+  .chat-head .dot{width:8px;height:8px;border-radius:50%;background:var(--green-400);}
+  .chat-head .t{font-size:14px;font-weight:600;} .chat-head .s{font-size:11px;color:var(--gray-500);}
+  .chat-head .x{margin-left:auto;background:none;border:none;cursor:pointer;color:var(--gray-500);padding:4px;border-radius:4px;display:flex;}
+  .chat-head .x:hover{background:var(--gray-100);}
+  .chat-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;}
+  .msg{max-width:86%;font-size:13px;line-height:1.55;padding:10px 13px;border-radius:14px;white-space:pre-wrap;}
+  .msg.user{align-self:flex-end;background:var(--accent);color:white;border-bottom-right-radius:4px;}
+  .msg.bot{align-self:flex-start;background:var(--gray-100);color:var(--gray-900);border-bottom-left-radius:4px;}
+  .msg.action{align-self:flex-start;background:var(--accent-bg);color:var(--accent);font-size:11px;font-weight:600;padding:5px 11px;border-radius:99px;display:inline-flex;align-items:center;gap:6px;}
+  .msg.err{align-self:flex-start;background:var(--red-50);color:var(--red-400);font-size:12px;}
+  .chat-typing{align-self:flex-start;display:flex;gap:4px;padding:12px 14px;background:var(--gray-100);border-radius:14px;}
+  .chat-typing span{width:6px;height:6px;border-radius:50%;background:var(--gray-300);animation:blink 1.2s infinite;}
+  .chat-typing span:nth-child(2){animation-delay:.2s;} .chat-typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,60%,100%{opacity:.3;}30%{opacity:1;}}
+  .chat-suggest{padding:0 18px 10px;display:flex;flex-wrap:wrap;gap:6px;}
+  .chat-suggest button{font-size:11px;color:var(--gray-700);background:var(--gray-50);border:1px solid var(--border-med);border-radius:99px;padding:5px 10px;cursor:pointer;font-family:var(--font);}
+  .chat-suggest button:hover{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+  .chat-input-row{padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;}
+  .chat-input{flex:1;border:1px solid var(--border-med);border-radius:var(--r-md);padding:9px 12px;font-family:var(--font);font-size:13px;outline:none;resize:none;max-height:120px;}
+  .chat-input:focus{border-color:var(--accent);}
+  .chat-send{background:var(--accent);color:white;border:none;width:38px;height:38px;border-radius:var(--r-md);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .chat-send:disabled{opacity:.4;cursor:default;}
+  .chat-send svg{width:16px;height:16px;}
+
+  ::-webkit-scrollbar{width:6px;height:6px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--gray-200);border-radius:3px;}
+</style>
+</head>
+<body class="pl-partners">
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M4 5h16l-9 8h9l-16 6 9-8H4z"/></svg></div>
+    <div><div class="logo-text">Zaher CRM</div><div class="logo-sub">AI Visibility · GEO</div></div>
+  </div>
+
+  <div class="pl-strip">
+    <button class="pl-btn active" data-pl="partners" onclick="setPipeline('partners')"><span class="dot" style="background:#378ADD"></span>Partners</button>
+    <button class="pl-btn" data-pl="customers" onclick="setPipeline('customers')"><span class="dot" style="background:#639922"></span>Customers</button>
+    <button class="pl-btn" data-pl="investors" onclick="setPipeline('investors')"><span class="dot" style="background:#0E7474"></span>Investors</button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label" id="nav-section-label">Partnerships</div>
+    <div class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+    </div>
+    <div class="nav-item" id="nav-pipeline" onclick="showPage('pipeline')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="6" height="16" rx="1"/><rect x="10" y="4" width="6" height="12" rx="1"/><rect x="18" y="4" width="4" height="8" rx="1"/></svg>
+      <span id="nav-pipeline-label">Pipeline</span><span class="nav-badge" id="nav-badge">0</span>
+    </div>
+    <div class="nav-item" id="nav-directory" onclick="showPage('directory')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 11a4 4 0 0 0 4 4v2"/></svg>
+      <span id="nav-directory-label">Directory</span>
+    </div>
+    <div class="nav-item" id="nav-analytics" onclick="showPage('analytics')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Analytics
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="user-chip">
+      <div class="user-av" id="user-av">AA</div>
+      <div><div class="user-name" id="user-name">Abdalla Ashraf</div><div class="user-role" id="user-role">Strategy & GTM</div></div>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <span class="topbar-title" id="topbar-title">Dashboard</span>
+    <div class="topbar-right">
+      <div class="seg" id="portfolio-toggle" style="display:none;">
+        <button class="seg-btn active" id="pf1-btn" onclick="setPortfolio(1)">Portfolio 1 · Revenue</button>
+        <button class="seg-btn" id="pf2-btn" onclick="setPortfolio(2)">Portfolio 2 · Ecosystem</button>
+      </div>
+      <span class="mode-chip" id="topbar-mode-chip">Partners</span>
+      <button class="btn btn-ghost" id="score-btn" onclick="openScorer()" style="display:none;">Score an agency</button>
+      <button class="btn btn-primary" onclick="openModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span id="add-btn-label">Add Partner</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="two-col">
+      <div>
+        <div class="card"><div class="card-header"><span class="card-title" id="dash-table-title">Recent</span>
+            <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="showPage('pipeline')">View pipeline →</button>
+          </div>
+          <table class="leads-table"><thead id="dash-thead"></thead><tbody id="recent-body"></tbody></table>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:14px;"><div class="card-header"><span class="card-title" id="funnel-title">Funnel</span></div><div class="funnel" id="funnel-chart"></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">Recent activity</span></div><div class="act-feed" id="activity-feed"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE -->
+  <div class="page" id="page-pipeline">
+    <div class="pipeline-controls">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search..." id="search-input" oninput="renderPipeline()">
+      </div>
+      <button class="btn btn-primary" onclick="openModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span id="add-btn-label2">Add</span>
+      </button>
+    </div>
+    <div class="kanban-board" id="kanban-board"></div>
+  </div>
+
+  <!-- DIRECTORY -->
+  <div class="page" id="page-directory">
+    <div class="pipeline-controls">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search..." id="dir-search" oninput="renderDirectory()">
+      </div>
+      <div style="display:flex;gap:8px;margin-left:auto;">
+        <input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none;" onchange="handleImportFile(event)">
+        <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()" title="Import records from CSV/Excel">Import</button>
+        <button class="btn btn-ghost" onclick="exportRecords('csv')" title="Export current view to CSV">Export CSV</button>
+        <button class="btn btn-ghost" onclick="exportRecords('xlsx')" title="Export current view to Excel">Export Excel</button>
+      </div>
+    </div>
+    <div class="card"><table class="leads-table"><thead id="dir-thead"></thead><tbody id="dir-body"></tbody></table></div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div class="page" id="page-analytics">
+    <div class="analytics-grid" id="an-kpis"></div>
+    <div class="an-row">
+      <div class="card"><div class="card-header"><span class="card-title" id="an-bar-title">Pipeline by stage</span></div><div class="chart-wrap"><canvas id="chart-stage" height="200"></canvas></div></div>
+      <div class="card"><div class="card-header"><span class="card-title" id="an-break-title">Breakdown</span></div><div id="an-breakdown" style="padding:8px 0;"></div></div>
+    </div>
+    <div class="an-row">
+      <div class="card"><div class="big-stat" id="an-stat-1"></div></div>
+      <div class="card"><div class="big-stat" id="an-stat-2"></div></div>
+    </div>
+    <div class="card" id="an-extra-card"><div class="card-header"><span class="card-title" id="an-extra-title">By source</span></div><div id="an-extra" style="padding:8px 0;"></div></div>
+  </div>
+
+  <!-- DETAIL -->
+  <div class="page" id="page-detail">
+    <div class="detail-back" onclick="goBack()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      <span id="detail-back-label">Back</span>
+    </div>
+    <div class="detail-grid">
+      <div>
+        <div class="detail-profile">
+          <div class="profile-hero">
+            <div class="profile-av" id="det-av"></div>
+            <div><div class="profile-name" id="det-name"></div><div class="profile-role" id="det-role"></div><div class="profile-tags" id="det-tags"></div></div>
+            <div class="profile-actions">
+              <button class="btn btn-danger" style="font-size:12px;padding:6px 12px;" onclick="confirmDelete()">Delete</button>
+              <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" id="det-contact-btn">✉ Email</button>
+            </div>
+          </div>
+          <div class="fields-grid" id="det-fields"></div>
+        </div>
+        <div class="score-card" id="det-score-card" style="display:none;">
+          <div class="card-header"><span class="card-title">Agency score</span><span class="tier-pill" id="det-score-tier"></span></div>
+          <div class="score-breakdown" id="det-score-breakdown"></div>
+        </div>
+        <div class="notes-card">
+          <div class="card-header"><span class="card-title">Notes</span></div>
+          <div class="notes-body" id="det-notes"></div>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:14px;"><div class="card-header"><span class="card-title">Stage</span></div>
+          <div class="stage-tracker" id="det-stages"></div><div class="stage-actions" id="det-stage-actions"></div>
+        </div>
+        <div class="card"><div class="card-header"><span class="card-title">Activity</span></div><div class="timeline" id="det-timeline"></div></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ADD MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title" id="modal-title">Add</span>
+      <button class="modal-close" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="addRecord()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCORER MODAL -->
+<div class="modal-overlay" id="scorer">
+  <div class="modal" style="width:440px;">
+    <div class="modal-header"><span class="modal-title">Agency scoring</span>
+      <button class="modal-close" onclick="closeScorer()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Agency name (optional)</label><input class="form-input" id="sc-name" placeholder="e.g. Bytes Future"></div>
+      <div class="form-group"><label class="form-label">Hard-skip filters</label>
+        <label class="check-row"><input type="checkbox" id="sc-geo"> Lists GEO / AEO as a service (competitor)</label>
+        <label class="check-row"><input type="checkbox" id="sc-offline"> Purely offline marketing (events only)</label>
+        <label class="check-row"><input type="checkbox" id="sc-leadgen"> Pure lead-generation only</label>
+      </div>
+      <div class="form-group"><label class="form-label">Client type</label>
+        <select class="form-input" id="sc-client"><option value="b2c">Pure B2C / e-commerce</option><option value="mixed">Mixed B2B / B2C</option><option value="b2b">Pure B2B (auto Tier 2)</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Services offered</label>
+        <label class="check-row"><input type="checkbox" id="sc-seo"> SEO</label>
+        <label class="check-row"><input type="checkbox" id="sc-content"> Content</label>
+        <label class="check-row"><input type="checkbox" id="sc-ads"> Ads / Performance</label>
+        <label class="check-row"><input type="checkbox" id="sc-brand"> Brand strategy</label>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Client roster</label>
+          <select class="form-input" id="sc-roster"><option value="20">20+ clients</option><option value="10">10–19 clients</option><option value="0">Under 10</option></select>
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end;"><label class="check-row"><input type="checkbox" id="sc-team"> Named SEO team</label></div>
+      </div>
+      <div id="sc-result" style="display:none;background:var(--gray-50);border-radius:var(--r-md);padding:16px;text-align:center;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeScorer()">Close</button>
+      <button class="btn btn-primary" onclick="runScorer()">Score</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-title">Delete this record?</div>
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="execDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHATBOT -->
+<button class="chat-fab" id="chat-fab" onclick="toggleChat()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</button>
+<div class="chat-panel" id="chat-panel">
+  <div class="chat-head">
+    <span class="dot"></span>
+    <div><div class="t">Zaher Assistant</div><div class="s">Ask it to update or query the CRM</div></div>
+    <button class="x" onclick="toggleChat()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="chat-body" id="chat-body"></div>
+  <div class="chat-suggest" id="chat-suggest"></div>
+  <div class="chat-input-row">
+    <textarea class="chat-input" id="chat-input" rows="1" placeholder="Message the assistant..." onkeydown="chatKey(event)" oninput="autoGrow(this)"></textarea>
+    <button class="chat-send" id="chat-send" onclick="sendChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+  </div>
+</div>
+
+<div id="drag-clone"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════ CONFIG ══════════════
+const STAGES = {
+  partners1: ['Awareness','Educational Collaboration','Trust','Pilot Partnership','Revenue Partnership','Strategic Alliance'],
+  partners2: ['Awareness','Conversation','Workshop Delivered','Recurring Relationship','Ecosystem Status'],
+  customers: ['Audit Requested','Audit Delivered','Discovery Call','Proposal','Pilot','Active Client'],
+  investors: ['Prospecting','First Meeting','Due Diligence','Term Sheet','Closed']
+};
+const TERMINAL = new Set(['Revenue Partnership','Strategic Alliance','Recurring Relationship','Ecosystem Status','Active Client','Closed']);
+const STAGE_COLOR = {
+  'Awareness':'#378ADD','Educational Collaboration':'#7F77DD','Trust':'#EF9F27','Pilot Partnership':'#D97706','Revenue Partnership':'#639922','Strategic Alliance':'#3B6D11',
+  'Conversation':'#7F77DD','Workshop Delivered':'#EF9F27','Recurring Relationship':'#0E7474','Ecosystem Status':'#639922',
+  'Audit Requested':'#378ADD','Audit Delivered':'#7F77DD','Discovery Call':'#EF9F27','Proposal':'#D97706','Pilot':'#0E7474','Active Client':'#639922',
+  'Prospecting':'#378ADD','First Meeting':'#7F77DD','Due Diligence':'#EF9F27','Term Sheet':'#D97706','Closed':'#639922'
+};
+const CAT_META = {
+  'Marketing Agencies':{c:'#185FA5',bg:'#E6F1FB'},
+  'SaaS & E-commerce Platforms':{c:'#534AB7',bg:'#EEEDFE'},
+  'Operational Touchpoint':{c:'#854F0B',bg:'#FAEEDA'},
+  'Startup Development Orgs':{c:'#0E7474',bg:'#E0F4F4'},
+  'Government & National Dev':{c:'#3B6D11',bg:'#EAF3DE'}
+};
+const AV_COLORS=['av-blue','av-green','av-amber','av-purple','av-red','av-teal'];
+const PALETTE=['#378ADD','#639922','#EF9F27','#7F77DD','#E24B4A','#0E7474','#185FA5','#534AB7'];
+const PIPE_ACCENT={partners:'#185FA5',customers:'#3B6D11',investors:'#0E7474'};
+const OWNERS={partners:{name:'Abdalla Ashraf',role:'Strategy & GTM',ini:'AA'},customers:{name:'Anwar Aly',role:'Founder & CEO',ini:'AN'},investors:{name:'Anwar Aly',role:'Founder & CEO',ini:'AN'}};
+
+// ══════════════ SUPABASE ══════════════
+const SUPABASE_URL = 'YOUR_SUPABASE_URL'; // TODO: paste from Supabase project settings (see supabase_schema.sql)
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // TODO: paste anon/public key
+const sb = (typeof window!=='undefined' && window.supabase && SUPABASE_URL!=='YOUR_SUPABASE_URL') ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// ══════════════ SEED DATA (fallback until Supabase is configured / seeded) ══════════════
+const SEED_RECORDS = [
+  // ── PARTNERS · Portfolio 1 · Marketing Agencies ──
+  {id:1,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Fahad Khan',company:'Bytes Future',role:'Managing Partner',email:'fahad@bytesfuture.com',phone:'+966 50 111 2201',stage:'Trust',model:'Reseller',tier:1,score:90,website:'bytesfuture.com',region:'GCC',clients:'Strong multi-market B2C base (Clutch-verified)',value:38000,source:'LinkedIn',date:'Apr 6',notes:'Top-scoring Tier 1 agency. Strong reseller candidate — wants to add AI Visibility Audits to retainer.',activity:[{t:'Qualified — score 90, Tier 1',d:'Apr 4'},{t:'Intro call completed',d:'Apr 6'}]},
+  {id:2,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Reem Khalid',company:'Room 11',role:'Founder',email:'reem@room11.sa',phone:'+966 50 111 2202',stage:'Educational Collaboration',model:'Reseller',tier:1,score:85,website:'room11.sa',region:'KSA',clients:'S Caffe, Reem Al Bawadi, Chicos, Flavers +35',value:32000,source:'Referral',date:'Apr 9',notes:'Strong F&B / retail roster. Joint webinar proposed as educational collaboration.',activity:[{t:'Qualified — score 85, Tier 1',d:'Apr 5'},{t:'Co-webinar topic agreed',d:'Apr 9'}]},
+  {id:3,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Omar Nabil',company:'Chain Reaction',role:'Head of Growth',email:'omar@chainreaction.sa',phone:'+966 50 111 2203',stage:'Pilot Partnership',model:'Reseller',tier:1,score:85,website:'chainreaction.sa',region:'KSA',clients:'Samsung KSA, KFC, Pizza Hut, LG, Lenovo',value:40000,source:'Cold Outreach',date:'Mar 24',notes:'Enterprise client base. Running a paid pilot on 3 client brands.',activity:[{t:'Qualified — score 85, Tier 1',d:'Mar 20'},{t:'Pilot on 3 brands started',d:'Mar 24'}]},
+  {id:4,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Sara Otaibi',company:'Steps / Steps Grow',role:'BD Director',email:'sara@steps.com.sa',phone:'+966 50 111 2204',stage:'Awareness',model:'Reseller',tier:1,score:85,website:'steps.com.sa',region:'KSA',clients:'SEO-first agency, GCC e-commerce base',value:30000,source:'LinkedIn',date:'Apr 15',notes:'SEO-first — natural fit for GEO as a service extension. First outreach sent.',activity:[{t:'Qualified — score 85, Tier 1',d:'Apr 14'},{t:'Intro message sent',d:'Apr 15'}]},
+  {id:5,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Karim Adel',company:'Dottopia',role:'Partnerships Lead',email:'karim@dottopia.com',phone:'+20 100 111 2205',stage:'Educational Collaboration',model:'Referral',tier:1,score:75,website:'dottopia.com',region:'Egypt',clients:'TECNO, Clorox, Hardees, Baskin-Robbins',value:22000,source:'Referral',date:'Apr 8',notes:'Referral model to start. Sharing the Arabic AI Visibility Index with their clients.',activity:[{t:'Qualified — score 75, Tier 1',d:'Apr 3'},{t:'Index shared with team',d:'Apr 8'}]},
+  {id:6,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Mona Saleh',company:'Digital Wasfa',role:'Founder',email:'mona@digitalwasfa.com',phone:'+966 50 111 2206',stage:'Awareness',model:'Referral',tier:1,score:65,website:'digitalwasfa.com',region:'KSA',clients:'Bilingual AR/EN SEO, Saudi e-commerce focus',value:15000,source:'LinkedIn',date:'Apr 15',notes:'Arabic SEO specialist — strong language fit for GEO.',activity:[{t:'Qualified — score 65, Tier 1',d:'Apr 15'}]},
+  {id:7,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Youssef Amin',company:'TAC Universe',role:'Performance Lead',email:'youssef@tacuniverse.com',phone:'+971 50 111 2207',stage:'Trust',model:'Referral',tier:1,score:65,website:'tacuniverse.com',region:'UAE/KSA',clients:'Aramex Global, Pringles — 3x TikTok Ad Awards',value:18000,source:'Cold Outreach',date:'Mar 30',notes:'Performance-focused. Delivered one successful referral audit already.',activity:[{t:'Qualified — score 65, Tier 1',d:'Mar 26'},{t:'First referral audit delivered',d:'Mar 30'}]},
+  {id:8,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Hossam Ali',company:'Entshar Technology',role:'CEO',email:'hossam@entshar.net',phone:'+20 100 111 2208',stage:'Awareness',model:'Referral',tier:1,score:65,website:'entshar.net',region:'Egypt',clients:'Pizza Hut + 7 named projects',value:14000,source:'LinkedIn',date:'Apr 14',notes:'Egypt-based, mid roster. Outreach queued.',activity:[{t:'Qualified — score 65, Tier 1',d:'Apr 14'}]},
+  {id:9,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Nada Fteha',company:'Mighty Leap',role:'Founder',email:'nada@mightyleapeg.com',phone:'+20 100 111 2209',stage:'Educational Collaboration',model:'Referral',tier:1,score:55,website:'mightyleapeg.com',region:'Egypt',clients:'Alpha Egypt Tours, Dentistree, Better Homes',value:12000,source:'Referral',date:'Apr 10',notes:'Thinner roster but engaged. Good early referral partner.',activity:[{t:'Qualified — score 55, Tier 1',d:'Apr 10'}]},
+  // ── PARTNERS · Portfolio 1 · SaaS & E-commerce Platforms ──
+  {id:10,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'Partnerships Team',company:'Salla',email:'partners@salla.dev',phone:'+966 50 111 3010',role:'Partner Manager',stage:'Educational Collaboration',model:'Merchant Education',tier:null,score:null,website:'salla.dev',region:'KSA',clients:'68,000+ merchants · Mahally marketplace',value:120000,source:'Inbound',date:'Apr 2',notes:'Largest Gulf commerce platform. Path: merchant education → AI Visibility Score → marketplace listing.',activity:[{t:'Intro via merchant academy',d:'Mar 28'},{t:'Education content proposed',d:'Apr 2'}]},
+  {id:11,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'BD Team',company:'Zid',role:'Partnerships Lead',email:'partners@zid.sa',phone:'+966 50 111 3011',stage:'Trust',model:'Marketplace App',tier:null,score:null,website:'zid.sa',region:'KSA',clients:'Saudi commerce platform · Zid Academy',value:90000,source:'Referral',date:'Mar 22',notes:'Automatic 30% rev share removes the commercial "convince" step. Building toward a marketplace app.',activity:[{t:'Partner terms reviewed (30% share)',d:'Mar 18'},{t:'App scope discussion',d:'Mar 22'}]},
+  {id:12,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'Partner Program',company:'Shopify',role:'Tech Partnerships',email:'partners@shopify.com',phone:'—',stage:'Awareness',model:'Merchant Service',tier:null,score:null,website:'shopify.com',region:'Global',clients:'8,000+ App Store apps',value:150000,source:'LinkedIn',date:'Apr 12',notes:'Long-term benchmark. App Store is the product model to aim at.',activity:[{t:'Partner program researched',d:'Apr 12'}]},
+  {id:13,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'Regional Implementers',company:'WooCommerce (via agencies)',role:'Implementation network',email:'—',phone:'—',stage:'Awareness',model:'Deep-Link',tier:null,score:null,website:'woocommerce.com',region:'MENA',clients:'Large SME store base via WordPress',value:40000,source:'Inbound',date:'Apr 13',notes:'Reach through the regional agencies who build WooCommerce stores, not Automattic directly.',activity:[{t:'Channel mapped',d:'Apr 13'}]},
+  // ── PARTNERS · Portfolio 1 · Operational Touchpoint ──
+  {id:14,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Mohamed Wahba',company:'Bosta',role:'Head of Merchant Success',email:'mwahba@bosta.co',phone:'+20 100 111 4014',stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'bosta.co',region:'Egypt',clients:'E-commerce logistics · large merchant base',value:45000,source:'Cold Outreach',date:'Apr 11',notes:'Angle: "we help people find you, not just ship you." Value-added differentiator vs commodity shipping.',activity:[{t:'Positioning research done',d:'Apr 9'},{t:'Merchant-success outreach sent',d:'Apr 11'}]},
+  {id:15,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Lina Fares',company:'Aramex',role:'Partnerships',email:'lina.fares@aramex.com',phone:'+971 50 111 4015',stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'aramex.com',region:'UAE',clients:'Regional logistics enterprise',value:60000,source:'LinkedIn',date:'Apr 14',notes:'Enterprise — expect a slow cycle. Needs its own tailored research before outreach.',activity:[{t:'Account researched',d:'Apr 14'}]},
+  {id:16,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Turki Saud',company:'SMSA Express',role:'Business Development',email:'turki@smsaexpress.com',phone:'+966 50 111 4016',stage:'Educational Collaboration',model:'Merchant Benefit',tier:null,score:null,website:'smsaexpress.com',region:'KSA',clients:'Saudi last-mile leader',value:50000,source:'Referral',date:'Apr 3',notes:'Interested in a co-branded merchant visibility report.',activity:[{t:'Report concept shared',d:'Apr 3'}]},
+  {id:17,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Hassan Ali',company:'iMile',role:'Growth',email:'hassan@imile.com',phone:'+971 50 111 4017',stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'imile.com',region:'UAE',clients:'Last-mile delivery, GCC',value:30000,source:'LinkedIn',date:'Apr 15',notes:'Early research stage.',activity:[{t:'Added to pipeline',d:'Apr 15'}]},
+  {id:18,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Ali Kamal',company:'ShipBlu',role:'Co-Founder',email:'ali@shipblu.com',phone:'+20 100 111 4018',stage:'Trust',model:'Merchant Benefit',tier:null,score:null,website:'shipblu.com',region:'Egypt',clients:'Egypt e-commerce fulfilment',value:25000,source:'Referral',date:'Mar 29',notes:'Founder-to-founder trust already established. Warmest logistics conversation.',activity:[{t:'Founder intro',d:'Mar 25'},{t:'Merchant perk discussed',d:'Mar 29'}]},
+  // ── PARTNERS · Portfolio 2 · Startup Development Orgs ──
+  {id:19,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'Programs Team',company:'Flat6Labs Cairo',role:'Program Manager',email:'programs@flat6labs.com',phone:'+20 100 111 5019',stage:'Workshop Delivered',model:'Workshop / Perk',tier:null,score:null,website:'flat6labs.com',region:'Egypt',clients:'2 cohorts/yr · 8–10 startups each',value:0,workshops:2,founders:18,source:'Referral',date:'Apr 5',notes:'Egypt\'s largest accelerator. Ran the "Is your startup visible to AI search?" workshop for one cohort.',activity:[{t:'Workshop slot confirmed',d:'Mar 30'},{t:'Workshop delivered — 18 founders',d:'Apr 5'}]},
+  {id:20,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'V-Lab Team',company:'AUC Venture Lab',role:'Program Lead',email:'vlab@aucegypt.edu',phone:'+20 100 111 5020',stage:'Recurring Relationship',model:'Workshop / Perk',tier:null,score:null,website:'aucegypt.edu',region:'Egypt',clients:'1,000+ entrepreneurs · $356M raised by alumni',value:0,workshops:3,founders:24,source:'Founder network (AUC)',date:'Mar 15',notes:'Abdalla\'s alma mater — warmest door. Now invited back each cycle. Standing perk.',activity:[{t:'First workshop delivered',d:'Feb 20'},{t:'Invited back for Spring cohort',d:'Mar 15'}]},
+  {id:21,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'Incubator Team',company:'Nahdet El-Mahrousa',role:'Coordinator',email:'info@nahdetmasr.org',phone:'+20 100 111 5021',stage:'Conversation',model:'Workshop / Perk',tier:null,score:null,website:'nahdetmasr.org',region:'Egypt',clients:'30+ social enterprises supported',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 12',notes:'Social-enterprise incubator. Different founder population. Early conversation.',activity:[{t:'Intro email sent',d:'Apr 12'}]},
+  // ── PARTNERS · Portfolio 2 · Government & National Dev ──
+  {id:22,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'Innovation Team',company:'TIEC',role:'Partnerships Officer',email:'info@tiec.gov.eg',phone:'+20 100 111 5022',stage:'Conversation',model:'Education Partner',tier:null,score:null,website:'tiec.gov.eg',region:'Egypt',clients:'National tech entrepreneurship center (ITIDA)',value:0,workshops:0,founders:0,source:'Inbound',date:'Apr 8',notes:'Framed around strengthening their curriculum, never as a sales channel. Masterclass proposed.',activity:[{t:'Masterclass concept sent',d:'Apr 8'}]},
+  {id:23,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'Industry Development',company:'ITIDA',role:'Program Officer',email:'info@itida.gov.eg',phone:'+20 100 111 5023',stage:'Awareness',model:'Education Partner',tier:null,score:null,website:'itida.gov.eg',region:'Egypt',clients:'National ICT industry agency',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 14',notes:'Parent agency of TIEC — target separately for established software exporters.',activity:[{t:'Approach planned',d:'Apr 14'}]},
+  {id:24,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'SME Programs',company:'MSMEDA',role:'Advisor',email:'info@msmeda.org.eg',phone:'+20 100 111 5024',stage:'Awareness',model:'Education Partner',tier:null,score:null,website:'msmeda.org.eg',region:'Egypt',clients:'National SME development agency',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 15',notes:'SMEs may have enough digital presence for real audits, not just education.',activity:[{t:'Added to pipeline',d:'Apr 15'}]},
+
+  // ── CUSTOMERS ──
+  {id:40,pipeline:'customers',name:'Sara Rashid',company:'Noon.com',role:'Head of Marketing',email:'sara@noon.com',phone:'+20 100 222 4040',stage:'Pilot',sector:'E-Commerce',package:'Audit + Content',aiScore:71,value:26000,leadSource:'LinkedIn',referredBy:null,source:'LinkedIn',date:'Apr 12',notes:'Interested in the GEO package. Pilot running on 20 product categories.',activity:[{t:'Demo completed',d:'Apr 10'},{t:'Pilot scope agreed',d:'Apr 12'}]},
+  {id:41,pipeline:'customers',name:'Laila Amin',company:'Vezeeta',role:'Head of Growth',email:'laila@vezeeta.com',phone:'+20 100 222 4041',stage:'Discovery Call',sector:'Health Tech',package:'Audit',aiScore:58,value:12000,leadSource:'Community',referredBy:null,source:'Community',date:'Apr 13',notes:'Came in through the WhatsApp community. Booked a discovery call.',activity:[{t:'Joined community',d:'Apr 9'},{t:'Discovery call booked',d:'Apr 13'}]},
+  {id:42,pipeline:'customers',name:'Fady Nasser',company:'Talabat',role:'CMO',email:'fnasser@talabat.com',phone:'+20 100 222 4042',stage:'Audit Delivered',sector:'Food & Restaurant',package:'Audit',aiScore:63,value:18000,leadSource:'LinkedIn',referredBy:null,source:'LinkedIn',date:'Apr 11',notes:'Audit delivered — low visibility in Arabic AI search. Reviewing recommendations.',activity:[{t:'Audit requested',d:'Apr 8'},{t:'Audit delivered — score 63',d:'Apr 11'}]},
+  {id:43,pipeline:'customers',name:'Mona Abdelaziz',company:'Namshi',role:'Head of Growth',email:'mona@namshi.com',phone:'+971 50 222 4043',stage:'Proposal',sector:'E-Commerce',package:'Audit + Content + Reference',aiScore:66,value:14500,leadSource:'Referral',referredBy:2,source:'Referral',date:'Apr 1',notes:'Referred by Room 11. Losing visibility to AI shopping summaries. Proposal leads with CTR data.',activity:[{t:'Referred by Room 11',d:'Mar 28'},{t:'Proposal sent',d:'Apr 1'}]},
+  {id:44,pipeline:'customers',name:'Sherif Aly',company:'Jumia Egypt',role:'VP Digital Marketing',email:'sherif.aly@jumia.com',phone:'+20 100 222 4044',stage:'Audit Requested',sector:'E-Commerce',package:'—',aiScore:null,value:19000,leadSource:'Inbound',referredBy:null,source:'Inbound',date:'Apr 15',notes:'Wants an audit across 50 top product categories. Arabic descriptions are the key concern.',activity:[{t:'Audit form submitted',d:'Apr 15'}]},
+  {id:45,pipeline:'customers',name:'Khaled Nasser',company:'Reem Al Bawadi',role:'Marketing Director',email:'khaled@reemalbawadi.com',phone:'+971 50 222 4045',stage:'Active Client',sector:'Food & Restaurant',package:'Full Stack',aiScore:82,value:30000,leadSource:'Partner',referredBy:2,source:'Partner',date:'Mar 10',notes:'Won via Room 11 reseller. Now cited by ChatGPT for "best Lebanese restaurants Dubai".',activity:[{t:'Referred by Room 11',d:'Feb 28'},{t:'Contract signed',d:'Mar 10'}]},
+  {id:46,pipeline:'customers',name:'Amira Hassan',company:'Fordeal MENA',role:'Digital Director',email:'ahassan@fordeal.com',phone:'+20 100 222 4046',stage:'Active Client',sector:'E-Commerce',package:'Audit + Content',aiScore:84,value:8500,leadSource:'Cold Outreach',referredBy:null,source:'Cold Outreach',date:'Mar 12',notes:'Arabic product visibility inside Perplexity and SGE. Renewed for 12 months.',activity:[{t:'Contract signed',d:'Mar 12'}]},
+
+  // ── INVESTORS ──
+  {id:60,pipeline:'investors',name:'Tarek El Ghamry',company:'Algebra Ventures',role:'General Partner',email:'tarek@algebra.vc',phone:'+20 100 333 6060',stage:'First Meeting',fundSize:'$80M',thesis:'MENA SaaS Infrastructure',value:500000,source:'Event',date:'Apr 9',notes:'Interested in the GEO infrastructure thesis. Wants MRR trajectory and retention cohorts.',activity:[{t:'Met at RiseUp Summit',d:'Apr 6'},{t:'Pitch deck sent',d:'Apr 8'}]},
+  {id:61,pipeline:'investors',name:'Lina Khalaf',company:'Shorooq Partners',role:'Investment Manager',email:'lkhalaf@shorooq.vc',phone:'+971 50 333 6061',stage:'Due Diligence',fundSize:'$150M',thesis:'MENA B2B SaaS',value:750000,source:'LinkedIn',date:'Apr 4',notes:'Backed Salla and Foodics. Asked for a full data room by April 20.',activity:[{t:'Connection via Anwar',d:'Apr 1'},{t:'Data room requested',d:'Apr 4'}]},
+  {id:62,pipeline:'investors',name:'Hassan Mekkawy',company:'Flat6Labs (Fund)',role:'Managing Partner',email:'hmekkawy@flat6labs.com',phone:'+20 100 333 6062',stage:'Prospecting',fundSize:'$40M',thesis:'MENA Early Stage',value:250000,source:'Referral',date:'Apr 13',notes:'Exploring portfolio-wide GEO access vs pure equity.',activity:[{t:'Referral from Dr. Ahmed Samy',d:'Apr 12'}]},
+  {id:63,pipeline:'investors',name:'Nadia Al Saad',company:'STV',role:'Principal',email:'nadia@stv.com',phone:'+966 50 333 6063',stage:'Term Sheet',fundSize:'$500M',thesis:'Gulf Deep Tech',value:1000000,source:'Cold Outreach',date:'Mar 25',notes:'Term sheet discussion ongoing. Valuation gap ~20%. Anwar leading.',activity:[{t:'First pitch',d:'Mar 23'},{t:'Term sheet draft received',d:'Apr 10'}]},
+  {id:64,pipeline:'investors',name:'Karim Beshara',company:'500 Global MENA',role:'Partner',email:'kbeshara@500.co',phone:'+20 100 333 6064',stage:'First Meeting',fundSize:'$143M',thesis:'Global Emerging Markets',value:150000,source:'LinkedIn',date:'Apr 7',notes:'Wants to understand GEO CAC vs LTV before a second call.',activity:[{t:'First call completed',d:'Apr 7'}]},
+  {id:65,pipeline:'investors',name:'Sara Hamdan',company:'Wamda Capital',role:'Investment Associate',email:'shamdan@wamda.com',phone:'+971 50 333 6065',stage:'Closed',fundSize:'$75M',thesis:'MENA Digital Growth',value:300000,source:'Referral',date:'Mar 5',notes:'Seed convertible note closed. Strategic intros to 3 portfolio companies included.',activity:[{t:'Term sheet agreed',d:'Mar 3'},{t:'Note signed — seed closed',d:'Mar 5'}]}
+];
+let records = [];
+let nextId=100;
+
+// ══════════════ STATE ══════════════
+let state={pipeline:'partners',portfolio:1};
+let currentId=null,prevPage='pipeline';
+let drag={active:false};
+
+// ══════════════ HELPERS ══════════════
+const ini=n=>(n||'?').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+const avc=id=>AV_COLORS[Math.abs(id)%AV_COLORS.length];
+const fv=v=>!v?'$0':v>=1000000?'$'+(v/1000000).toFixed(1)+'M':v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v;
+const ff=v=>!v?'$0':'$'+v.toLocaleString();
+function activeStages(){ if(state.pipeline==='partners') return STAGES['partners'+state.portfolio]; return STAGES[state.pipeline]; }
+function activeRecords(){ return records.filter(r=>r.pipeline===state.pipeline && (state.pipeline!=='partners'||r.portfolio===state.portfolio)); }
+function pipelineRecords(p){ return records.filter(r=>r.pipeline===p); }
+function stagePill(stage){ const c=STAGE_COLOR[stage]||'#888780'; return `<span class="stage-pill" style="background:${c}1F;color:${c};">${stage}</span>`; }
+function catChip(cat){ const m=CAT_META[cat]; if(!m) return ''; return `<span class="chip" style="background:${m.bg};color:${m.c};">${cat.replace(' & ','/').replace('Startup Development Orgs','Accelerator').replace('Government & National Dev','Government').replace('SaaS & E-commerce Platforms','Platform').replace('Operational Touchpoint','Logistics').replace('Marketing Agencies','Agency')}</span>`; }
+function tierPill(t){ if(!t) return ''; return `<span class="tier-pill t${t}">Tier ${t}</span>`; }
+function isP2(){ return state.pipeline==='partners'&&state.portfolio===2; }
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('show'),2400);}
+function findRecord(q){ if(q==null)return null; if(typeof q==='number'||/^\d+$/.test(q)) return records.find(r=>r.id===Number(q)); const s=(''+q).toLowerCase(); return records.find(r=>r.name.toLowerCase()===s||r.company.toLowerCase()===s) || records.find(r=>r.name.toLowerCase().includes(s)||r.company.toLowerCase().includes(s)); }
+
+// ══════════════ SUPABASE PERSISTENCE ══════════════
+async function loadRecords(){
+  if(!sb){ records = SEED_RECORDS.slice(); nextId = Math.max(100, ...records.map(r=>r.id||0)); return; }
+  const {data, error} = await sb.from('records').select('*').order('id');
+  if(error){ console.error(error); records = SEED_RECORDS.slice(); }
+  else if(data && data.length){ records = data; }
+  else { records = SEED_RECORDS.slice(); }
+  nextId = Math.max(100, ...records.map(r=>r.id||0));
+}
+async function saveRecord(r){
+  if(!sb) return;
+  const {error} = await sb.from('records').upsert(r);
+  if(error){ console.error(error); showToast('Sync failed — change kept locally only'); }
+}
+async function deleteRecordRemote(id){
+  if(!sb) return;
+  const {error} = await sb.from('records').delete().eq('id', id);
+  if(error){ console.error(error); showToast('Sync failed — delete kept locally only'); }
+}
+
+// ══════════════ NEXT STEPS (customers) ══════════════
+const DEFAULT_NEXT_STEPS=['Send proposal','Schedule demo','Follow up call','Send contract','Onboarding kickoff','Check in'];
+let nextStepOptions=DEFAULT_NEXT_STEPS.slice();
+async function loadNextStepOptions(){
+  if(!sb) return;
+  const {data,error}=await sb.from('next_step_options').select('*').order('id');
+  if(!error && data && data.length) nextStepOptions=data.map(o=>o.label);
+}
+async function addNextStepOption(label){
+  label=(label||'').trim(); if(!label) return null;
+  if(!nextStepOptions.includes(label)){
+    nextStepOptions.push(label);
+    if(sb){ const {error}=await sb.from('next_step_options').insert({label}); if(error) console.error(error); }
+  }
+  return label;
+}
+function nextStepSelectHtml(selected){
+  return nextStepOptions.map(o=>`<option ${o===selected?'selected':''}>${o}</option>`).join('')+'<option value="__add__">+ Add new...</option>';
+}
+async function handleNextStepChange(sel){
+  if(sel.value==='__add__'){
+    const label=prompt('New next-step option:');
+    if(label){ await addNextStepOption(label); sel.innerHTML=nextStepSelectHtml(label); }
+    else sel.value=nextStepOptions[0]||'';
+  }
+}
+async function changeNextStep(id,sel){
+  let val=sel.value;
+  if(val==='__add__'){
+    const label=prompt('New next-step option:');
+    if(!label){ renderDetail(); return; }
+    val=await addNextStepOption(label);
+  }
+  const r=records.find(x=>x.id===id); if(!r)return;
+  r.nextStep=val; saveRecord(r); refreshView();
+}
+
+// ══════════════ AGENCY SCORING ══════════════
+function scoreAgency(inp){
+  if(inp.listsGeo) return {skip:true,reason:'Lists GEO/AEO as a service — competitor',score:0,tier:null,lines:[]};
+  if(inp.offlineOnly) return {skip:true,reason:'Purely offline marketing',score:0,tier:null,lines:[]};
+  if(inp.leadgenOnly) return {skip:true,reason:'Pure lead-generation only',score:0,tier:null,lines:[]};
+  if(inp.clientType==='b2b') return {skip:false,gate:true,score:null,tier:2,lines:[['Pure B2B client base','Auto Tier 2']]};
+  let s=0; const lines=[];
+  if(inp.clientType==='b2c'){s+=20;lines.push(['Pure B2C / e-commerce clients','+20']);}
+  else if(inp.clientType==='mixed'){s+=10;lines.push(['Mixed B2B/B2C clients','+10']);}
+  const sv=inp.services||[];
+  if(sv.includes('seo')){s+=20;lines.push(['SEO service','+20']);}
+  if(sv.includes('content')){s+=15;lines.push(['Content service','+15']);}
+  if(sv.includes('ads')){s+=10;lines.push(['Ads / Performance','+10']);}
+  if(sv.includes('brand')){s+=10;lines.push(['Brand strategy','+10']);}
+  const r=Number(inp.rosterSize)||0;
+  if(r>=20){s+=20;lines.push(['Client roster 20+','+20']);}
+  else if(r>=10){s+=10;lines.push(['Client roster 10–19','+10']);}
+  else lines.push(['Client roster under 10','+0']);
+  if(inp.namedSeoTeam){s+=15;lines.push(['Named SEO team','+15']);}
+  const tier=s>=50?1:s>=25?2:3;
+  return {skip:false,score:s,tier,lines};
+}
+
+// ══════════════ PIPELINE / PORTFOLIO SWITCH ══════════════
+function setPipeline(p){
+  state.pipeline=p; if(p==='partners'&&!state.portfolio) state.portfolio=1;
+  document.body.className='pl-'+p;
+  document.querySelectorAll('.pl-btn').forEach(b=>b.classList.toggle('active',b.dataset.pl===p));
+  const isPartners=p==='partners';
+  document.getElementById('portfolio-toggle').style.display=isPartners?'':'none';
+  document.getElementById('score-btn').style.display=isPartners?'':'none';
+  document.getElementById('topbar-mode-chip').textContent={partners:'Partners',customers:'Customers',investors:'Investors'}[p];
+  document.getElementById('nav-section-label').textContent={partners:'Partnerships',customers:'Sales',investors:'Fundraising'}[p];
+  document.getElementById('nav-pipeline-label').textContent={partners:'Pipeline',customers:'Pipeline',investors:'Deal Flow'}[p];
+  document.getElementById('nav-directory-label').textContent={partners:'Directory',customers:'Contacts',investors:'Investors'}[p];
+  const addLbl={partners:'Add Partner',customers:'Add Customer',investors:'Add Investor'}[p];
+  document.getElementById('add-btn-label').textContent=addLbl;
+  document.getElementById('add-btn-label2').textContent=addLbl;
+  const o=OWNERS[p]; document.getElementById('user-name').textContent=o.name; document.getElementById('user-role').textContent=o.role; document.getElementById('user-av').textContent=o.ini;
+  showPage('dashboard');
+}
+function setPortfolio(pf){
+  state.portfolio=pf;
+  document.getElementById('pf1-btn').classList.toggle('active',pf===1);
+  document.getElementById('pf2-btn').classList.toggle('active',pf===2);
+  const active=document.querySelector('.page.active').id.replace('page-','');
+  showPage(active==='detail'?'pipeline':active);
+}
+
+// ══════════════ NAVIGATION ══════════════
+function showPage(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  ['dashboard','pipeline','directory','analytics'].forEach(n=>document.getElementById('nav-'+n).classList.toggle('active',n===page));
+  document.getElementById('page-'+page).classList.add('active');
+  const rec=records.find(r=>r.id===currentId);
+  const titles={dashboard:'Dashboard',pipeline:state.pipeline==='investors'?'Deal Flow':'Pipeline',directory:{partners:'Directory',customers:'Contacts',investors:'Investors'}[state.pipeline],analytics:'Analytics',detail:rec?rec.name:'Detail'};
+  document.getElementById('topbar-title').textContent=titles[page]||page;
+  if(page==='dashboard')renderDashboard();
+  if(page==='pipeline')renderPipeline();
+  if(page==='directory')renderDirectory();
+  if(page==='analytics')renderAnalytics();
+}
+function goBack(){ showPage(prevPage); }
+function updateBadge(){ document.getElementById('nav-badge').textContent=activeRecords().filter(r=>!TERMINAL.has(r.stage)).length; }
+
+// ══════════════ DASHBOARD ══════════════
+function renderDashboard(){
+  const recs=activeRecords(), stages=activeStages();
+  const total=recs.length;
+  const won=recs.filter(r=>TERMINAL.has(r.stage));
+  const active=recs.filter(r=>!TERMINAL.has(r.stage));
+  updateBadge();
+  let cards;
+  if(isP2()){
+    const wshops=recs.reduce((s,r)=>s+(r.workshops||0),0);
+    const founders=recs.reduce((s,r)=>s+(r.founders||0),0);
+    cards=[['Ecosystem partners',total,'All'],['Workshops delivered',wshops,'Leading indicator'],['Founders reached',founders,'Educated'],['Recurring / Ecosystem',won.length,'Standing']];
+  } else {
+    const pipeVal=active.reduce((s,r)=>s+(r.value||0),0);
+    const l1={partners:'Total partners',customers:'Total customers',investors:'Total investors'}[state.pipeline];
+    const l3={partners:'Revenue partners',customers:'Active clients',investors:'Closed'}[state.pipeline];
+    const l4={partners:'Potential ARR',customers:'Pipeline value',investors:'Open raise'}[state.pipeline];
+    cards=[[l1,total,'All'],['In pipeline',active.length,'Active'],[l3,won.length,total?((won.length/total)*100).toFixed(0)+'% rate':'0%'],[l4,fv(pipeVal),'Open']];
+  }
+  document.getElementById('stats-grid').innerHTML=cards.map(c=>`<div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-value">${c[1]}</div><div class="stat-delta">${c[2]}</div></div>`).join('');
+
+  document.getElementById('dash-table-title').textContent='Recent '+{partners:'partners',customers:'customers',investors:'investors'}[state.pipeline];
+  const valCol=isP2()?'Founders':(state.pipeline==='investors'?'Target':'Value');
+  document.getElementById('dash-thead').innerHTML=`<tr><th>Name</th><th>${state.pipeline==='partners'?'Category':state.pipeline==='customers'?'Sector':'Firm'}</th><th>${valCol}</th><th>Stage</th></tr>`;
+  document.getElementById('recent-body').innerHTML=recs.slice(0,7).map(r=>`
+    <tr onclick="openDetail(${r.id})">
+      <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name||r.company)}</div><div><div class="ln">${r.name}</div><div class="lc">${r.company}</div></div></div></td>
+      <td>${state.pipeline==='partners'?catChip(r.category):`<span class="lc">${r.sector||r.thesis||'—'}</span>`}</td>
+      <td style="font-weight:500;">${isP2()?(r.founders||0):fv(r.value)}</td>
+      <td>${stagePill(r.stage)}</td>
+    </tr>`).join('');
+
+  document.getElementById('funnel-title').textContent=isP2()?'Ecosystem funnel':'Funnel';
+  const counts={}; stages.forEach(s=>counts[s]=recs.filter(r=>r.stage===s).length);
+  const mx=Math.max(...Object.values(counts),1);
+  document.getElementById('funnel-chart').innerHTML=stages.map(s=>`
+    <div class="funnel-row"><div class="funnel-label">${s}</div>
+    <div class="funnel-bar-bg"><div class="funnel-bar" style="width:${(counts[s]/mx)*100}%;background:${STAGE_COLOR[s]};"></div></div>
+    <div class="funnel-count">${counts[s]}</div></div>`).join('');
+
+  const acts=[];
+  recs.forEach(r=>r.activity.forEach((a,i)=>acts.push({text:`${r.company}: ${a.t}`,time:a.d,color:STAGE_COLOR[r.stage],order:r.id*100+i})));
+  acts.sort((a,b)=>b.order-a.order);
+  document.getElementById('activity-feed').innerHTML=acts.slice(0,8).map(a=>`
+    <div class="act-item"><div class="act-dot-wrap"><div class="act-dot" style="background:${a.color}"></div></div>
+    <div><div class="act-text">${a.text}</div><div class="act-time">${a.time}</div></div></div>`).join('');
+}
+
+// ══════════════ KANBAN ══════════════
+function buildCard(r){
+  let extra='';
+  if(state.pipeline==='partners'&&!isP2()) extra=`<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap;">${catChip(r.category)}${tierPill(r.tier)}</div>`;
+  else if(isP2()) extra=`<div style="margin-bottom:8px;">${catChip(r.category)}</div>`;
+  else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span>${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${r.nextStep}</span>`:''}</div>`;
+  else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${r.fundSize||''} · ${r.thesis||''}</div>`;
+  const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
+  return `<div class="k-card" id="kcard-${r.id}" data-id="${r.id}"
+    onmousedown="dragStart(event,${r.id})"
+    onclick="if(!window._wasDrag)openDetail(${r.id});window._wasDrag=false;">
+    <div class="k-card-top">
+      <div class="av ${avc(r.id)}" style="width:28px;height:28px;font-size:9px;">${ini(r.name||r.company)}</div>
+      <div class="k-card-info"><div class="kn">${r.name}</div><div class="kc">${r.company}</div></div>
+    </div>
+    ${extra}${bottom}
+    <div class="k-card-footer"><span class="k-card-source">${r.model||r.source}</span><span class="k-card-date">${r.date}</span></div>
+  </div>`;
+}
+function dragStart(e,id){
+  if(e.button!==0)return;
+  const card=document.getElementById('kcard-'+id); if(!card)return;
+  const rect=card.getBoundingClientRect();
+  drag={active:false,id,fromStage:records.find(r=>r.id===id)?.stage,startX:e.clientX,startY:e.clientY,offsetX:e.clientX-rect.left,offsetY:e.clientY-rect.top,overStage:null};
+  window._wasDrag=false;
+  const onMove=ev=>{
+    const dx=ev.clientX-drag.startX,dy=ev.clientY-drag.startY;
+    if(!drag.active&&Math.sqrt(dx*dx+dy*dy)>6){
+      drag.active=true;window._wasDrag=true;
+      const clone=document.getElementById('drag-clone');
+      clone.innerHTML=buildCard(records.find(r=>r.id===id));
+      clone.style.cssText=`position:fixed;pointer-events:none;z-index:9999;width:${rect.width}px;left:${rect.left}px;top:${rect.top}px;transform:rotate(2deg) scale(1.03);box-shadow:var(--shadow-drag);border-radius:var(--r-md);opacity:1;`;
+      card.classList.add('dragging');
+    }
+    if(!drag.active)return;
+    const clone=document.getElementById('drag-clone');
+    clone.style.left=(ev.clientX-drag.offsetX)+'px';
+    clone.style.top=(ev.clientY-drag.offsetY)+'px';
+    let found=null;
+    document.querySelectorAll('.kanban-col').forEach(col=>{
+      const cr=col.getBoundingClientRect();col.classList.remove('drag-over');
+      if(ev.clientX>=cr.left&&ev.clientX<=cr.right&&ev.clientY>=cr.top&&ev.clientY<=cr.bottom)found=col.dataset.stage;
+    });
+    drag.overStage=found;
+    if(found)document.querySelector(`.kanban-col[data-stage="${found}"]`)?.classList.add('drag-over');
+  };
+  const onUp=()=>{
+    document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);
+    document.getElementById('drag-clone').style.opacity='0';
+    document.getElementById('kcard-'+id)?.classList.remove('dragging');
+    document.querySelectorAll('.kanban-col').forEach(c=>c.classList.remove('drag-over'));
+    if(drag.active&&drag.overStage&&drag.overStage!==drag.fromStage)applyStage(id,drag.overStage,true);
+    drag.active=false;
+  };
+  document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);
+}
+function applyStage(id,newStage,toast){
+  const r=records.find(x=>x.id===id); if(!r||r.stage===newStage)return;
+  const old=r.stage; r.stage=newStage;
+  r.activity.push({t:`Stage: ${old} → ${newStage}`,d:'Today'});
+  saveRecord(r);
+  renderPipeline(); updateBadge();
+  if(toast)showToast(`${r.company} → ${newStage}`);
+}
+function renderPipeline(){
+  updateBadge();
+  const recs=activeRecords(), stages=activeStages();
+  const q=(document.getElementById('search-input')||{value:''}).value.toLowerCase();
+  const list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)):recs;
+  document.getElementById('kanban-board').innerHTML=stages.map(stage=>{
+    const cards=list.filter(r=>r.stage===stage);
+    const tot=cards.reduce((s,r)=>s+(r.value||0),0);
+    return `<div class="kanban-col" data-stage="${stage}">
+      <div class="col-header"><div><div class="col-name">${stage}</div>${(!isP2()&&tot)?`<div class="col-total">${fv(tot)}</div>`:''}</div><span class="col-count">${cards.length}</span></div>
+      <div class="col-cards">${cards.map(buildCard).join('')}</div>
+      <button class="add-card-btn" onclick="openModal('${stage}')">+ Add</button>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════ DIRECTORY ══════════════
+function renderDirectory(){
+  const recs=activeRecords();
+  const q=(document.getElementById('dir-search')||{value:''}).value.toLowerCase();
+  const list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)):recs;
+  let head,rowFn;
+  if(state.pipeline==='partners'){
+    head=`<tr><th>Organisation</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th></tr>`;
+    rowFn=r=>`<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name)}</div><div><div class="ln">${r.name}</div><div class="lc">${r.company} · ${r.region||''}</div></div></div></td>
+      <td>${catChip(r.category)}</td><td style="font-size:12px;color:var(--gray-700);">${r.model||'—'}</td>
+      <td>${r.tier?tierPill(r.tier)+' '+(r.score!=null?`<span style="font-size:11px;color:var(--gray-500);">${r.score}</span>`:''):'<span class="lc">—</span>'}</td>
+      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':fv(r.value)}</td>`;
+  } else if(state.pipeline==='customers'){
+    head=`<tr><th>Contact</th><th>Company</th><th>Sector</th><th>AI Score</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th></tr>`;
+    rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null;
+      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name)}</div><div><div class="ln">${r.name}</div></div></div></td>
+      <td style="font-size:12px;color:var(--gray-700);">${r.company}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span></td>
+      <td>${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">${r.aiScore}</span>`:'<span class="lc">—</span>'}</td>
+      <td style="font-size:12px;color:var(--gray-700);">${r.nextStep||'—'}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${r.leadSource}${ref?` · ${ref.company}`:''}</td>
+      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>`;
+  }} else {
+    head=`<tr><th>Contact</th><th>Firm</th><th>Fund</th><th>Thesis</th><th>Stage</th><th>Target</th></tr>`;
+    rowFn=r=>`<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name)}</div><div><div class="ln">${r.name}</div></div></div></td>
+      <td style="font-size:12px;color:var(--gray-700);">${r.company}</td><td style="font-size:12px;">${r.fundSize||'—'}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${r.thesis||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>`;
+  }
+  document.getElementById('dir-thead').innerHTML=head;
+  document.getElementById('dir-body').innerHTML=list.map(r=>`<tr onclick="openDetail(${r.id})">${rowFn(r)}</tr>`).join('');
+}
+
+// ══════════════ CSV / EXCEL IMPORT & EXPORT ══════════════
+const IMPORT_FIELD_MAP={
+  name:['name','contact','contact name'], company:['company','brand','organisation','organization'],
+  role:['role','title'], email:['email'], phone:['phone'], stage:['stage'],
+  pipeline:['pipeline'], value:['value','mrr','arr','target','mrr/yr','mrr per year'], source:['source'],
+  date:['date'], notes:['notes']
+};
+function mapHeaders(headerRow){
+  const norm=h=>(h==null?'':h.toString()).trim().toLowerCase();
+  const idx={};
+  (headerRow||[]).forEach((h,i)=>{
+    const nh=norm(h);
+    for(const [field,aliases] of Object.entries(IMPORT_FIELD_MAP)){
+      if(aliases.includes(nh)) idx[field]=i;
+    }
+  });
+  return idx;
+}
+async function handleImportFile(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const sheet=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+    if(!rows||rows.length<2){showToast('No data rows found in file');ev.target.value='';return;}
+    const idx=mapHeaders(rows[0]);
+    if(idx.company===undefined&&idx.name===undefined){showToast('Could not find name/company columns in the header row');ev.target.value='';return;}
+    const validPipelines=['partners','customers','investors'];
+    const newRecords=[];
+    for(let i=1;i<rows.length;i++){
+      const row=rows[i]; if(!row||!row.length)continue;
+      const get=f=>idx[f]!==undefined?row[idx[f]]:undefined;
+      const company=(get('company')||get('name')||'').toString().trim(); if(!company)continue;
+      let pipeline=(get('pipeline')||'').toString().trim().toLowerCase();
+      if(!validPipelines.includes(pipeline)) pipeline=state.pipeline;
+      const defaultStage=pipeline==='partners'?STAGES.partners1[0]:STAGES[pipeline][0];
+      const r={id:++nextId,pipeline,name:(get('name')||company).toString(),company,
+        role:(get('role')||'').toString(),email:(get('email')||'').toString(),phone:(get('phone')||'').toString(),
+        stage:(get('stage')||defaultStage).toString(),
+        value:Number(get('value'))||0, source:(get('source')||'Import').toString(),
+        date:(get('date')||'Today').toString(), notes:(get('notes')||'').toString(),
+        activity:[{t:'Imported',d:'Today'}]};
+      if(pipeline==='partners'){r.portfolio=1;r.category='Marketing Agencies';r.model='';r.tier=null;r.score=null;r.region='';}
+      else if(pipeline==='customers'){r.sector='General';r.leadSource='Import';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';}
+      else {r.fundSize='';r.thesis='';}
+      newRecords.push(r);
+    }
+    if(!newRecords.length){showToast('No valid rows found to import');ev.target.value='';return;}
+    records.push(...newRecords);
+    if(sb){ const {error}=await sb.from('records').insert(newRecords); if(error){console.error(error);showToast(`Imported ${newRecords.length} records locally, but sync to Supabase failed`);ev.target.value='';refreshView();return;} }
+    showToast(`Imported ${newRecords.length} record(s)`);
+  }catch(e){ console.error(e); showToast('Import failed: '+e.message); }
+  ev.target.value='';
+  refreshView();
+}
+function exportRecords(fmt){
+  const recs=activeRecords();
+  if(!recs.length){showToast('Nothing to export in this view');return;}
+  const rows=recs.map(r=>({
+    id:r.id, pipeline:r.pipeline, name:r.name, company:r.company, role:r.role||'', email:r.email||'',
+    phone:r.phone||'', stage:r.stage, value:r.value||0, source:r.source||'', date:r.date||'', notes:r.notes||'',
+    category:r.category||'', model:r.model||'', tier:r.tier||'', region:r.region||'',
+    sector:r.sector||'', package:r.package||'', aiScore:r.aiScore||'', nextStep:r.nextStep||'',
+    fundSize:r.fundSize||'', thesis:r.thesis||''
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Records');
+  const fname=`zaher-crm-${state.pipeline}-${Date.now()}.${fmt}`;
+  XLSX.writeFile(wb,fname,{bookType:fmt});
+}
+
+// ══════════════ ANALYTICS ══════════════
+function drawBar(id,labels,data,color){
+  const canvas=document.getElementById(id); if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.parentElement.clientWidth-40; canvas.width=W; canvas.height=200;
+  const H=200,pad={t:16,r:16,b:44,l:52},cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  ctx.clearRect(0,0,W,H);
+  const mx=Math.max(...data,1);
+  ctx.strokeStyle='rgba(0,0,0,0.06)';ctx.fillStyle='#888780';ctx.font='10px DM Sans';ctx.textAlign='right';
+  for(let i=0;i<=4;i++){const y=pad.t+cH-(i/4)*cH;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cW,y);ctx.stroke();const v=Math.round((i/4)*mx);ctx.fillText(v>=1000?(v/1000).toFixed(0)+'k':v,pad.l-6,y+3);}
+  const bgW=cW/labels.length,bp=Math.min(16,bgW*0.25),bW=bgW-bp*2;
+  data.forEach((val,i)=>{const bh=(val/mx)*cH,x=pad.l+i*bgW+bp,y=pad.t+cH-bh,r=Math.min(4,bW/2);ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+bW-r,y);ctx.quadraticCurveTo(x+bW,y,x+bW,y+r);ctx.lineTo(x+bW,y+bh);ctx.lineTo(x,y+bh);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();ctx.fill();});
+  ctx.fillStyle='#888780';ctx.textAlign='center';ctx.font='9px DM Sans';
+  labels.forEach((l,i)=>{const words=l.split(' ');const x=pad.l+i*bgW+bgW/2;ctx.fillText((words[0]||'').slice(0,10),x,H-24);if(words[1])ctx.fillText(words.slice(1).join(' ').slice(0,10),x,H-13);});
+}
+function barList(items,color){ const mx=Math.max(...items.map(i=>i.v),1); return items.map(i=>`<div class="bar-row"><div class="bar-name">${i.name}</div><div class="bar-bg"><div class="bar-fill" style="width:${(i.v/mx)*100}%;background:${i.color||color};"></div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${i.extra}</div>`:''}</div>`).join(''); }
+function renderAnalytics(){
+  const recs=activeRecords(), stages=activeStages(), ac=PIPE_ACCENT[state.pipeline];
+  const won=recs.filter(r=>TERMINAL.has(r.stage)), active=recs.filter(r=>!TERMINAL.has(r.stage));
+  // KPIs
+  let kpis;
+  if(isP2()){
+    const w=recs.reduce((s,r)=>s+(r.workshops||0),0),f=recs.reduce((s,r)=>s+(r.founders||0),0);
+    kpis=[['Ecosystem partners',recs.length],['Workshops delivered',w],['Founders reached',f],['Recurring / Ecosystem',won.length]];
+  } else {
+    const allVal=recs.reduce((s,r)=>s+(r.value||0),0),wonVal=won.reduce((s,r)=>s+(r.value||0),0);
+    kpis=[['Total value',fv(allVal)],[{partners:'Signed ARR',customers:'Won revenue',investors:'Capital raised'}[state.pipeline],fv(wonVal)],['Avg deal',fv(recs.length?Math.round(allVal/recs.length):0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
+  }
+  document.getElementById('an-kpis').innerHTML=kpis.map(k=>`<div class="stat-card"><div class="stat-label">${k[0]}</div><div class="stat-value">${k[1]}</div><div class="stat-delta">${state.pipeline}</div></div>`).join('');
+  // stage chart
+  document.getElementById('an-bar-title').textContent=isP2()?'Ecosystem stage — partner count':'Value by stage';
+  const useCount=isP2();
+  const vals=stages.map(s=>recs.filter(r=>r.stage===s).reduce((a,r)=>a+(useCount?1:(r.value||0)),0));
+  setTimeout(()=>drawBar('chart-stage',stages,vals,ac),30);
+  // breakdown
+  let bTitle,bItems;
+  if(state.pipeline==='partners'){
+    bTitle='By category';
+    const cats=[...new Set(recs.map(r=>r.category))];
+    bItems=cats.map(c=>({name:c,v:recs.filter(r=>r.category===c).length,color:CAT_META[c].c,extra:isP2()?recs.filter(r=>r.category===c).reduce((a,r)=>a+(r.founders||0),0)+' reached':fv(recs.filter(r=>r.category===c).reduce((a,r)=>a+(r.value||0),0))}));
+  } else if(state.pipeline==='customers'){
+    bTitle='By sector';
+    const secs=[...new Set(recs.map(r=>r.sector))];
+    bItems=secs.map((c,i)=>({name:c,v:recs.filter(r=>r.sector===c).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.sector===c).reduce((a,r)=>a+(r.value||0),0))}));
+  } else {
+    bTitle='By thesis';
+    const th=[...new Set(recs.map(r=>r.thesis))];
+    bItems=th.map((c,i)=>({name:c,v:recs.filter(r=>r.thesis===c).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.thesis===c).reduce((a,r)=>a+(r.value||0),0))}));
+  }
+  document.getElementById('an-break-title').textContent=bTitle;
+  document.getElementById('an-breakdown').innerHTML=barList(bItems,ac);
+  // two big stats
+  let s1,s2;
+  if(isP2()){
+    s1=['#3B6D11',recs.reduce((s,r)=>s+(r.workshops||0),0),'Workshops delivered',won.length+' recurring'];
+    s2=['#0E7474',recs.reduce((s,r)=>s+(r.founders||0),0),'Founders educated','Leading indicator'];
+  } else {
+    s1=['#3B6D11',fv(won.reduce((s,r)=>s+(r.value||0),0)),{partners:'Signed ARR',customers:'Won revenue',investors:'Capital raised'}[state.pipeline],won.length+' closed'];
+    s2=['#EF9F27',fv(active.reduce((s,r)=>s+(r.value||0),0)),'Open pipeline',active.length+' active'];
+  }
+  document.getElementById('an-stat-1').innerHTML=`<div class="val" style="color:${s1[0]}">${s1[1]}</div><div class="lbl">${s1[2]}</div><div class="sub">${s1[3]}</div>`;
+  document.getElementById('an-stat-2').innerHTML=`<div class="val" style="color:${s2[0]}">${s2[1]}</div><div class="lbl">${s2[2]}</div><div class="sub">${s2[3]}</div>`;
+  // extra: source (or lead-source attribution for customers)
+  if(state.pipeline==='customers'){
+    document.getElementById('an-extra-title').textContent='Lead source & partner attribution';
+    const srcs=[...new Set(recs.map(r=>r.leadSource))];
+    const notFounder=recs.filter(r=>r.leadSource!=='Founder network').length;
+    const items=srcs.map((s,i)=>({name:s,v:recs.filter(r=>r.leadSource===s).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.leadSource===s).reduce((a,r)=>a+(r.value||0),0))}));
+    document.getElementById('an-extra').innerHTML=`<div style="padding:8px 20px 4px;font-size:12px;color:var(--gray-500);">${Math.round(notFounder/recs.length*100)}% of leads are from non-founder-network sources · ${recs.filter(r=>r.referredBy).length} partner-referred</div>`+barList(items,ac);
+  } else {
+    document.getElementById('an-extra-title').textContent='By source';
+    const srcs=[...new Set(recs.map(r=>r.source))];
+    const items=srcs.map((s,i)=>({name:s,v:recs.filter(r=>r.source===s).length,color:PALETTE[i%PALETTE.length]}));
+    document.getElementById('an-extra').innerHTML=barList(items,ac);
+  }
+}
+
+// ══════════════ DETAIL ══════════════
+function openDetail(id){
+  currentId=id;
+  const active=document.querySelector('.page.active');
+  prevPage=active?active.id.replace('page-',''):'pipeline';
+  if(prevPage==='detail')prevPage='pipeline';
+  const r=records.find(x=>x.id===id); if(!r)return;
+  if(r.pipeline!==state.pipeline||(r.pipeline==='partners'&&r.portfolio!==state.portfolio)){ state.pipeline=r.pipeline; if(r.portfolio)state.portfolio=r.portfolio; setPipeline(r.pipeline); if(r.portfolio)setPortfolio(r.portfolio); currentId=id; }
+  renderDetail();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-detail').classList.add('active');
+  document.getElementById('topbar-title').textContent=r.name;
+}
+function renderDetail(){
+  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const stages=state.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];
+  document.getElementById('detail-back-label').textContent='Back';
+  document.getElementById('det-av').className='profile-av '+avc(r.id);
+  document.getElementById('det-av').textContent=ini(r.name||r.company);
+  document.getElementById('det-name').textContent=r.name;
+  document.getElementById('det-role').textContent=r.company+(r.role?' · '+r.role:'');
+  let tags=`<span class="tag">${r.source}</span>${stagePill(r.stage)}`;
+  if(state.pipeline==='partners'){ tags=catChip(r.category)+tierPill(r.tier)+tags; }
+  else if(state.pipeline==='customers'&&r.sector){ tags=`<span class="tag">${r.sector}</span>`+tags; }
+  document.getElementById('det-tags').innerHTML=tags;
+  document.getElementById('det-notes').textContent=r.notes||'—';
+  document.getElementById('det-contact-btn').onclick=()=>showToast('✉ Opening email to '+(r.email||'—'));
+
+  // fields per pipeline
+  let fields=[['Email',r.email,true],['Phone',r.phone,false],['Company',r.company,false]];
+  if(state.pipeline==='partners'){
+    fields.push(['Category',r.category,false],['Model',r.model||'—',false],['Region',r.region||'—',false]);
+    if(!isP2())fields.push(['Potential ARR',ff(r.value),false],['Tier',r.tier?'Tier '+r.tier+(r.score!=null?' ('+r.score+')':''):'—',false]);
+    else fields.push(['Workshops',(r.workshops||0)+'',false],['Founders reached',(r.founders||0)+'',false]);
+    if(r.website)fields.push(['Website',r.website,true]);
+  } else if(state.pipeline==='customers'){
+    const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null;
+    fields.push(['Sector',r.sector,false],['Package',r.package||'—',false],['AI Visibility Score',r.aiScore!=null?r.aiScore+'/100':'—',false],['MRR / yr',ff(r.value),false],['Lead source',r.leadSource+(ref?' · '+ref.company:''),false]);
+  } else {
+    fields.push(['Fund size',r.fundSize||'—',false],['Thesis',r.thesis||'—',false],['Target raise',ff(r.value),false]);
+  }
+  document.getElementById('det-fields').innerHTML=fields.map(([k,v,link])=>`<div class="field-item"><div class="field-key">${k}</div><div class="field-val${link?' link':''}">${v||'—'}</div></div>`).join('');
+  if(state.pipeline==='customers'){
+    document.getElementById('det-fields').innerHTML += `<div class="field-item"><div class="field-key">Next step</div><select class="form-input" style="margin-top:2px;" onchange="changeNextStep(${r.id},this)">${nextStepSelectHtml(r.nextStep)}</select></div>`;
+  }
+
+  // agency score card
+  const scoreCard=document.getElementById('det-score-card');
+  if(state.pipeline==='partners'&&r.category==='Marketing Agencies'&&r.score!=null){
+    scoreCard.style.display='';
+    document.getElementById('det-score-tier').className='tier-pill t'+r.tier;
+    document.getElementById('det-score-tier').textContent='Tier '+r.tier;
+    document.getElementById('det-score-breakdown').innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;"><span class="score-big" style="color:${r.tier===1?'#3B6D11':'#854F0B'}">${r.score}</span><span style="font-size:12px;color:var(--gray-500);">/ 100 · threshold 50 = Tier 1</span></div><div style="font-size:12px;color:var(--gray-500);line-height:1.6;">${r.clients||''}</div>`;
+  } else scoreCard.style.display='none';
+
+  // stage tracker
+  const si=stages.indexOf(r.stage);
+  document.getElementById('det-stages').innerHTML=`<div class="stages-list">${stages.map((s,i)=>{
+    const cls=i<si?'done':i===si?'current':'';const lc=i<si?'done':'';
+    return `<div><div class="stage-step"><div class="stage-node ${cls}" onclick="applyStage(${r.id},'${s}');renderDetail();">${i<si?'✓':i+1}</div><div class="stage-step-name ${cls}">${s}</div></div>${i<stages.length-1?`<div class="stage-line ${lc}"></div>`:''}</div>`;
+  }).join('')}</div>`;
+  let btns='';
+  if(stages[si+1])btns+=`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;flex:1;" onclick="applyStage(${r.id},'${stages[si+1]}',true);renderDetail();">→ ${stages[si+1]}</button>`;
+  if(stages[si-1])btns+=`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="applyStage(${r.id},'${stages[si-1]}',true);renderDetail();">← Back</button>`;
+  document.getElementById('det-stage-actions').innerHTML=btns;
+
+  const acts=r.activity.slice().reverse();
+  document.getElementById('det-timeline').innerHTML=acts.map((a,i)=>`
+    <div class="tl-item"><div class="tl-dot-col"><div class="tl-dot"></div>${i<acts.length-1?'<div class="tl-line"></div>':''}</div>
+    <div style="flex:1;"><div class="tl-text">${a.t}</div><div class="tl-date">${a.d}</div></div></div>`).join('');
+}
+
+// ══════════════ MODALS ══════════════
+function openModal(stage){
+  const p=state.pipeline;
+  document.getElementById('modal-title').textContent={partners:'Add partner',customers:'Add customer',investors:'Add investor'}[p];
+  const stages=activeStages();
+  const stageOpts=stages.map(s=>`<option ${s===stage?'selected':''}>${s}</option>`).join('');
+  let extra='';
+  if(p==='partners'){
+    extra=`<div class="form-row">
+      <div class="form-group"><label class="form-label">Portfolio</label><select class="form-input" id="f-portfolio"><option value="1" ${state.portfolio===1?'selected':''}>1 · Revenue</option><option value="2" ${state.portfolio===2?'selected':''}>2 · Ecosystem</option></select></div>
+      <div class="form-group"><label class="form-label">Category</label><select class="form-input" id="f-category">${Object.keys(CAT_META).map(c=>`<option>${c}</option>`).join('')}</select></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Model</label><input class="form-input" id="f-model" placeholder="Referral / Reseller / ..."></div>
+      <div class="form-group"><label class="form-label">Potential ARR ($)</label><input class="form-input" type="number" id="f-value" placeholder="20000"></div></div>`;
+  } else if(p==='customers'){
+    extra=`<div class="form-row"><div class="form-group"><label class="form-label">Sector</label><input class="form-input" id="f-sector" placeholder="E-Commerce"></div>
+      <div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" id="f-value" placeholder="12000"></div></div>
+      <div class="form-group"><label class="form-label">Lead source</label><input class="form-input" id="f-leadsource" placeholder="LinkedIn / Community / Partner"></div>
+      <div class="form-group"><label class="form-label">Next step</label><select class="form-input" id="f-nextstep" onchange="handleNextStepChange(this)">${nextStepSelectHtml(nextStepOptions[0])}</select></div>`;
+  } else {
+    extra=`<div class="form-row"><div class="form-group"><label class="form-label">Fund size</label><input class="form-input" id="f-fundsize" placeholder="$80M"></div>
+      <div class="form-group"><label class="form-label">Target raise ($)</label><input class="form-input" type="number" id="f-value" placeholder="500000"></div></div>
+      <div class="form-group"><label class="form-label">Thesis</label><input class="form-input" id="f-thesis" placeholder="MENA SaaS"></div>`;
+  }
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-row"><div class="form-group"><label class="form-label">${p==='partners'?'Organisation':'Company / Brand'} *</label><input class="form-input" id="f-company" placeholder="Company"></div>
+    <div class="form-group"><label class="form-label">Contact name</label><input class="form-input" id="f-name" placeholder="Person"></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Role</label><input class="form-input" id="f-role" placeholder="Title"></div>
+    <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f-email" placeholder="name@company.com"></div></div>
+    ${extra}
+    <div class="form-row"><div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>
+    <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="f-source" placeholder="LinkedIn"></div></div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="f-notes" rows="2" placeholder="Context..."></textarea></div>`;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+function val(id){const el=document.getElementById(id);return el?el.value.trim():'';}
+function addRecord(){
+  const company=val('f-company'); if(!company){showToast('Organisation name is required');return;}
+  const p=state.pipeline;
+  const r={id:++nextId,pipeline:p,name:val('f-name')||company,company,role:val('f-role'),email:val('f-email'),phone:'',stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:val('f-notes'),value:Number(val('f-value'))||0,activity:[{t:'Added to CRM',d:'Today'}]};
+  if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}
+  else if(p==='customers'){r.sector=val('f-sector')||'General';r.leadSource=val('f-leadsource')||'Manual';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';}
+  else {r.fundSize=val('f-fundsize');r.thesis=val('f-thesis');}
+  records.push(r); closeModal(); saveRecord(r);
+  if(p==='partners')state.portfolio=r.portfolio;
+  showPage('pipeline'); showToast(`${company} added`);
+}
+let deleteId=null;
+function confirmDelete(){deleteId=currentId;const r=records.find(x=>x.id===currentId);document.getElementById('confirm-msg').textContent=`This removes ${r.company} from the CRM. This can't be undone.`;document.getElementById('confirm-overlay').classList.add('open');}
+function closeConfirm(){document.getElementById('confirm-overlay').classList.remove('open');}
+function execDelete(){const r=records.find(x=>x.id===deleteId);records=records.filter(x=>x.id!==deleteId);deleteRecordRemote(deleteId);closeConfirm();showToast(`${r?r.company:'Record'} deleted`);goBack();}
+
+// ══════════════ SCORER ══════════════
+function openScorer(){document.getElementById('scorer').classList.add('open');document.getElementById('sc-result').style.display='none';}
+function closeScorer(){document.getElementById('scorer').classList.remove('open');}
+function runScorer(){
+  const inp={listsGeo:document.getElementById('sc-geo').checked,offlineOnly:document.getElementById('sc-offline').checked,leadgenOnly:document.getElementById('sc-leadgen').checked,
+    clientType:document.getElementById('sc-client').value,
+    services:['seo','content','ads','brand'].filter(s=>document.getElementById('sc-'+s).checked),
+    rosterSize:document.getElementById('sc-roster').value,namedSeoTeam:document.getElementById('sc-team').checked};
+  const res=scoreAgency(inp);
+  const box=document.getElementById('sc-result'); box.style.display='';
+  if(res.skip){ box.innerHTML=`<div style="font-size:18px;font-weight:700;color:var(--red-400);">Skip</div><div style="font-size:12px;color:var(--gray-500);margin-top:4px;">${res.reason}</div>`; return; }
+  if(res.gate){ box.innerHTML=`<div style="font-size:22px;font-weight:700;color:var(--amber-600);">Tier 2</div><div style="font-size:12px;color:var(--gray-500);margin-top:4px;">Pure B2B — auto-placed, scoring skipped</div>`; return; }
+  const col=res.tier===1?'#3B6D11':res.tier===2?'#854F0B':'#888780';
+  box.innerHTML=`<div style="font-size:34px;font-weight:700;letter-spacing:-1.5px;color:${col};">${res.score}</div><div class="tier-pill t${res.tier}" style="margin:4px 0 10px;">Tier ${res.tier}</div>
+    <div style="text-align:left;font-size:12px;">${res.lines.map(l=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--border);"><span style="color:var(--gray-700);">${l[0]}</span><span style="font-weight:600;color:${col};">${l[1]}</span></div>`).join('')}</div>`;
+}
+
+// ══════════════ CHATBOT ══════════════
+let chatHistory=[]; let chatBusy=false;
+const SUGGESTIONS=[
+  'Which Tier 1 agencies are still at Awareness?',
+  'Move Steps to Educational Collaboration',
+  'How many founders have we reached in Portfolio 2?',
+  'Score an agency: mixed clients, SEO + content, 25 clients, named SEO team',
+  'Which customers were referred by Room 11?'
+];
+const TOOLS=[
+  {type:'function',function:{name:'move_stage',description:'Move a record to a different stage in its pipeline.',parameters:{type:'object',properties:{record:{type:'string',description:'Company or contact name'},stage:{type:'string',description:'Target stage name'}},required:['record','stage']}}},
+  {type:'function',function:{name:'update_record',description:'Update fields on a record (value, notes, model, tier, aiScore, package, nextStep, etc.).',parameters:{type:'object',properties:{record:{type:'string'},field:{type:'string',description:'field name e.g. value, notes, model, aiScore, package, region, nextStep'},value:{type:'string'}},required:['record','field','value']}}},
+  {type:'function',function:{name:'add_record',description:'Add a new record to a pipeline.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors']},company:{type:'string'},name:{type:'string'},stage:{type:'string'},category:{type:'string'},portfolio:{type:'number'},value:{type:'number'},sector:{type:'string'}},required:['pipeline','company']}}},
+  {type:'function',function:{name:'delete_record',description:'Delete a record from the CRM.',parameters:{type:'object',properties:{record:{type:'string'}},required:['record']}}},
+  {type:'function',function:{name:'log_activity',description:'Log an activity note on a record.',parameters:{type:'object',properties:{record:{type:'string'},text:{type:'string'}},required:['record','text']}}},
+  {type:'function',function:{name:'score_agency',description:'Run the agency qualification scoring rubric and return score + tier.',parameters:{type:'object',properties:{clientType:{type:'string',enum:['b2c','mixed','b2b']},services:{type:'array',items:{type:'string',enum:['seo','content','ads','brand']}},rosterSize:{type:'number'},namedSeoTeam:{type:'boolean'},listsGeo:{type:'boolean'},offlineOnly:{type:'boolean'},leadgenOnly:{type:'boolean'}},required:['clientType']}}},
+  {type:'function',function:{name:'switch_pipeline',description:'Switch the visible pipeline / portfolio.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors']},portfolio:{type:'number',enum:[1,2]}},required:['pipeline']}}}
+];
+function snapshot(){
+  return records.map(r=>{const o={id:r.id,pipeline:r.pipeline,company:r.company,contact:r.name,stage:r.stage};
+    if(r.pipeline==='partners'){o.portfolio=r.portfolio;o.category=r.category;o.model=r.model;o.tier=r.tier;o.score=r.score;if(r.portfolio===2){o.workshops=r.workshops;o.founders=r.founders;}else o.value=r.value;}
+    else if(r.pipeline==='customers'){o.sector=r.sector;o.aiScore=r.aiScore;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;if(r.referredBy){const p=records.find(x=>x.id===r.referredBy);o.referredBy=p?p.company:null;}}
+    else {o.fundSize=r.fundSize;o.thesis=r.thesis;o.targetRaise=r.value;}
+    return o;});
+}
+function buildSystem(){
+  return `You are the assistant inside Zaher.AI's CRM. Zaher.AI is an Arabic GEO (Generative Engine Optimization / AI Visibility) company that helps Arabic brands get cited in AI search (ChatGPT, Gemini, Perplexity).
+
+The CRM has THREE pipelines:
+- partners: partner organisations. Two portfolios. Portfolio 1 (Revenue) stages: ${STAGES.partners1.join(' → ')}. Categories: Marketing Agencies, SaaS & E-commerce Platforms, Operational Touchpoint. Portfolio 2 (Ecosystem, measured on workshops/founders not revenue) stages: ${STAGES.partners2.join(' → ')}. Categories: Startup Development Orgs, Government & National Dev.
+- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Some are referred by partners.
+- investors: fundraising. Stages: ${STAGES.investors.join(' → ')}.
+
+Agency scoring rubric (use score_agency): hard-skip if lists GEO/AEO, offline-only, or lead-gen-only. Pure B2B => auto Tier 2. Otherwise points: B2C +20 / mixed +10; SEO +20; Content +15; Ads +10; Brand +10; roster 20+ +20 / 10-19 +10; named SEO team +15. Tiers: 50+ = Tier 1, 25-49 = Tier 2, under 25 = Tier 3.
+
+You can answer questions directly from the CURRENT DATA below, and you can change the CRM using tools. When the user asks to add/move/update/delete/log, call the matching tool. Keep replies short and concrete. After acting, confirm what changed in one sentence.
+
+CURRENT DATA (${records.length} records):
+${JSON.stringify(snapshot())}`;
+}
+function buildSystemMessage(){ return {role:'system',content:buildSystem()}; }
+function execTool(name,input){
+  try{
+    if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=stages.find(s=>s.toLowerCase()===(input.stage||'').toLowerCase())||stages.find(s=>s.toLowerCase().includes((input.stage||'').toLowerCase()));if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;r.activity.push({t:`Stage: ${old} → ${match}`,d:'Today'});saveRecord(r);refreshView();return `Moved ${r.company} to ${match}.`;}
+    if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;let f=input.field,v=input.value;if(['value','aiScore','score','workshops','founders'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:'Today'});saveRecord(r);refreshView();return `Updated ${f} on ${r.company}.`;}
+    if(name==='add_record'){const r={id:++nextId,pipeline:input.pipeline,company:input.company,name:input.name||input.company,role:'',email:'',phone:'',stage:input.stage||(input.pipeline==='partners'?STAGES['partners'+(input.portfolio||1)][0]:STAGES[input.pipeline][0]),source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(input.pipeline==='partners'){r.portfolio=input.portfolio||1;r.category=input.category||'Marketing Agencies';r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(input.pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';}else{r.fundSize='';r.thesis='';}records.push(r);saveRecord(r);refreshView();return `Added ${r.company} to ${input.pipeline}.`;}
+    if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;records=records.filter(x=>x.id!==r.id);deleteRecordRemote(r.id);refreshView();return `Deleted ${r.company}.`;}
+    if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;r.activity.push({t:input.text,d:'Today'});saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}".`;}
+    if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}
+    if(name==='switch_pipeline'){setPipeline(input.pipeline);if(input.pipeline==='partners'&&input.portfolio)setPortfolio(input.portfolio);return `Switched to ${input.pipeline}${input.portfolio?' portfolio '+input.portfolio:''}.`;}
+    return 'Unknown tool.';
+  }catch(e){return 'Error: '+e.message;}
+}
+function refreshView(){const active=document.querySelector('.page.active');if(!active)return;const p=active.id.replace('page-','');if(p==='dashboard')renderDashboard();else if(p==='pipeline')renderPipeline();else if(p==='directory')renderDirectory();else if(p==='analytics')renderAnalytics();else if(p==='detail')renderDetail();updateBadge();}
+function toggleChat(){const p=document.getElementById('chat-panel');p.classList.toggle('open');if(p.classList.contains('open'))setTimeout(()=>document.getElementById('chat-input').focus(),200);}
+function autoGrow(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+function chatKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}
+function renderSuggest(){document.getElementById('chat-suggest').innerHTML=SUGGESTIONS.map(s=>`<button onclick="quickChat(this)">${s}</button>`).join('');}
+function quickChat(btn){document.getElementById('chat-input').value=btn.textContent;sendChat();}
+function addBubble(cls,text){const b=document.getElementById('chat-body');const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;b.appendChild(d);b.scrollTop=b.scrollHeight;return d;}
+function addAction(text){const b=document.getElementById('chat-body');const d=document.createElement('div');d.className='msg action';d.innerHTML=`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>${text}`;b.appendChild(d);b.scrollTop=b.scrollHeight;}
+async function sendChat(){
+  if(chatBusy)return;
+  const inp=document.getElementById('chat-input');const text=inp.value.trim();if(!text)return;
+  inp.value='';autoGrow(inp);document.getElementById('chat-suggest').style.display='none';
+  addBubble('user',text);
+  chatHistory.push({role:'user',content:text});
+  chatBusy=true;document.getElementById('chat-send').disabled=true;
+  const b=document.getElementById('chat-body');const typing=document.createElement('div');typing.className='chat-typing';typing.innerHTML='<span></span><span></span><span></span>';b.appendChild(typing);b.scrollTop=b.scrollHeight;
+  try{
+    let guard=0;
+    while(guard++<6){
+      const messages=[buildSystemMessage(),...chatHistory];
+      const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages,tools:TOOLS})});
+      const data=await res.json();
+      if(!res.ok||data.error)throw new Error(data.error||('API '+res.status));
+      const msg=(data.choices&&data.choices[0]&&data.choices[0].message)||{};
+      chatHistory.push(msg);
+      if(msg.content&&msg.content.trim()){typing.remove();addBubble('bot',msg.content.trim());b.appendChild(typing);}
+      const calls=msg.tool_calls||[];
+      if(calls.length===0)break;
+      for(const c of calls){
+        let args={}; try{args=JSON.parse(c.function.arguments||'{}');}catch(e){}
+        const out=execTool(c.function.name,args);
+        typing.remove();addAction(labelTool(c.function.name,args));b.appendChild(typing);
+        chatHistory.push({role:'tool',tool_call_id:c.id,content:typeof out==='string'?out:JSON.stringify(out)});
+      }
+    }
+  }catch(e){
+    typing.remove();
+    addBubble('err',`Couldn't reach the assistant (${e.message}). Make sure GROQ_API_KEY is set in your Vercel project's environment variables.`);
+  }
+  typing.remove();
+  chatBusy=false;document.getElementById('chat-send').disabled=false;
+  document.getElementById('chat-input').focus();
+}
+function labelTool(name,input){
+  const m={move_stage:`Moved ${input.record} → ${input.stage}`,update_record:`Updated ${input.record}`,add_record:`Added ${input.company}`,delete_record:`Deleted ${input.record}`,log_activity:`Logged activity on ${input.record}`,score_agency:`Ran agency scoring`,switch_pipeline:`Switched to ${input.pipeline}`};
+  return m[name]||name;
+}
+
+// ══════════════ INIT ══════════════
+window.addEventListener('click',e=>{if(e.target.classList&&e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');if(e.target.classList&&e.target.classList.contains('confirm-overlay'))e.target.classList.remove('open');});
+(async function init(){
+  await loadRecords();
+  await loadNextStepOptions();
+  setPipeline('partners');
+  renderSuggest();
+  addBubble('bot','Hi — I can update or answer questions about the CRM. Try one of the suggestions below, or ask me anything about your partners, customers, or investors.');
+})();
+</script>
+</body>
+</html>

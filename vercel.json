@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/chat.js": { "maxDuration": 15 }
+  },
+  "rewrites": [
+    { "source": "/", "destination": "/zaher_crm.html" }
+  ]
+}
