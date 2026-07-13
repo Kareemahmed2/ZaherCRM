@@ -602,6 +602,7 @@ const ini=n=>(n||'?').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
 const avc=id=>AV_COLORS[Math.abs(id)%AV_COLORS.length];
 const fv=v=>!v?'$0':v>=1000000?'$'+(v/1000000).toFixed(1)+'M':v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v;
 const ff=v=>!v?'$0':'$'+v.toLocaleString();
+function fmtTs(ts){ if(!ts) return '—'; const d=new Date(ts); return isNaN(d)?'—':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
 function activeStages(){ if(state.pipeline==='partners') return STAGES['partners'+state.portfolio]; return STAGES[state.pipeline]; }
 function activeRecords(){ return records.filter(r=>r.pipeline===state.pipeline && (state.pipeline!=='partners'||r.portfolio===state.portfolio)); }
 function pipelineRecords(p){ return records.filter(r=>r.pipeline===p); }
@@ -622,6 +623,8 @@ async function loadRecords(){
   nextId = Math.max(100, ...records.map(r=>r.id||0));
 }
 async function saveRecord(r){
+  r.updated_at = new Date().toISOString();
+  if(!r.created_at) r.created_at = r.updated_at;
   if(!sb) return;
   const {error} = await sb.from('records').upsert(r);
   if(error){ console.error(error); showToast('Sync failed — change kept locally only'); }
@@ -869,25 +872,28 @@ function renderDirectory(){
   const list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)):recs;
   let head,rowFn;
   if(state.pipeline==='partners'){
-    head=`<tr><th>Organisation</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th></tr>`;
+    head=`<tr><th>Organisation</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>`<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name)}</div><div><div class="ln">${r.name}</div><div class="lc">${r.company} · ${r.region||''}</div></div></div></td>
       <td>${catChip(r.category)}</td><td style="font-size:12px;color:var(--gray-700);">${r.model||'—'}</td>
       <td>${r.tier?tierPill(r.tier)+' '+(r.score!=null?`<span style="font-size:11px;color:var(--gray-500);">${r.score}</span>`:''):'<span class="lc">—</span>'}</td>
-      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':fv(r.value)}</td>`;
+      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':fv(r.value)}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   } else if(state.pipeline==='customers'){
-    head=`<tr><th>Contact</th><th>Company</th><th>Sector</th><th>AI Score</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th></tr>`;
+    head=`<tr><th>Contact</th><th>Company</th><th>Sector</th><th>AI Score</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null;
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name)}</div><div><div class="ln">${r.name}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${r.company}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span></td>
       <td>${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">${r.aiScore}</span>`:'<span class="lc">—</span>'}</td>
       <td style="font-size:12px;color:var(--gray-700);">${r.nextStep||'—'}</td>
       <td style="font-size:12px;color:var(--gray-500);">${r.leadSource}${ref?` · ${ref.company}`:''}</td>
-      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>`;
+      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else {
-    head=`<tr><th>Contact</th><th>Firm</th><th>Fund</th><th>Thesis</th><th>Stage</th><th>Target</th></tr>`;
+    head=`<tr><th>Contact</th><th>Firm</th><th>Fund</th><th>Thesis</th><th>Stage</th><th>Target</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>`<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name)}</div><div><div class="ln">${r.name}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${r.company}</td><td style="font-size:12px;">${r.fundSize||'—'}</td>
-      <td style="font-size:12px;color:var(--gray-500);">${r.thesis||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>`;
+      <td style="font-size:12px;color:var(--gray-500);">${r.thesis||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }
   document.getElementById('dir-thead').innerHTML=head;
   document.getElementById('dir-body').innerHTML=list.map(r=>`<tr onclick="openDetail(${r.id})">${rowFn(r)}</tr>`).join('');
@@ -930,11 +936,13 @@ async function handleImportFile(ev){
       let pipeline=(get('pipeline')||'').toString().trim().toLowerCase();
       if(!validPipelines.includes(pipeline)) pipeline=state.pipeline;
       const defaultStage=pipeline==='partners'?STAGES.partners1[0]:STAGES[pipeline][0];
+      const importTs=new Date().toISOString();
       const r={id:++nextId,pipeline,name:(get('name')||company).toString(),company,
         role:(get('role')||'').toString(),email:(get('email')||'').toString(),phone:(get('phone')||'').toString(),
         stage:(get('stage')||defaultStage).toString(),
         value:Number(get('value'))||0, source:(get('source')||'Import').toString(),
         date:(get('date')||'Today').toString(), notes:(get('notes')||'').toString(),
+        created_at:importTs, updated_at:importTs,
         activity:[{t:'Imported',d:'Today'}]};
       if(pipeline==='partners'){r.portfolio=1;r.category='Marketing Agencies';r.model='';r.tier=null;r.score=null;r.region='';}
       else if(pipeline==='customers'){r.sector='General';r.leadSource='Import';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';}
@@ -957,7 +965,8 @@ function exportRecords(fmt){
     phone:r.phone||'', stage:r.stage, value:r.value||0, source:r.source||'', date:r.date||'', notes:r.notes||'',
     category:r.category||'', model:r.model||'', tier:r.tier||'', region:r.region||'',
     sector:r.sector||'', package:r.package||'', aiScore:r.aiScore||'', nextStep:r.nextStep||'',
-    fundSize:r.fundSize||'', thesis:r.thesis||''
+    fundSize:r.fundSize||'', thesis:r.thesis||'',
+    date_entered:fmtTs(r.created_at), date_modified:fmtTs(r.updated_at)
   }));
   const ws=XLSX.utils.json_to_sheet(rows);
   const wb=XLSX.utils.book_new();
@@ -1085,6 +1094,7 @@ function renderDetail(){
   } else {
     fields.push(['Fund size',r.fundSize||'—',false],['Thesis',r.thesis||'—',false],['Target raise',ff(r.value),false]);
   }
+  fields.push(['Date entered',fmtTs(r.created_at),false],['Last modified',fmtTs(r.updated_at),false]);
   document.getElementById('det-fields').innerHTML=fields.map(([k,v,link])=>`<div class="field-item"><div class="field-key">${k}</div><div class="field-val${link?' link':''}">${v||'—'}</div></div>`).join('');
   if(state.pipeline==='customers'){
     document.getElementById('det-fields').innerHTML += `<div class="field-item"><div class="field-key">Next step</div><select class="form-input" style="margin-top:2px;" onchange="changeNextStep(${r.id},this)">${nextStepSelectHtml(r.nextStep)}</select></div>`;
