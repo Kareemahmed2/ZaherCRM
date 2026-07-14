@@ -42,6 +42,10 @@ create table if not exists records (
 -- Safe to re-run against an existing database that predates the updated_at column.
 alter table records add column if not exists updated_at timestamptz not null default now();
 
+-- Safe to re-run against an existing database that predates the segment column
+-- (customers only — SaaS vs Enterprise).
+alter table records add column if not exists segment text;
+
 -- Keeps updated_at current on every edit, including the upsert() the app uses for updates
 -- (an upsert's UPDATE branch only touches columns present in the payload, so relying on the
 -- app to set updated_at itself would miss any call site that doesn't — the trigger covers all of them).

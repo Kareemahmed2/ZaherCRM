@@ -130,6 +130,9 @@
   .search-box svg{width:14px;height:14px;color:var(--gray-500);flex-shrink:0;}
   .search-box input{border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--gray-900);background:transparent;width:100%;}
   .search-box input::placeholder{color:var(--gray-500);}
+  .filter-panel{display:none;gap:12px;flex-wrap:wrap;padding:14px 16px;background:var(--white);border:1px solid var(--border);border-radius:var(--r-lg);margin:-10px 0 20px;}
+  .filter-panel.open{display:flex;}
+  .filter-panel .form-group{margin-bottom:0;min-width:150px;}
 
   /* ── KANBAN ── */
   .kanban-board{display:flex;gap:14px;overflow-x:auto;padding-bottom:16px;align-items:flex-start;}
@@ -348,11 +351,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" placeholder="Search..." id="search-input" oninput="renderPipeline()">
       </div>
+      <button class="btn btn-ghost" onclick="toggleFilterPanel('pipeline-filter-panel')">Filters</button>
       <button class="btn btn-primary" onclick="openModal()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span id="add-btn-label2">Add</span>
       </button>
     </div>
+    <div class="filter-panel" id="pipeline-filter-panel"></div>
     <div class="kanban-board" id="kanban-board"></div>
   </div>
 
@@ -363,6 +368,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" placeholder="Search..." id="dir-search" oninput="renderDirectory()">
       </div>
+      <button class="btn btn-ghost" onclick="toggleFilterPanel('dir-filter-panel')">Filters</button>
       <div style="display:flex;gap:8px;margin-left:auto;">
         <input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none;" onchange="handleImportFile(event)">
         <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()" title="Import records from CSV/Excel">Import</button>
@@ -370,6 +376,7 @@
         <button class="btn btn-ghost" onclick="exportRecords('xlsx')" title="Export current view to Excel">Export Excel</button>
       </div>
     </div>
+    <div class="filter-panel" id="dir-filter-panel"></div>
     <div class="card"><table class="leads-table"><thead id="dir-thead"></thead><tbody id="dir-body"></tbody></table></div>
   </div>
 
@@ -385,6 +392,7 @@
       <div class="card"><div class="big-stat" id="an-stat-2"></div></div>
     </div>
     <div class="card" id="an-extra-card"><div class="card-header"><span class="card-title" id="an-extra-title">By source</span></div><div id="an-extra" style="padding:8px 0;"></div></div>
+    <div class="card" id="an-segment-card" style="display:none;margin-top:16px;"><div class="card-header"><span class="card-title">SaaS vs Enterprise</span></div><div id="an-segment" style="padding:8px 0;"></div></div>
   </div>
 
   <!-- DETAIL -->
@@ -573,13 +581,13 @@ const SEED_RECORDS = [
   {id:24,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'SME Programs',company:'MSMEDA',role:'Advisor',email:'info@msmeda.org.eg',phone:'+20 100 111 5024',stage:'Awareness',model:'Education Partner',tier:null,score:null,website:'msmeda.org.eg',region:'Egypt',clients:'National SME development agency',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 15',notes:'SMEs may have enough digital presence for real audits, not just education.',activity:[{t:'Added to pipeline',d:'Apr 15'}]},
 
   // ── CUSTOMERS ──
-  {id:40,pipeline:'customers',name:'Sara Rashid',company:'Noon.com',role:'Head of Marketing',email:'sara@noon.com',phone:'+20 100 222 4040',stage:'Pilot',sector:'E-Commerce',package:'Audit + Content',aiScore:71,value:26000,leadSource:'LinkedIn',referredBy:null,source:'LinkedIn',date:'Apr 12',notes:'Interested in the GEO package. Pilot running on 20 product categories.',activity:[{t:'Demo completed',d:'Apr 10'},{t:'Pilot scope agreed',d:'Apr 12'}]},
-  {id:41,pipeline:'customers',name:'Laila Amin',company:'Vezeeta',role:'Head of Growth',email:'laila@vezeeta.com',phone:'+20 100 222 4041',stage:'Discovery Call',sector:'Health Tech',package:'Audit',aiScore:58,value:12000,leadSource:'Community',referredBy:null,source:'Community',date:'Apr 13',notes:'Came in through the WhatsApp community. Booked a discovery call.',activity:[{t:'Joined community',d:'Apr 9'},{t:'Discovery call booked',d:'Apr 13'}]},
-  {id:42,pipeline:'customers',name:'Fady Nasser',company:'Talabat',role:'CMO',email:'fnasser@talabat.com',phone:'+20 100 222 4042',stage:'Audit Delivered',sector:'Food & Restaurant',package:'Audit',aiScore:63,value:18000,leadSource:'LinkedIn',referredBy:null,source:'LinkedIn',date:'Apr 11',notes:'Audit delivered — low visibility in Arabic AI search. Reviewing recommendations.',activity:[{t:'Audit requested',d:'Apr 8'},{t:'Audit delivered — score 63',d:'Apr 11'}]},
-  {id:43,pipeline:'customers',name:'Mona Abdelaziz',company:'Namshi',role:'Head of Growth',email:'mona@namshi.com',phone:'+971 50 222 4043',stage:'Proposal',sector:'E-Commerce',package:'Audit + Content + Reference',aiScore:66,value:14500,leadSource:'Referral',referredBy:2,source:'Referral',date:'Apr 1',notes:'Referred by Room 11. Losing visibility to AI shopping summaries. Proposal leads with CTR data.',activity:[{t:'Referred by Room 11',d:'Mar 28'},{t:'Proposal sent',d:'Apr 1'}]},
-  {id:44,pipeline:'customers',name:'Sherif Aly',company:'Jumia Egypt',role:'VP Digital Marketing',email:'sherif.aly@jumia.com',phone:'+20 100 222 4044',stage:'Audit Requested',sector:'E-Commerce',package:'—',aiScore:null,value:19000,leadSource:'Inbound',referredBy:null,source:'Inbound',date:'Apr 15',notes:'Wants an audit across 50 top product categories. Arabic descriptions are the key concern.',activity:[{t:'Audit form submitted',d:'Apr 15'}]},
-  {id:45,pipeline:'customers',name:'Khaled Nasser',company:'Reem Al Bawadi',role:'Marketing Director',email:'khaled@reemalbawadi.com',phone:'+971 50 222 4045',stage:'Active Client',sector:'Food & Restaurant',package:'Full Stack',aiScore:82,value:30000,leadSource:'Partner',referredBy:2,source:'Partner',date:'Mar 10',notes:'Won via Room 11 reseller. Now cited by ChatGPT for "best Lebanese restaurants Dubai".',activity:[{t:'Referred by Room 11',d:'Feb 28'},{t:'Contract signed',d:'Mar 10'}]},
-  {id:46,pipeline:'customers',name:'Amira Hassan',company:'Fordeal MENA',role:'Digital Director',email:'ahassan@fordeal.com',phone:'+20 100 222 4046',stage:'Active Client',sector:'E-Commerce',package:'Audit + Content',aiScore:84,value:8500,leadSource:'Cold Outreach',referredBy:null,source:'Cold Outreach',date:'Mar 12',notes:'Arabic product visibility inside Perplexity and SGE. Renewed for 12 months.',activity:[{t:'Contract signed',d:'Mar 12'}]},
+  {id:40,pipeline:'customers',name:'Sara Rashid',company:'Noon.com',role:'Head of Marketing',email:'sara@noon.com',phone:'+20 100 222 4040',stage:'Pilot',sector:'E-Commerce',package:'Audit + Content',aiScore:71,value:26000,leadSource:'LinkedIn',referredBy:null,segment:'Enterprise',date:'Apr 12',notes:'Interested in the GEO package. Pilot running on 20 product categories.',activity:[{t:'Demo completed',d:'Apr 10'},{t:'Pilot scope agreed',d:'Apr 12'}]},
+  {id:41,pipeline:'customers',name:'Laila Amin',company:'Vezeeta',role:'Head of Growth',email:'laila@vezeeta.com',phone:'+20 100 222 4041',stage:'Discovery Call',sector:'Health Tech',package:'Audit',aiScore:58,value:12000,leadSource:'Community',referredBy:null,segment:'SaaS',date:'Apr 13',notes:'Came in through the WhatsApp community. Booked a discovery call.',activity:[{t:'Joined community',d:'Apr 9'},{t:'Discovery call booked',d:'Apr 13'}]},
+  {id:42,pipeline:'customers',name:'Fady Nasser',company:'Talabat',role:'CMO',email:'fnasser@talabat.com',phone:'+20 100 222 4042',stage:'Audit Delivered',sector:'Food & Restaurant',package:'Audit',aiScore:63,value:18000,leadSource:'LinkedIn',referredBy:null,segment:'Enterprise',date:'Apr 11',notes:'Audit delivered — low visibility in Arabic AI search. Reviewing recommendations.',activity:[{t:'Audit requested',d:'Apr 8'},{t:'Audit delivered — score 63',d:'Apr 11'}]},
+  {id:43,pipeline:'customers',name:'Mona Abdelaziz',company:'Namshi',role:'Head of Growth',email:'mona@namshi.com',phone:'+971 50 222 4043',stage:'Proposal',sector:'E-Commerce',package:'Audit + Content + Reference',aiScore:66,value:14500,leadSource:'Referral',referredBy:2,segment:'Enterprise',date:'Apr 1',notes:'Referred by Room 11. Losing visibility to AI shopping summaries. Proposal leads with CTR data.',activity:[{t:'Referred by Room 11',d:'Mar 28'},{t:'Proposal sent',d:'Apr 1'}]},
+  {id:44,pipeline:'customers',name:'Sherif Aly',company:'Jumia Egypt',role:'VP Digital Marketing',email:'sherif.aly@jumia.com',phone:'+20 100 222 4044',stage:'Audit Requested',sector:'E-Commerce',package:'—',aiScore:null,value:19000,leadSource:'Inbound',referredBy:null,segment:'Enterprise',date:'Apr 15',notes:'Wants an audit across 50 top product categories. Arabic descriptions are the key concern.',activity:[{t:'Audit form submitted',d:'Apr 15'}]},
+  {id:45,pipeline:'customers',name:'Khaled Nasser',company:'Reem Al Bawadi',role:'Marketing Director',email:'khaled@reemalbawadi.com',phone:'+971 50 222 4045',stage:'Active Client',sector:'Food & Restaurant',package:'Full Stack',aiScore:82,value:30000,leadSource:'Partner',referredBy:2,segment:'Enterprise',date:'Mar 10',notes:'Won via Room 11 reseller. Now cited by ChatGPT for "best Lebanese restaurants Dubai".',activity:[{t:'Referred by Room 11',d:'Feb 28'},{t:'Contract signed',d:'Mar 10'}]},
+  {id:46,pipeline:'customers',name:'Amira Hassan',company:'Fordeal MENA',role:'Digital Director',email:'ahassan@fordeal.com',phone:'+20 100 222 4046',stage:'Active Client',sector:'E-Commerce',package:'Audit + Content',aiScore:84,value:8500,leadSource:'Cold Outreach',referredBy:null,segment:'Enterprise',date:'Mar 12',notes:'Arabic product visibility inside Perplexity and SGE. Renewed for 12 months.',activity:[{t:'Contract signed',d:'Mar 12'}]},
 
   // ── INVESTORS ──
   {id:60,pipeline:'investors',name:'Tarek El Ghamry',company:'Algebra Ventures',role:'General Partner',email:'tarek@algebra.vc',phone:'+20 100 333 6060',stage:'First Meeting',fundSize:'$80M',thesis:'MENA SaaS Infrastructure',value:500000,source:'Event',date:'Apr 9',notes:'Interested in the GEO infrastructure thesis. Wants MRR trajectory and retention cohorts.',activity:[{t:'Met at RiseUp Summit',d:'Apr 6'},{t:'Pitch deck sent',d:'Apr 8'}]},
@@ -593,7 +601,7 @@ let records = [];
 let nextId=100;
 
 // ══════════════ STATE ══════════════
-let state={pipeline:'partners',portfolio:1};
+let state={pipeline:'partners',portfolio:1,filters:{}};
 let currentId=null,prevPage='pipeline';
 let drag={active:false};
 
@@ -698,6 +706,7 @@ function scoreAgency(inp){
 // ══════════════ PIPELINE / PORTFOLIO SWITCH ══════════════
 function setPipeline(p){
   state.pipeline=p; if(p==='partners'&&!state.portfolio) state.portfolio=1;
+  state.filters={};
   document.body.className='pl-'+p;
   document.querySelectorAll('.pl-btn').forEach(b=>b.classList.toggle('active',b.dataset.pl===p));
   const isPartners=p==='partners';
@@ -715,6 +724,7 @@ function setPipeline(p){
 }
 function setPortfolio(pf){
   state.portfolio=pf;
+  state.filters={};
   document.getElementById('pf1-btn').classList.toggle('active',pf===1);
   document.getElementById('pf2-btn').classList.toggle('active',pf===2);
   const active=document.querySelector('.page.active').id.replace('page-','');
@@ -790,7 +800,7 @@ function buildCard(r){
   let extra='';
   if(state.pipeline==='partners'&&!isP2()) extra=`<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap;">${catChip(r.category)}${tierPill(r.tier)}</div>`;
   else if(isP2()) extra=`<div style="margin-bottom:8px;">${catChip(r.category)}</div>`;
-  else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span>${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${r.nextStep}</span>`:''}</div>`;
+  else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${r.segment}</span>`:''}${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${r.nextStep}</span>`:''}</div>`;
   else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${r.fundSize||''} · ${r.thesis||''}</div>`;
   const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
   return `<div class="k-card" id="kcard-${r.id}" data-id="${r.id}"
@@ -849,11 +859,54 @@ function applyStage(id,newStage,toast){
   renderPipeline(); updateBadge();
   if(toast)showToast(`${r.company} → ${newStage}`);
 }
+// ══════════════ FILTERS ══════════════
+function filterFieldsFor(p){
+  if(p==='partners'){
+    const fields=[{key:'category',label:'Category'},{key:'model',label:'Model'},{key:'region',label:'Region'},{key:'stage',label:'Stage'},{key:'source',label:'Source'}];
+    if(!isP2()) fields.splice(1,0,{key:'tier',label:'Tier'});
+    return fields;
+  }
+  if(p==='customers') return [{key:'sector',label:'Sector'},{key:'segment',label:'Segment'},{key:'leadSource',label:'Lead source'},{key:'stage',label:'Stage'}];
+  return [{key:'thesis',label:'Thesis'},{key:'fundSize',label:'Fund size'},{key:'stage',label:'Stage'},{key:'source',label:'Source'}];
+}
+function toggleFilterPanel(id){ document.getElementById(id).classList.toggle('open'); }
+function renderFilterPanel(panelId){
+  const panel=document.getElementById(panelId); if(!panel)return;
+  const fields=filterFieldsFor(state.pipeline);
+  const recs=activeRecords();
+  let html=fields.map(f=>{
+    const vals=[...new Set(recs.map(r=>r[f.key]).filter(v=>v!=null&&v!==''))].sort();
+    const cur=state.filters[f.key]!=null?(''+state.filters[f.key]):'';
+    return `<div class="form-group"><label class="form-label">${f.label}</label>
+      <select class="form-input" onchange="setFilter('${f.key}',this.value)">
+        <option value="">All</option>
+        ${vals.map(v=>`<option value="${v}" ${(''+v)===cur?'selected':''}>${v}</option>`).join('')}
+      </select></div>`;
+  }).join('');
+  if(!isP2()){
+    html+=`<div class="form-group"><label class="form-label">Min ticket ($)</label><input class="form-input" type="number" placeholder="0" value="${state.filters.valueMin||''}" oninput="setFilter('valueMin',this.value)"></div>
+    <div class="form-group"><label class="form-label">Max ticket ($)</label><input class="form-input" type="number" placeholder="Any" value="${state.filters.valueMax||''}" oninput="setFilter('valueMax',this.value)"></div>`;
+  }
+  html+=`<div class="form-group" style="display:flex;align-items:flex-end;min-width:auto;"><button class="btn btn-ghost" style="font-size:12px;padding:7px 10px;" onclick="clearFilters()">Clear filters</button></div>`;
+  panel.innerHTML=html;
+}
+function setFilter(key,v){ if(v==='')delete state.filters[key]; else state.filters[key]=v; renderPipeline(); renderDirectory(); }
+function clearFilters(){ state.filters={}; renderPipeline(); renderDirectory(); }
+function applyFilters(list){
+  const entries=Object.entries(state.filters); if(!entries.length)return list;
+  return list.filter(r=>entries.every(([k,v])=>{
+    if(k==='valueMin')return (r.value||0)>=Number(v);
+    if(k==='valueMax')return (r.value||0)<=Number(v);
+    return (''+r[k])===(''+v);
+  }));
+}
 function renderPipeline(){
   updateBadge();
+  renderFilterPanel('pipeline-filter-panel');
   const recs=activeRecords(), stages=activeStages();
   const q=(document.getElementById('search-input')||{value:''}).value.toLowerCase();
-  const list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)):recs;
+  let list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)):recs;
+  list=applyFilters(list);
   document.getElementById('kanban-board').innerHTML=stages.map(stage=>{
     const cards=list.filter(r=>r.stage===stage);
     const tot=cards.reduce((s,r)=>s+(r.value||0),0);
@@ -867,9 +920,11 @@ function renderPipeline(){
 
 // ══════════════ DIRECTORY ══════════════
 function renderDirectory(){
+  renderFilterPanel('dir-filter-panel');
   const recs=activeRecords();
   const q=(document.getElementById('dir-search')||{value:''}).value.toLowerCase();
-  const list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)):recs;
+  let list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)):recs;
+  list=applyFilters(list);
   let head,rowFn;
   if(state.pipeline==='partners'){
     head=`<tr><th>Organisation</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th><th>Added</th><th>Updated</th></tr>`;
@@ -879,10 +934,11 @@ function renderDirectory(){
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   } else if(state.pipeline==='customers'){
-    head=`<tr><th>Contact</th><th>Company</th><th>Sector</th><th>AI Score</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th><th>Added</th><th>Updated</th></tr>`;
+    head=`<tr><th>Contact</th><th>Company</th><th>Sector</th><th>Segment</th><th>AI Score</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null;
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name)}</div><div><div class="ln">${r.name}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${r.company}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span></td>
+      <td><span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${r.segment||'—'}</span></td>
       <td>${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">${r.aiScore}</span>`:'<span class="lc">—</span>'}</td>
       <td style="font-size:12px;color:var(--gray-700);">${r.nextStep||'—'}</td>
       <td style="font-size:12px;color:var(--gray-500);">${r.leadSource}${ref?` · ${ref.company}`:''}</td>
@@ -904,6 +960,7 @@ const IMPORT_FIELD_MAP={
   name:['name','contact','contact name'], company:['company','brand','organisation','organization'],
   role:['role','title'], email:['email'], phone:['phone'], stage:['stage'],
   pipeline:['pipeline'], value:['value','mrr','arr','target','mrr/yr','mrr per year'], source:['source'],
+  leadSource:['lead source','leadsource'], segment:['segment','customer type'],
   date:['date'], notes:['notes']
 };
 function mapHeaders(headerRow){
@@ -945,7 +1002,7 @@ async function handleImportFile(ev){
         created_at:importTs, updated_at:importTs,
         activity:[{t:'Imported',d:'Today'}]};
       if(pipeline==='partners'){r.portfolio=1;r.category='Marketing Agencies';r.model='';r.tier=null;r.score=null;r.region='';}
-      else if(pipeline==='customers'){r.sector='General';r.leadSource='Import';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';}
+      else if(pipeline==='customers'){r.sector='General';r.leadSource=(get('leadSource')||get('source')||'Import').toString();r.segment=(get('segment')||'Enterprise').toString();r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;}
       else {r.fundSize='';r.thesis='';}
       newRecords.push(r);
     }
@@ -962,9 +1019,9 @@ function exportRecords(fmt){
   if(!recs.length){showToast('Nothing to export in this view');return;}
   const rows=recs.map(r=>({
     id:r.id, pipeline:r.pipeline, name:r.name, company:r.company, role:r.role||'', email:r.email||'',
-    phone:r.phone||'', stage:r.stage, value:r.value||0, source:r.source||'', date:r.date||'', notes:r.notes||'',
+    phone:r.phone||'', stage:r.stage, value:r.value||0, source:r.pipeline==='customers'?(r.leadSource||''):(r.source||''), date:r.date||'', notes:r.notes||'',
     category:r.category||'', model:r.model||'', tier:r.tier||'', region:r.region||'',
-    sector:r.sector||'', package:r.package||'', aiScore:r.aiScore||'', nextStep:r.nextStep||'',
+    sector:r.sector||'', segment:r.segment||'', package:r.package||'', aiScore:r.aiScore||'', nextStep:r.nextStep||'',
     fundSize:r.fundSize||'', thesis:r.thesis||'',
     date_entered:fmtTs(r.created_at), date_modified:fmtTs(r.updated_at)
   }));
@@ -1050,6 +1107,14 @@ function renderAnalytics(){
     const items=srcs.map((s,i)=>({name:s,v:recs.filter(r=>r.source===s).length,color:PALETTE[i%PALETTE.length]}));
     document.getElementById('an-extra').innerHTML=barList(items,ac);
   }
+  // segment breakdown (customers only)
+  const segCard=document.getElementById('an-segment-card');
+  if(state.pipeline==='customers'){
+    segCard.style.display='';
+    const segs=['SaaS','Enterprise'];
+    const segItems=segs.map((s,i)=>({name:s,v:recs.filter(r=>r.segment===s).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.segment===s).reduce((a,r)=>a+(r.value||0),0))}));
+    document.getElementById('an-segment').innerHTML=barList(segItems,ac);
+  } else segCard.style.display='none';
 }
 
 // ══════════════ DETAIL ══════════════
@@ -1074,7 +1139,8 @@ function renderDetail(){
   document.getElementById('det-av').textContent=ini(r.name||r.company);
   document.getElementById('det-name').textContent=r.name;
   document.getElementById('det-role').textContent=r.company+(r.role?' · '+r.role:'');
-  let tags=`<span class="tag">${r.source}</span>${stagePill(r.stage)}`;
+  const srcTag=state.pipeline==='customers'?r.leadSource:r.source;
+  let tags=`<span class="tag">${srcTag}</span>${stagePill(r.stage)}`;
   if(state.pipeline==='partners'){ tags=catChip(r.category)+tierPill(r.tier)+tags; }
   else if(state.pipeline==='customers'&&r.sector){ tags=`<span class="tag">${r.sector}</span>`+tags; }
   document.getElementById('det-tags').innerHTML=tags;
@@ -1090,7 +1156,7 @@ function renderDetail(){
     if(r.website)fields.push(['Website',r.website,true]);
   } else if(state.pipeline==='customers'){
     const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null;
-    fields.push(['Sector',r.sector,false],['Package',r.package||'—',false],['AI Visibility Score',r.aiScore!=null?r.aiScore+'/100':'—',false],['MRR / yr',ff(r.value),false],['Lead source',r.leadSource+(ref?' · '+ref.company:''),false]);
+    fields.push(['Sector',r.sector,false],['Segment',r.segment||'—',false],['Package',r.package||'—',false],['AI Visibility Score',r.aiScore!=null?r.aiScore+'/100':'—',false],['MRR / yr',ff(r.value),false],['Lead source',r.leadSource+(ref?' · '+ref.company:''),false]);
   } else {
     fields.push(['Fund size',r.fundSize||'—',false],['Thesis',r.thesis||'—',false],['Target raise',ff(r.value),false]);
   }
@@ -1142,13 +1208,18 @@ function openModal(stage){
   } else if(p==='customers'){
     extra=`<div class="form-row"><div class="form-group"><label class="form-label">Sector</label><input class="form-input" id="f-sector" placeholder="E-Commerce"></div>
       <div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" id="f-value" placeholder="12000"></div></div>
-      <div class="form-group"><label class="form-label">Lead source</label><input class="form-input" id="f-leadsource" placeholder="LinkedIn / Community / Partner"></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Segment</label><select class="form-input" id="f-segment"><option value="Enterprise">Enterprise</option><option value="SaaS">SaaS</option></select></div>
+      <div class="form-group"><label class="form-label">Lead source</label><input class="form-input" id="f-leadsource" placeholder="LinkedIn / Community / Partner"></div></div>
       <div class="form-group"><label class="form-label">Next step</label><select class="form-input" id="f-nextstep" onchange="handleNextStepChange(this)">${nextStepSelectHtml(nextStepOptions[0])}</select></div>`;
   } else {
     extra=`<div class="form-row"><div class="form-group"><label class="form-label">Fund size</label><input class="form-input" id="f-fundsize" placeholder="$80M"></div>
       <div class="form-group"><label class="form-label">Target raise ($)</label><input class="form-input" type="number" id="f-value" placeholder="500000"></div></div>
       <div class="form-group"><label class="form-label">Thesis</label><input class="form-input" id="f-thesis" placeholder="MENA SaaS"></div>`;
   }
+  const stageSourceRow = p==='customers'
+    ? `<div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>`
+    : `<div class="form-row"><div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>
+    <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="f-source" placeholder="LinkedIn"></div></div>`;
   document.getElementById('modal-body').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
       <span style="font-size:12px;color:var(--gray-500);">Adding several at once?</span>
@@ -1159,8 +1230,7 @@ function openModal(stage){
     <div class="form-row"><div class="form-group"><label class="form-label">Role</label><input class="form-input" id="f-role" placeholder="Title"></div>
     <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f-email" placeholder="name@company.com"></div></div>
     ${extra}
-    <div class="form-row"><div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>
-    <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="f-source" placeholder="LinkedIn"></div></div>
+    ${stageSourceRow}
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="f-notes" rows="2" placeholder="Context..."></textarea></div>`;
   document.getElementById('modal').classList.add('open');
 }
@@ -1171,7 +1241,7 @@ function addRecord(){
   const p=state.pipeline;
   const r={id:++nextId,pipeline:p,name:val('f-name')||company,company,role:val('f-role'),email:val('f-email'),phone:'',stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:val('f-notes'),value:Number(val('f-value'))||0,activity:[{t:'Added to CRM',d:'Today'}]};
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}
-  else if(p==='customers'){r.sector=val('f-sector')||'General';r.leadSource=val('f-leadsource')||'Manual';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';}
+  else if(p==='customers'){r.sector=val('f-sector')||'General';r.leadSource=val('f-leadsource')||'Manual';r.segment=val('f-segment')||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;}
   else {r.fundSize=val('f-fundsize');r.thesis=val('f-thesis');}
   records.push(r); closeModal(); saveRecord(r);
   if(p==='partners')state.portfolio=r.portfolio;
@@ -1211,7 +1281,7 @@ const SUGGESTIONS=[
 const TOOLS=[
   {type:'function',function:{name:'move_stage',description:'Move a record to a different stage in its pipeline.',parameters:{type:'object',properties:{record:{type:'string',description:'Company or contact name'},stage:{type:'string',description:'Target stage name'}},required:['record','stage']}}},
   {type:'function',function:{name:'update_record',description:'Update fields on a record (value, notes, model, tier, aiScore, package, nextStep, etc.).',parameters:{type:'object',properties:{record:{type:'string'},field:{type:'string',description:'field name e.g. value, notes, model, aiScore, package, region, nextStep'},value:{type:'string'}},required:['record','field','value']}}},
-  {type:'function',function:{name:'add_record',description:'Add a new record to a pipeline.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors']},company:{type:'string'},name:{type:'string'},stage:{type:'string'},category:{type:'string'},portfolio:{type:'number'},value:{type:'number'},sector:{type:'string'}},required:['pipeline','company']}}},
+  {type:'function',function:{name:'add_record',description:'Add a new record to a pipeline.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors']},company:{type:'string'},name:{type:'string'},stage:{type:'string'},category:{type:'string'},portfolio:{type:'number'},value:{type:'number'},sector:{type:'string'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only — SaaS or Enterprise'}},required:['pipeline','company']}}},
   {type:'function',function:{name:'delete_record',description:'Delete a record from the CRM.',parameters:{type:'object',properties:{record:{type:'string'}},required:['record']}}},
   {type:'function',function:{name:'log_activity',description:'Log an activity note on a record.',parameters:{type:'object',properties:{record:{type:'string'},text:{type:'string'}},required:['record','text']}}},
   {type:'function',function:{name:'score_agency',description:'Run the agency qualification scoring rubric and return score + tier.',parameters:{type:'object',properties:{clientType:{type:'string',enum:['b2c','mixed','b2b']},services:{type:'array',items:{type:'string',enum:['seo','content','ads','brand']}},rosterSize:{type:'number'},namedSeoTeam:{type:'boolean'},listsGeo:{type:'boolean'},offlineOnly:{type:'boolean'},leadgenOnly:{type:'boolean'}},required:['clientType']}}},
@@ -1220,7 +1290,7 @@ const TOOLS=[
 function snapshot(){
   return records.map(r=>{const o={id:r.id,pipeline:r.pipeline,company:r.company,contact:r.name,stage:r.stage};
     if(r.pipeline==='partners'){o.portfolio=r.portfolio;o.category=r.category;o.model=r.model;o.tier=r.tier;o.score=r.score;if(r.portfolio===2){o.workshops=r.workshops;o.founders=r.founders;}else o.value=r.value;}
-    else if(r.pipeline==='customers'){o.sector=r.sector;o.aiScore=r.aiScore;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;if(r.referredBy){const p=records.find(x=>x.id===r.referredBy);o.referredBy=p?p.company:null;}}
+    else if(r.pipeline==='customers'){o.sector=r.sector;o.segment=r.segment;o.aiScore=r.aiScore;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;if(r.referredBy){const p=records.find(x=>x.id===r.referredBy);o.referredBy=p?p.company:null;}}
     else {o.fundSize=r.fundSize;o.thesis=r.thesis;o.targetRaise=r.value;}
     return o;});
 }
@@ -1229,7 +1299,7 @@ function buildSystem(){
 
 The CRM has THREE pipelines:
 - partners: partner organisations. Two portfolios. Portfolio 1 (Revenue) stages: ${STAGES.partners1.join(' → ')}. Categories: Marketing Agencies, SaaS & E-commerce Platforms, Operational Touchpoint. Portfolio 2 (Ecosystem, measured on workshops/founders not revenue) stages: ${STAGES.partners2.join(' → ')}. Categories: Startup Development Orgs, Government & National Dev.
-- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Some are referred by partners.
+- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Each is tagged SaaS or Enterprise (segment). Some are referred by partners.
 - investors: fundraising. Stages: ${STAGES.investors.join(' → ')}.
 
 Agency scoring rubric (use score_agency): hard-skip if lists GEO/AEO, offline-only, or lead-gen-only. Pure B2B => auto Tier 2. Otherwise points: B2C +20 / mixed +10; SEO +20; Content +15; Ads +10; Brand +10; roster 20+ +20 / 10-19 +10; named SEO team +15. Tiers: 50+ = Tier 1, 25-49 = Tier 2, under 25 = Tier 3.
@@ -1244,7 +1314,7 @@ function execTool(name,input){
   try{
     if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=stages.find(s=>s.toLowerCase()===(input.stage||'').toLowerCase())||stages.find(s=>s.toLowerCase().includes((input.stage||'').toLowerCase()));if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;r.activity.push({t:`Stage: ${old} → ${match}`,d:'Today'});saveRecord(r);refreshView();return `Moved ${r.company} to ${match}.`;}
     if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;let f=input.field,v=input.value;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:'Today'});saveRecord(r);refreshView();return `Updated ${f} on ${r.company}.`;}
-    if(name==='add_record'){const r={id:++nextId,pipeline:input.pipeline,company:input.company,name:input.name||input.company,role:'',email:'',phone:'',stage:input.stage||(input.pipeline==='partners'?STAGES['partners'+(input.portfolio||1)][0]:STAGES[input.pipeline][0]),source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(input.pipeline==='partners'){r.portfolio=input.portfolio||1;r.category=input.category||'Marketing Agencies';r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(input.pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';}else{r.fundSize='';r.thesis='';}records.push(r);saveRecord(r);refreshView();return `Added ${r.company} to ${input.pipeline}.`;}
+    if(name==='add_record'){const r={id:++nextId,pipeline:input.pipeline,company:input.company,name:input.name||input.company,role:'',email:'',phone:'',stage:input.stage||(input.pipeline==='partners'?STAGES['partners'+(input.portfolio||1)][0]:STAGES[input.pipeline][0]),source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(input.pipeline==='partners'){r.portfolio=input.portfolio||1;r.category=input.category||'Marketing Agencies';r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(input.pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=input.segment||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;}else{r.fundSize='';r.thesis='';}records.push(r);saveRecord(r);refreshView();return `Added ${r.company} to ${input.pipeline}.`;}
     if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;records=records.filter(x=>x.id!==r.id);deleteRecordRemote(r.id);refreshView();return `Deleted ${r.company}.`;}
     if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;r.activity.push({t:input.text,d:'Today'});saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}".`;}
     if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}
