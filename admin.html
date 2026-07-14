@@ -17,7 +17,8 @@
     --red-50:#FCEBEB;--red-400:#E24B4A;
   }
   body{font-family:var(--font);background:var(--gray-50);color:var(--gray-900);min-height:100vh;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1.5;}
-  .card{background:var(--white);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-md);padding:40px 32px;width:380px;text-align:center;}
+  .card{background:var(--white);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-md);padding:40px 32px;width:380px;text-align:center;display:none;}
+  .card.show{display:block;}
   .logo{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--green-600);margin:0 auto 16px;}
   .logo svg{width:22px;height:22px;fill:white;}
   .title{font-size:17px;font-weight:600;margin-bottom:4px;}
@@ -43,27 +44,14 @@
   .result-val{font-family:var(--font-mono);font-size:13px;color:var(--gray-900);word-break:break-all;}
   .hint{font-size:11px;color:var(--gray-500);margin-top:12px;line-height:1.5;}
   .who{font-size:12px;color:var(--gray-500);margin-bottom:18px;}
-  .who a{color:var(--green-600);cursor:pointer;text-decoration:none;}
-  .who a:hover{text-decoration:underline;}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div class="card" id="login-card">
-  <div class="logo"><svg viewBox="0 0 24 24"><path d="M4 5h16l-9 8h9l-16 6 9-8H4z"/></svg></div>
-  <div class="title">Zaher CRM · Admin</div>
-  <div class="sub">Sign in with the admin account</div>
-  <form id="login-form">
-    <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="login-email" placeholder="you@zaher.ai" required></div>
-    <div class="form-group" style="margin-bottom:8px;"><label class="form-label">Password</label><input class="form-input" type="password" id="login-password" required></div>
-    <button class="btn btn-primary" type="submit" id="login-btn">Log in</button>
-  </form>
-  <div class="msg error" id="login-error"></div>
-</div>
-
-<!-- ADMIN PANEL (hidden until authorized) -->
-<div class="card" id="admin-card" style="display:none;">
+<!-- ADMIN PANEL — no login form here; this page only ever shows the panel to an
+     already-authenticated admin session (established via the CRM's single login page)
+     or redirects everyone else there. -->
+<div class="card" id="admin-card">
   <div class="logo"><svg viewBox="0 0 24 24"><path d="M4 5h16l-9 8h9l-16 6 9-8H4z"/></svg></div>
   <div class="title">Create account</div>
   <div class="who" id="admin-who"></div>
@@ -79,47 +67,30 @@
     <div class="hint">Save or send these to them now — the password won't be shown again.</div>
   </div>
   <button class="btn btn-ghost" id="reset-btn" style="display:none;" onclick="resetForm()">Create another</button>
+  <button class="btn btn-ghost" onclick="location.href='/'">Open CRM Dashboard</button>
   <button class="btn btn-ghost" onclick="logOut()">Log out</button>
 </div>
 
 <script>
 const SUPABASE_URL = 'https://lzztbjjbtpuyatyxbrke.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_j4touVNQEgeB9jdyaQHsMg_t_n9w_4S';
-const ALLOWED_DOMAIN = 'zaher.ai';
+const ADMIN_EMAIL = 'ka.mahrous@zaher.ai';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function show(el){ el.classList.add('show'); }
 function hide(el){ el.classList.remove('show'); }
 
 async function handleSession(session){
-  const loginCard=document.getElementById('login-card'), adminCard=document.getElementById('admin-card');
   const email=(session&&session.user&&session.user.email)||'';
-  if(session && email.toLowerCase().endsWith('@'+ALLOWED_DOMAIN)){
-    loginCard.style.display='none';
-    adminCard.style.display='';
+  if(session && email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){
     document.getElementById('admin-who').textContent=`Logged in as ${email}`;
+    show(document.getElementById('admin-card'));
   } else {
-    if(session) await sb.auth.signOut();
-    loginCard.style.display='';
-    adminCard.style.display='none';
+    // No session, or a real but non-admin session — either way this isn't the
+    // admin's page to see. Send them to the single login/CRM entry point.
+    location.href='/';
   }
 }
-
-document.getElementById('login-form').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  const errBox=document.getElementById('login-error'); hide(errBox);
-  const email=document.getElementById('login-email').value.trim();
-  const password=document.getElementById('login-password').value;
-  const btn=document.getElementById('login-btn'); btn.disabled=true;
-  try{
-    const {error}=await sb.auth.signInWithPassword({email,password});
-    if(error) throw error;
-  }catch(err){
-    errBox.textContent=err.message||'Something went wrong.';
-    show(errBox);
-  }
-  btn.disabled=false;
-});
 
 document.getElementById('create-form').addEventListener('submit', async (e)=>{
   e.preventDefault();
@@ -156,7 +127,7 @@ function resetForm(){
   hide(document.getElementById('create-result'));
   hide(document.getElementById('create-error'));
 }
-async function logOut(){ await sb.auth.signOut(); location.reload(); }
+async function logOut(){ await sb.auth.signOut(); location.href='/'; }
 
 (async function init(){
   const {data:{session}}=await sb.auth.getSession();

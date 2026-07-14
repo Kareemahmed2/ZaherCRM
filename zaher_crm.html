@@ -572,6 +572,10 @@ const SUPABASE_URL = 'https://lzztbjjbtpuyatyxbrke.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_j4touVNQEgeB9jdyaQHsMg_t_n9w_4S';
 const sb = (typeof window!=='undefined' && window.supabase && SUPABASE_URL!=='YOUR_SUPABASE_URL') ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const ALLOWED_DOMAIN = 'zaher.ai';
+// Not a secret (just an email address) — used client-side purely to route the admin to
+// admin.html at login. The real enforcement of who can create accounts happens
+// server-side in /api/admin-create-user.js against the ADMIN_EMAIL env var.
+const ADMIN_EMAIL = 'ka.mahrous@zaher.ai';
 
 // ══════════════ SEED DATA (fallback until Supabase is configured / seeded) ══════════════
 const SEED_RECORDS = [
@@ -1439,7 +1443,8 @@ async function handleAuthSubmit(e){
   try{
     const {error}=await sb.auth.signInWithPassword({email,password});
     if(error) throw error;
-    // successful sign-in fires onAuthStateChange -> handleSession
+    if(email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){ location.href='/admin.html'; return false; }
+    // any other valid @zaher.ai login: onAuthStateChange -> handleSession takes it into the dashboard
   }catch(err){
     errBox.textContent=err.message||'Something went wrong.';
     errBox.style.display='block';
