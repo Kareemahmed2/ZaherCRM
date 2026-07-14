@@ -61,7 +61,6 @@
   .user-chip:hover { background:var(--gray-100); }
   .user-av { width:30px; height:30px; border-radius:50%; color:white; font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; background:var(--accent); }
   .user-name { font-size:12px; font-weight:500; }
-  .user-role { font-size:11px; color:var(--gray-500); }
 
   /* ── MAIN ── */
   .main { margin-left:var(--nav-w); flex:1; display:flex; flex-direction:column; min-height:100vh; }
@@ -313,8 +312,8 @@
   </div>
   <div class="sidebar-footer">
     <div class="user-chip">
-      <div class="user-av" id="user-av">AA</div>
-      <div><div class="user-name" id="user-name">Abdalla Ashraf</div><div class="user-role" id="user-role">Strategy & GTM</div></div>
+      <div class="user-av" id="user-av">?</div>
+      <div class="user-name" id="user-name"></div>
     </div>
     <button class="btn btn-ghost" id="logout-btn" style="width:100%;margin-top:8px;font-size:12px;justify-content:center;display:none;" onclick="signOutUser()">Log out</button>
   </div>
@@ -538,6 +537,7 @@
       <button class="seg-btn" id="auth-tab-signup" style="flex:1;" onclick="setAuthMode('signup')">Sign up</button>
     </div>
     <form onsubmit="return handleAuthSubmit(event)" style="text-align:left;">
+      <div class="form-group" id="auth-name-group" style="display:none;"><label class="form-label">Name</label><input class="form-input" type="text" id="auth-name" placeholder="Your name"></div>
       <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="auth-email" placeholder="you@zaher.ai" required></div>
       <div class="form-group" style="margin-bottom:8px;"><label class="form-label">Password</label><input class="form-input" type="password" id="auth-password" placeholder="••••••••" minlength="6" required></div>
       <button class="btn btn-primary" type="submit" id="auth-submit-btn" style="width:100%;justify-content:center;padding:10px;margin-top:8px;">Log in</button>
@@ -572,7 +572,6 @@ const CAT_META = {
 const AV_COLORS=['av-blue','av-green','av-amber','av-purple','av-red','av-teal'];
 const PALETTE=['#378ADD','#639922','#EF9F27','#7F77DD','#E24B4A','#0E7474','#185FA5','#534AB7'];
 const PIPE_ACCENT={partners:'#185FA5',customers:'#3B6D11',investors:'#0E7474'};
-const OWNERS={partners:{name:'Abdalla Ashraf',role:'Strategy & GTM',ini:'AA'},customers:{name:'Anwar Aly',role:'Founder & CEO',ini:'AN'},investors:{name:'Anwar Aly',role:'Founder & CEO',ini:'AN'}};
 
 // ══════════════ SUPABASE ══════════════
 const SUPABASE_URL = 'https://lzztbjjbtpuyatyxbrke.supabase.co';
@@ -751,7 +750,6 @@ function setPipeline(p){
   const addLbl={partners:'Add Partner',customers:'Add Customer',investors:'Add Investor'}[p];
   document.getElementById('add-btn-label').textContent=addLbl;
   document.getElementById('add-btn-label2').textContent=addLbl;
-  const o=OWNERS[p]; document.getElementById('user-name').textContent=o.name; document.getElementById('user-role').textContent=o.role; document.getElementById('user-av').textContent=o.ini;
   showPage('dashboard');
 }
 function setPortfolio(pf){
@@ -1419,6 +1417,9 @@ async function handleSession(session){
   if(session && email.toLowerCase().endsWith('@'+ALLOWED_DOMAIN)){
     gate.classList.remove('open');
     errBox.style.display='none';
+    const displayName=(session.user.user_metadata&&session.user.user_metadata.name)||email.split('@')[0];
+    document.getElementById('user-name').textContent=displayName;
+    document.getElementById('user-av').textContent=ini(displayName);
     if(!appStarted){ appStarted=true; await startApp(); }
   } else {
     if(session){
@@ -1436,6 +1437,7 @@ function setAuthMode(mode){
   document.getElementById('auth-tab-signup').classList.toggle('active',mode==='signup');
   document.getElementById('auth-submit-btn').textContent=mode==='login'?'Log in':'Create account';
   document.getElementById('auth-sub').textContent=mode==='login'?`Sign in with your @${ALLOWED_DOMAIN} account`:`Create an account with your @${ALLOWED_DOMAIN} email`;
+  document.getElementById('auth-name-group').style.display=mode==='signup'?'block':'none';
   document.getElementById('auth-error').style.display='none';
   document.getElementById('auth-info').style.display='none';
 }
@@ -1445,8 +1447,14 @@ async function handleAuthSubmit(e){
   errBox.style.display='none'; infoBox.style.display='none';
   const email=document.getElementById('auth-email').value.trim();
   const password=document.getElementById('auth-password').value;
+  const name=document.getElementById('auth-name').value.trim();
   if(!email.toLowerCase().endsWith('@'+ALLOWED_DOMAIN)){
     errBox.textContent=`Only @${ALLOWED_DOMAIN} email addresses can access this CRM.`;
+    errBox.style.display='block';
+    return false;
+  }
+  if(authMode==='signup' && !name){
+    errBox.textContent='Enter your name.';
     errBox.style.display='block';
     return false;
   }
@@ -1457,7 +1465,7 @@ async function handleAuthSubmit(e){
       if(error) throw error;
       // successful sign-in fires onAuthStateChange -> handleSession
     } else {
-      const {data,error}=await sb.auth.signUp({email,password});
+      const {data,error}=await sb.auth.signUp({email,password,options:{data:{name}}});
       if(error) throw error;
       if(!data.session){
         infoBox.textContent='Account created — check your email to confirm it, then log in.';
