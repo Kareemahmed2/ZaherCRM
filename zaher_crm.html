@@ -532,18 +532,12 @@
     <div class="auth-logo"><svg viewBox="0 0 24 24"><path d="M4 5h16l-9 8h9l-16 6 9-8H4z"/></svg></div>
     <div class="auth-title">Zaher CRM</div>
     <div class="auth-sub" id="auth-sub">Sign in with your @zaher.ai account</div>
-    <div class="seg" style="width:100%;margin-bottom:18px;">
-      <button class="seg-btn active" id="auth-tab-login" style="flex:1;" onclick="setAuthMode('login')">Log in</button>
-      <button class="seg-btn" id="auth-tab-signup" style="flex:1;" onclick="setAuthMode('signup')">Sign up</button>
-    </div>
     <form onsubmit="return handleAuthSubmit(event)" style="text-align:left;">
-      <div class="form-group" id="auth-name-group" style="display:none;"><label class="form-label">Name</label><input class="form-input" type="text" id="auth-name" placeholder="Your name"></div>
       <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="auth-email" placeholder="you@zaher.ai" required></div>
-      <div class="form-group" style="margin-bottom:8px;"><label class="form-label">Password</label><input class="form-input" type="password" id="auth-password" placeholder="••••••••" minlength="6" required></div>
+      <div class="form-group" style="margin-bottom:8px;"><label class="form-label">Password</label><input class="form-input" type="password" id="auth-password" placeholder="••••••••" required></div>
       <button class="btn btn-primary" type="submit" id="auth-submit-btn" style="width:100%;justify-content:center;padding:10px;margin-top:8px;">Log in</button>
     </form>
     <div class="auth-error" id="auth-error"></div>
-    <div class="auth-info" id="auth-info" style="display:none;margin-top:14px;font-size:12px;color:var(--gray-700);line-height:1.5;"></div>
   </div>
 </div>
 
@@ -1430,51 +1424,22 @@ async function handleSession(session){
     gate.classList.add('open');
   }
 }
-let authMode='login';
-function setAuthMode(mode){
-  authMode=mode;
-  document.getElementById('auth-tab-login').classList.toggle('active',mode==='login');
-  document.getElementById('auth-tab-signup').classList.toggle('active',mode==='signup');
-  document.getElementById('auth-submit-btn').textContent=mode==='login'?'Log in':'Create account';
-  document.getElementById('auth-sub').textContent=mode==='login'?`Sign in with your @${ALLOWED_DOMAIN} account`:`Create an account with your @${ALLOWED_DOMAIN} email`;
-  document.getElementById('auth-name-group').style.display=mode==='signup'?'block':'none';
-  document.getElementById('auth-error').style.display='none';
-  document.getElementById('auth-info').style.display='none';
-}
 async function handleAuthSubmit(e){
   e.preventDefault();
-  const errBox=document.getElementById('auth-error'), infoBox=document.getElementById('auth-info');
-  errBox.style.display='none'; infoBox.style.display='none';
+  const errBox=document.getElementById('auth-error');
+  errBox.style.display='none';
   const email=document.getElementById('auth-email').value.trim();
   const password=document.getElementById('auth-password').value;
-  const name=document.getElementById('auth-name').value.trim();
   if(!email.toLowerCase().endsWith('@'+ALLOWED_DOMAIN)){
     errBox.textContent=`Only @${ALLOWED_DOMAIN} email addresses can access this CRM.`;
     errBox.style.display='block';
     return false;
   }
-  if(authMode==='signup' && !name){
-    errBox.textContent='Enter your name.';
-    errBox.style.display='block';
-    return false;
-  }
   const btn=document.getElementById('auth-submit-btn'); btn.disabled=true;
   try{
-    if(authMode==='login'){
-      const {error}=await sb.auth.signInWithPassword({email,password});
-      if(error) throw error;
-      // successful sign-in fires onAuthStateChange -> handleSession
-    } else {
-      const {data,error}=await sb.auth.signUp({email,password,options:{data:{name}}});
-      if(error) throw error;
-      if(!data.session){
-        infoBox.textContent='Account created — check your email to confirm it, then log in.';
-        infoBox.style.display='block';
-        setAuthMode('login');
-      }
-      // if email confirmation is off, Supabase returns a session immediately and
-      // onAuthStateChange -> handleSession takes it from there, same as login.
-    }
+    const {error}=await sb.auth.signInWithPassword({email,password});
+    if(error) throw error;
+    // successful sign-in fires onAuthStateChange -> handleSession
   }catch(err){
     errBox.textContent=err.message||'Something went wrong.';
     errBox.style.display='block';
