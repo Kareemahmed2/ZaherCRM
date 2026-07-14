@@ -7,19 +7,9 @@
 // Set as Vercel environment variables:
 //   SUPABASE_SERVICE_ROLE_KEY (required) — Project Settings -> API -> service_role key
 //   ADMIN_EMAIL               (required) — the one @zaher.ai account allowed to create others
-import crypto from 'crypto';
-
 const SUPABASE_URL = 'https://lzztbjjbtpuyatyxbrke.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_j4touVNQEgeB9jdyaQHsMg_t_n9w_4S';
 const ALLOWED_DOMAIN = 'zaher.ai';
-
-function generatePassword() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-  const bytes = crypto.randomBytes(16);
-  let pw = '';
-  for (let i = 0; i < 16; i++) pw += alphabet[bytes[i] % alphabet.length];
-  return pw;
-}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
@@ -40,11 +30,11 @@ export default async function handler(req, res) {
     if (!meRes.ok || !me.email) { res.status(401).json({ error: 'Invalid or expired session' }); return; }
     if (me.email.toLowerCase() !== adminEmail.toLowerCase()) { res.status(403).json({ error: 'Only the admin account can create new accounts' }); return; }
 
-    const { email, name } = req.body || {};
-    if (!email || !name) { res.status(400).json({ error: 'Name and email are required' }); return; }
+    const { email, name, password } = req.body || {};
+    if (!email || !name || !password) { res.status(400).json({ error: 'Name, email and password are required' }); return; }
     if (!email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) { res.status(400).json({ error: `Only @${ALLOWED_DOMAIN} emails are allowed` }); return; }
+    if (password.length < 6) { res.status(400).json({ error: 'Password must be at least 6 characters' }); return; }
 
-    const password = generatePassword();
     const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },

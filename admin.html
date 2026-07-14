@@ -57,7 +57,8 @@
   <div class="who" id="admin-who"></div>
   <form id="create-form">
     <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="create-name" placeholder="Teammate's name" required></div>
-    <div class="form-group" style="margin-bottom:8px;"><label class="form-label">Email</label><input class="form-input" type="email" id="create-email" placeholder="teammate@zaher.ai" required></div>
+    <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="create-email" placeholder="teammate@zaher.ai" required></div>
+    <div class="form-group" style="margin-bottom:8px;"><label class="form-label">Password</label><input class="form-input" type="password" id="create-password" placeholder="At least 6 characters" minlength="6" required></div>
     <button class="btn btn-primary" type="submit" id="create-btn">Create account</button>
   </form>
   <div class="msg error" id="create-error"></div>
@@ -98,13 +99,14 @@ document.getElementById('create-form').addEventListener('submit', async (e)=>{
   hide(document.getElementById('create-result'));
   const name=document.getElementById('create-name').value.trim();
   const email=document.getElementById('create-email').value.trim();
+  const password=document.getElementById('create-password').value;
   const btn=document.getElementById('create-btn'); btn.disabled=true;
   try{
     const {data:{session}}=await sb.auth.getSession();
     const res=await fetch('/api/admin-create-user',{
       method:'POST',
       headers:{'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}`},
-      body:JSON.stringify({name,email})
+      body:JSON.stringify({name,email,password})
     });
     const data=await res.json();
     if(!res.ok) throw new Error(data.error||`Request failed (${res.status})`);
