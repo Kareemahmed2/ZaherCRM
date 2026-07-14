@@ -80,19 +80,32 @@ on conflict (label) do nothing;
 alter table records enable row level security;
 alter table next_step_options enable row level security;
 
--- No auth in this phase (explicit decision) — open read/write policies.
--- Revisit once login is added.
+-- Email/password login added 2026-07-14 — access is now restricted to authenticated
+-- @zaher.ai accounts (checked against the Supabase Auth JWT's email claim, not just
+-- the client-side domain gate in zaher_crm.html, since the anon key alone is public
+-- and the client-side check can be bypassed by calling the API directly).
+create or replace function is_zaher_team()
+returns boolean language sql stable as $$
+  select auth.role() = 'authenticated' and (auth.jwt() ->> 'email') ilike '%@zaher.ai';
+$$;
+
 -- (drop-then-create makes this script safe to re-run — CREATE POLICY has no IF NOT EXISTS)
 drop policy if exists "public read records" on records;
-create policy "public read records" on records for select using (true);
+drop policy if exists "zaher team read records" on records;
+create policy "zaher team read records" on records for select using (is_zaher_team());
 drop policy if exists "public write records" on records;
-create policy "public write records" on records for insert with check (true);
+drop policy if exists "zaher team insert records" on records;
+create policy "zaher team insert records" on records for insert with check (is_zaher_team());
 drop policy if exists "public update records" on records;
-create policy "public update records" on records for update using (true) with check (true);
+drop policy if exists "zaher team update records" on records;
+create policy "zaher team update records" on records for update using (is_zaher_team()) with check (is_zaher_team());
 drop policy if exists "public delete records" on records;
-create policy "public delete records" on records for delete using (true);
+drop policy if exists "zaher team delete records" on records;
+create policy "zaher team delete records" on records for delete using (is_zaher_team());
 
 drop policy if exists "public read next_step_options" on next_step_options;
-create policy "public read next_step_options" on next_step_options for select using (true);
+drop policy if exists "zaher team read next_step_options" on next_step_options;
+create policy "zaher team read next_step_options" on next_step_options for select using (is_zaher_team());
 drop policy if exists "public write next_step_options" on next_step_options;
-create policy "public write next_step_options" on next_step_options for insert with check (true);
+drop policy if exists "zaher team insert next_step_options" on next_step_options;
+create policy "zaher team insert next_step_options" on next_step_options for insert with check (is_zaher_team());

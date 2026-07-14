@@ -268,6 +268,16 @@
   .chat-send svg{width:16px;height:16px;}
 
   ::-webkit-scrollbar{width:6px;height:6px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--gray-200);border-radius:3px;}
+
+  /* ── AUTH GATE ── */
+  .auth-gate{position:fixed;inset:0;background:var(--gray-50);z-index:5000;display:none;align-items:center;justify-content:center;}
+  .auth-gate.open{display:flex;}
+  .auth-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-md);padding:40px 32px;width:360px;text-align:center;}
+  .auth-logo{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--accent);margin:0 auto 16px;}
+  .auth-logo svg{width:22px;height:22px;fill:white;}
+  .auth-title{font-size:17px;font-weight:600;margin-bottom:4px;}
+  .auth-sub{font-size:13px;color:var(--gray-500);margin-bottom:24px;line-height:1.5;}
+  .auth-error{display:none;margin-top:14px;font-size:12px;color:var(--red-400);line-height:1.5;}
 </style>
 </head>
 <body class="pl-partners">
@@ -306,6 +316,7 @@
       <div class="user-av" id="user-av">AA</div>
       <div><div class="user-name" id="user-name">Abdalla Ashraf</div><div class="user-role" id="user-role">Strategy & GTM</div></div>
     </div>
+    <button class="btn btn-ghost" id="logout-btn" style="width:100%;margin-top:8px;font-size:12px;justify-content:center;display:none;" onclick="signOutUser()">Log out</button>
   </div>
 </aside>
 
@@ -516,6 +527,26 @@
 <div id="drag-clone"></div>
 <div class="toast" id="toast"></div>
 
+<!-- AUTH GATE -->
+<div class="auth-gate" id="auth-gate">
+  <div class="auth-card">
+    <div class="auth-logo"><svg viewBox="0 0 24 24"><path d="M4 5h16l-9 8h9l-16 6 9-8H4z"/></svg></div>
+    <div class="auth-title">Zaher CRM</div>
+    <div class="auth-sub" id="auth-sub">Sign in with your @zaher.ai account</div>
+    <div class="seg" style="width:100%;margin-bottom:18px;">
+      <button class="seg-btn active" id="auth-tab-login" style="flex:1;" onclick="setAuthMode('login')">Log in</button>
+      <button class="seg-btn" id="auth-tab-signup" style="flex:1;" onclick="setAuthMode('signup')">Sign up</button>
+    </div>
+    <form onsubmit="return handleAuthSubmit(event)" style="text-align:left;">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="auth-email" placeholder="you@zaher.ai" required></div>
+      <div class="form-group" style="margin-bottom:8px;"><label class="form-label">Password</label><input class="form-input" type="password" id="auth-password" placeholder="••••••••" minlength="6" required></div>
+      <button class="btn btn-primary" type="submit" id="auth-submit-btn" style="width:100%;justify-content:center;padding:10px;margin-top:8px;">Log in</button>
+    </form>
+    <div class="auth-error" id="auth-error"></div>
+    <div class="auth-info" id="auth-info" style="display:none;margin-top:14px;font-size:12px;color:var(--gray-700);line-height:1.5;"></div>
+  </div>
+</div>
+
 <script>
 // ══════════════ CONFIG ══════════════
 const STAGES = {
@@ -547,6 +578,7 @@ const OWNERS={partners:{name:'Abdalla Ashraf',role:'Strategy & GTM',ini:'AA'},cu
 const SUPABASE_URL = 'https://lzztbjjbtpuyatyxbrke.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_j4touVNQEgeB9jdyaQHsMg_t_n9w_4S';
 const sb = (typeof window!=='undefined' && window.supabase && SUPABASE_URL!=='YOUR_SUPABASE_URL') ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const ALLOWED_DOMAIN = 'zaher.ai';
 
 // ══════════════ SEED DATA (fallback until Supabase is configured / seeded) ══════════════
 const SEED_RECORDS = [
@@ -1370,14 +1402,90 @@ function labelTool(name,input){
   return m[name]||name;
 }
 
-// ══════════════ INIT ══════════════
-window.addEventListener('click',e=>{if(e.target.classList&&e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');if(e.target.classList&&e.target.classList.contains('confirm-overlay'))e.target.classList.remove('open');});
-(async function init(){
+// ══════════════ AUTH ══════════════
+let appStarted=false;
+async function startApp(){
+  document.getElementById('logout-btn').style.display=sb?'':'none';
   await loadRecords();
   await loadNextStepOptions();
   setPipeline('partners');
   renderSuggest();
   addBubble('bot','Hi — I can update or answer questions about the CRM. Try one of the suggestions below, or ask me anything about your partners, customers, or investors.');
+}
+async function handleSession(session){
+  const gate=document.getElementById('auth-gate');
+  const errBox=document.getElementById('auth-error');
+  const email=(session&&session.user&&session.user.email)||'';
+  if(session && email.toLowerCase().endsWith('@'+ALLOWED_DOMAIN)){
+    gate.classList.remove('open');
+    errBox.style.display='none';
+    if(!appStarted){ appStarted=true; await startApp(); }
+  } else {
+    if(session){
+      errBox.textContent=`"${email}" isn't a @${ALLOWED_DOMAIN} account — only your team can access this CRM.`;
+      errBox.style.display='block';
+      await sb.auth.signOut();
+    }
+    gate.classList.add('open');
+  }
+}
+let authMode='login';
+function setAuthMode(mode){
+  authMode=mode;
+  document.getElementById('auth-tab-login').classList.toggle('active',mode==='login');
+  document.getElementById('auth-tab-signup').classList.toggle('active',mode==='signup');
+  document.getElementById('auth-submit-btn').textContent=mode==='login'?'Log in':'Create account';
+  document.getElementById('auth-sub').textContent=mode==='login'?`Sign in with your @${ALLOWED_DOMAIN} account`:`Create an account with your @${ALLOWED_DOMAIN} email`;
+  document.getElementById('auth-error').style.display='none';
+  document.getElementById('auth-info').style.display='none';
+}
+async function handleAuthSubmit(e){
+  e.preventDefault();
+  const errBox=document.getElementById('auth-error'), infoBox=document.getElementById('auth-info');
+  errBox.style.display='none'; infoBox.style.display='none';
+  const email=document.getElementById('auth-email').value.trim();
+  const password=document.getElementById('auth-password').value;
+  if(!email.toLowerCase().endsWith('@'+ALLOWED_DOMAIN)){
+    errBox.textContent=`Only @${ALLOWED_DOMAIN} email addresses can access this CRM.`;
+    errBox.style.display='block';
+    return false;
+  }
+  const btn=document.getElementById('auth-submit-btn'); btn.disabled=true;
+  try{
+    if(authMode==='login'){
+      const {error}=await sb.auth.signInWithPassword({email,password});
+      if(error) throw error;
+      // successful sign-in fires onAuthStateChange -> handleSession
+    } else {
+      const {data,error}=await sb.auth.signUp({email,password});
+      if(error) throw error;
+      if(!data.session){
+        infoBox.textContent='Account created — check your email to confirm it, then log in.';
+        infoBox.style.display='block';
+        setAuthMode('login');
+      }
+      // if email confirmation is off, Supabase returns a session immediately and
+      // onAuthStateChange -> handleSession takes it from there, same as login.
+    }
+  }catch(err){
+    errBox.textContent=err.message||'Something went wrong.';
+    errBox.style.display='block';
+  }
+  btn.disabled=false;
+  return false;
+}
+async function signOutUser(){
+  if(sb) await sb.auth.signOut();
+  location.reload();
+}
+
+// ══════════════ INIT ══════════════
+window.addEventListener('click',e=>{if(e.target.classList&&e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');if(e.target.classList&&e.target.classList.contains('confirm-overlay'))e.target.classList.remove('open');});
+(async function init(){
+  if(!sb){ await startApp(); return; }
+  const {data:{session}}=await sb.auth.getSession();
+  await handleSession(session);
+  sb.auth.onAuthStateChange((_event,session)=>{ handleSession(session); });
 })();
 </script>
 </body>
