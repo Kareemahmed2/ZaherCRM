@@ -419,6 +419,7 @@
             <div><div class="profile-name" id="det-name"></div><div class="profile-role" id="det-role"></div><div class="profile-tags" id="det-tags"></div></div>
             <div class="profile-actions">
               <button class="btn btn-danger" style="font-size:12px;padding:6px 12px;" onclick="confirmDelete()">Delete</button>
+              <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="openEditModal()">✎ Update</button>
               <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" id="det-contact-btn">✉ Email</button>
             </div>
           </div>
@@ -452,7 +453,7 @@
     <div class="modal-body" id="modal-body"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="addRecord()">Add</button>
+      <button class="btn btn-primary" id="modal-submit-btn" onclick="addRecord()">Add</button>
     </div>
   </div>
 </div>
@@ -1221,59 +1222,95 @@ function renderDetail(){
 }
 
 // ══════════════ MODALS ══════════════
-function openModal(stage){
-  const p=state.pipeline;
-  document.getElementById('modal-title').textContent={partners:'Add partner',customers:'Add customer',investors:'Add investor'}[p];
-  const stages=activeStages();
-  const stageOpts=stages.map(s=>`<option ${s===stage?'selected':''}>${s}</option>`).join('');
-  let extra='';
+const escAttr=v=>(v==null?'':(''+v)).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+let editId=null;
+function extraFieldsHtml(p,r){
   if(p==='partners'){
-    extra=`<div class="form-row">
-      <div class="form-group"><label class="form-label">Portfolio</label><select class="form-input" id="f-portfolio"><option value="1" ${state.portfolio===1?'selected':''}>1 · Revenue</option><option value="2" ${state.portfolio===2?'selected':''}>2 · Ecosystem</option></select></div>
-      <div class="form-group"><label class="form-label">Category</label><select class="form-input" id="f-category">${Object.keys(CAT_META).map(c=>`<option>${c}</option>`).join('')}</select></div></div>
-      <div class="form-row"><div class="form-group"><label class="form-label">Model</label><input class="form-input" id="f-model" placeholder="Referral / Reseller / ..."></div>
-      <div class="form-group"><label class="form-label">Potential ARR ($)</label><input class="form-input" type="number" id="f-value" placeholder="20000"></div></div>`;
+    const portfolio=r?r.portfolio:state.portfolio;
+    return `<div class="form-row">
+      <div class="form-group"><label class="form-label">Portfolio</label><select class="form-input" id="f-portfolio"><option value="1" ${portfolio===1?'selected':''}>1 · Revenue</option><option value="2" ${portfolio===2?'selected':''}>2 · Ecosystem</option></select></div>
+      <div class="form-group"><label class="form-label">Category</label><select class="form-input" id="f-category">${Object.keys(CAT_META).map(c=>`<option ${r&&r.category===c?'selected':''}>${c}</option>`).join('')}</select></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Model</label><input class="form-input" id="f-model" placeholder="Referral / Reseller / ..." value="${escAttr(r?r.model:'')}"></div>
+      <div class="form-group"><label class="form-label">Potential ARR ($)</label><input class="form-input" type="number" id="f-value" placeholder="20000" value="${r&&r.value?r.value:''}"></div></div>`;
   } else if(p==='customers'){
-    extra=`<div class="form-row"><div class="form-group"><label class="form-label">Sector</label><input class="form-input" id="f-sector" placeholder="E-Commerce"></div>
-      <div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" id="f-value" placeholder="12000"></div></div>
-      <div class="form-row"><div class="form-group"><label class="form-label">Segment</label><select class="form-input" id="f-segment"><option value="Enterprise">Enterprise</option><option value="SaaS">SaaS</option></select></div>
-      <div class="form-group"><label class="form-label">Lead source</label><input class="form-input" id="f-leadsource" placeholder="LinkedIn / Community / Partner"></div></div>
-      <div class="form-group"><label class="form-label">Next step</label><select class="form-input" id="f-nextstep" onchange="handleNextStepChange(this)">${nextStepSelectHtml(nextStepOptions[0])}</select></div>`;
+    return `<div class="form-row"><div class="form-group"><label class="form-label">Sector</label><input class="form-input" id="f-sector" placeholder="E-Commerce" value="${escAttr(r?r.sector:'')}"></div>
+      <div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" id="f-value" placeholder="12000" value="${r&&r.value?r.value:''}"></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Segment</label><select class="form-input" id="f-segment"><option value="Enterprise" ${(!r||r.segment==='Enterprise')?'selected':''}>Enterprise</option><option value="SaaS" ${r&&r.segment==='SaaS'?'selected':''}>SaaS</option></select></div>
+      <div class="form-group"><label class="form-label">Lead source</label><input class="form-input" id="f-leadsource" placeholder="LinkedIn / Community / Partner" value="${escAttr(r?r.leadSource:'')}"></div></div>
+      <div class="form-group"><label class="form-label">Next step</label><select class="form-input" id="f-nextstep" onchange="handleNextStepChange(this)">${nextStepSelectHtml(r?r.nextStep:nextStepOptions[0])}</select></div>`;
   } else {
-    extra=`<div class="form-row"><div class="form-group"><label class="form-label">Fund size</label><input class="form-input" id="f-fundsize" placeholder="$80M"></div>
-      <div class="form-group"><label class="form-label">Target raise ($)</label><input class="form-input" type="number" id="f-value" placeholder="500000"></div></div>
-      <div class="form-group"><label class="form-label">Thesis</label><input class="form-input" id="f-thesis" placeholder="MENA SaaS"></div>`;
+    return `<div class="form-row"><div class="form-group"><label class="form-label">Fund size</label><input class="form-input" id="f-fundsize" placeholder="$80M" value="${escAttr(r?r.fundSize:'')}"></div>
+      <div class="form-group"><label class="form-label">Target raise ($)</label><input class="form-input" type="number" id="f-value" placeholder="500000" value="${r&&r.value?r.value:''}"></div></div>
+      <div class="form-group"><label class="form-label">Thesis</label><input class="form-input" id="f-thesis" placeholder="MENA SaaS" value="${escAttr(r?r.thesis:'')}"></div>`;
   }
+}
+function renderModalForm(p,r,stage){
+  const stages=r?(state.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline]):activeStages();
+  const curStage=r?r.stage:stage;
+  const stageOpts=stages.map(s=>`<option ${s===curStage?'selected':''}>${s}</option>`).join('');
   const stageSourceRow = p==='customers'
     ? `<div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>`
     : `<div class="form-row"><div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>
-    <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="f-source" placeholder="LinkedIn"></div></div>`;
-  document.getElementById('modal-body').innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
+    <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="f-source" placeholder="LinkedIn" value="${escAttr(r?r.source:'')}"></div></div>`;
+  const importRow = r?'':`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
       <span style="font-size:12px;color:var(--gray-500);">Adding several at once?</span>
       <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="closeModal();document.getElementById('import-file').click();">Import from CSV/Excel</button>
-    </div>
-    <div class="form-row"><div class="form-group"><label class="form-label">${p==='partners'?'Organisation':'Company / Brand'} *</label><input class="form-input" id="f-company" placeholder="Company"></div>
-    <div class="form-group"><label class="form-label">Contact name</label><input class="form-input" id="f-name" placeholder="Person"></div></div>
-    <div class="form-row"><div class="form-group"><label class="form-label">Role</label><input class="form-input" id="f-role" placeholder="Title"></div>
-    <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f-email" placeholder="name@company.com"></div></div>
-    ${extra}
+    </div>`;
+  document.getElementById('modal-body').innerHTML=`
+    ${importRow}
+    <div class="form-row"><div class="form-group"><label class="form-label">${p==='partners'?'Organisation':'Company / Brand'} *</label><input class="form-input" id="f-company" placeholder="Company" value="${escAttr(r?r.company:'')}"></div>
+    <div class="form-group"><label class="form-label">Contact name</label><input class="form-input" id="f-name" placeholder="Person" value="${escAttr(r?r.name:'')}"></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Role</label><input class="form-input" id="f-role" placeholder="Title" value="${escAttr(r?r.role:'')}"></div>
+    <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f-email" placeholder="name@company.com" value="${escAttr(r?r.email:'')}"></div></div>
+    <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="f-phone" placeholder="+971 5x xxx xxxx" value="${escAttr(r?r.phone:'')}"></div>
+    ${extraFieldsHtml(p,r)}
     ${stageSourceRow}
-    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="f-notes" rows="2" placeholder="Context..."></textarea></div>`;
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="f-notes" rows="2" placeholder="Context...">${r?(r.notes||''):''}</textarea></div>`;
   document.getElementById('modal').classList.add('open');
 }
-function closeModal(){document.getElementById('modal').classList.remove('open');}
+function openModal(stage){
+  editId=null;
+  const p=state.pipeline;
+  document.getElementById('modal-title').textContent={partners:'Add partner',customers:'Add customer',investors:'Add investor'}[p];
+  const btn=document.getElementById('modal-submit-btn');
+  btn.textContent='Add'; btn.onclick=addRecord;
+  renderModalForm(p,null,stage);
+}
+function openEditModal(){
+  const r=records.find(x=>x.id===currentId); if(!r)return;
+  editId=r.id;
+  const p=r.pipeline;
+  document.getElementById('modal-title').textContent=`Edit ${r.company}`;
+  const btn=document.getElementById('modal-submit-btn');
+  btn.textContent='Save changes'; btn.onclick=saveEditedRecord;
+  renderModalForm(p,r);
+}
+function closeModal(){document.getElementById('modal').classList.remove('open');editId=null;}
 function val(id){const el=document.getElementById(id);return el?el.value.trim():'';}
 function addRecord(){
   const company=val('f-company'); if(!company){showToast('Organisation name is required');return;}
   const p=state.pipeline;
-  const r={id:++nextId,pipeline:p,name:val('f-name')||company,company,role:val('f-role'),email:val('f-email'),phone:'',stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:val('f-notes'),value:Number(val('f-value'))||0,activity:[{t:'Added to CRM',d:'Today'}]};
+  const r={id:++nextId,pipeline:p,name:val('f-name')||company,company,role:val('f-role'),email:val('f-email'),phone:val('f-phone'),stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:val('f-notes'),value:Number(val('f-value'))||0,activity:[{t:'Added to CRM',d:'Today'}]};
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){r.sector=val('f-sector')||'General';r.leadSource=val('f-leadsource')||'Manual';r.segment=val('f-segment')||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;}
   else {r.fundSize=val('f-fundsize');r.thesis=val('f-thesis');}
   records.push(r); closeModal(); saveRecord(r);
   if(p==='partners')state.portfolio=r.portfolio;
   showPage('pipeline'); showToast(`${company} added`);
+}
+function saveEditedRecord(){
+  const r=records.find(x=>x.id===editId); if(!r)return;
+  const company=val('f-company'); if(!company){showToast('Organisation name is required');return;}
+  const p=r.pipeline;
+  r.name=val('f-name')||company; r.company=company; r.role=val('f-role'); r.email=val('f-email'); r.phone=val('f-phone');
+  r.stage=val('f-stage'); r.notes=val('f-notes'); r.value=Number(val('f-value'))||0;
+  if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); }
+  else if(p==='customers'){ r.sector=val('f-sector')||'General'; r.leadSource=val('f-leadsource')||r.leadSource; r.segment=val('f-segment')||'Enterprise'; r.nextStep=val('f-nextstep')||r.nextStep; }
+  else { r.source=val('f-source')||r.source; r.fundSize=val('f-fundsize'); r.thesis=val('f-thesis'); }
+  r.activity=(r.activity||[]).concat([{t:'Details updated',d:'Today'}]);
+  closeModal(); saveRecord(r);
+  if(p==='partners'&&r.portfolio)state.portfolio=r.portfolio;
+  refreshView(); showToast(`${company} updated`);
 }
 let deleteId=null;
 function confirmDelete(){deleteId=currentId;const r=records.find(x=>x.id===currentId);document.getElementById('confirm-msg').textContent=`This removes ${r.company} from the CRM. This can't be undone.`;document.getElementById('confirm-overlay').classList.add('open');}
