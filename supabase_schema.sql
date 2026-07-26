@@ -221,6 +221,11 @@ create trigger investors_set_updated_at
   before update on investors
   for each row execute function set_updated_at();
 
+-- `nextStep` was left off the customers table below when it was first created —
+-- add it here (before the backfill insert that references it) so this script
+-- also fixes an already-existing customers table, not just a fresh one.
+alter table customers add column if not exists "nextStep" text;
+
 -- One-time backfill from `records` — safe to re-run (on conflict do nothing).
 insert into partners (id, portfolio, category, name, company, role, email, phone, stage, model, tier, score, website, region, clients, value, workshops, founders, source, date, notes, activity, created_at, updated_at)
 select id, portfolio, category, name, company, role, email, phone, stage, model, tier, score, website, region, clients, value, workshops, founders, source, date, notes, activity, created_at, updated_at
@@ -305,12 +310,11 @@ where name is distinct from company;
 -- Customers: website field (added 2026-07-26)
 alter table customers add column if not exists website text;
 
--- Fix: the customers table (created by the table-split migration above) was missing
--- the "nextStep" column that the app has always written on every save, so every
--- upsert to `customers` was failing with PGRST204 ("Could not find the 'nextStep'
--- column"). `records` still has it untouched — backfill from there for any customers
--- row that's missing it (safe to re-run; only fills rows that are still null).
-alter table customers add column if not exists "nextStep" text;
+-- Fix: `nextStep` (added above, before the backfill insert) still needs to be
+-- populated for customer rows that were already in this table before this script
+-- ran — the backfill insert only fills brand-new rows (on conflict do nothing).
+-- `records` still has the original values untouched, so pull from there.
+-- Safe to re-run — only fills rows that are still null.
 update customers c
 set "nextStep" = r."nextStep"
 from records r
