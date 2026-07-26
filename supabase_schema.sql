@@ -168,6 +168,7 @@ create table if not exists customers (
   "leadSource" text,
   "referredBy" bigint,
   segment      text,
+  "nextStep"   text,
   date         text,
   notes        text,
   activity     jsonb not null default '[]'::jsonb,
@@ -226,8 +227,8 @@ select id, portfolio, category, name, company, role, email, phone, stage, model,
 from records where pipeline = 'partners'
 on conflict (id) do nothing;
 
-insert into customers (id, name, company, role, email, phone, stage, sector, package, "aiScore", value, "leadSource", "referredBy", segment, date, notes, activity, created_at, updated_at)
-select id, name, company, role, email, phone, stage, sector, package, "aiScore", value, "leadSource", "referredBy", segment, date, notes, activity, created_at, updated_at
+insert into customers (id, name, company, role, email, phone, stage, sector, package, "aiScore", value, "leadSource", "referredBy", segment, "nextStep", date, notes, activity, created_at, updated_at)
+select id, name, company, role, email, phone, stage, sector, package, "aiScore", value, "leadSource", "referredBy", segment, "nextStep", date, notes, activity, created_at, updated_at
 from records where pipeline = 'customers'
 on conflict (id) do nothing;
 
@@ -303,3 +304,15 @@ where name is distinct from company;
 
 -- Customers: website field (added 2026-07-26)
 alter table customers add column if not exists website text;
+
+-- Fix: the customers table (created by the table-split migration above) was missing
+-- the "nextStep" column that the app has always written on every save, so every
+-- upsert to `customers` was failing with PGRST204 ("Could not find the 'nextStep'
+-- column"). `records` still has it untouched — backfill from there for any customers
+-- row that's missing it (safe to re-run; only fills rows that are still null).
+alter table customers add column if not exists "nextStep" text;
+update customers c
+set "nextStep" = r."nextStep"
+from records r
+where r.id = c.id and r.pipeline = 'customers'
+  and c."nextStep" is null and r."nextStep" is not null;
