@@ -300,3 +300,6 @@ where jsonb_array_length(members) = 0
 update customers
 set name = company, role = '', email = '', phone = ''
 where name is distinct from company;
+
+-- Customers: website field (added 2026-07-26)
+alter table customers add column if not exists website text;
