@@ -502,7 +502,7 @@
 <!-- MEMBER MODAL -->
 <div class="modal-overlay" id="member-modal">
   <div class="modal" style="width:420px;">
-    <div class="modal-header"><span class="modal-title">Add member</span>
+    <div class="modal-header"><span class="modal-title" id="member-modal-title">Add member</span>
       <button class="modal-close" onclick="closeMemberModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
@@ -514,7 +514,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeMemberModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="addMember()">Add member</button>
+      <button class="btn btn-primary" id="member-modal-submit-btn" onclick="saveMemberModal()">Add member</button>
     </div>
   </div>
 </div>
@@ -1310,7 +1310,11 @@ function renderDetail(){
           <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Title:</strong> ${m.title||'—'}</div>
           <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Email:</strong> ${m.email?`<a href="mailto:${m.email}" style="color:var(--accent);" onclick="event.stopPropagation()">${m.email}</a>`:'—'}</div>
           <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Phone:</strong> ${m.phone||'—'}</div>
-          <div><strong style="color:var(--gray-700);">LinkedIn:</strong> ${m.linkedin?`<a href="${/^https?:\/\//i.test(m.linkedin)?m.linkedin:'https://'+m.linkedin}" target="_blank" style="color:var(--accent);" onclick="event.stopPropagation()">${m.linkedin}</a>`:'—'}</div>
+          <div style="margin-bottom:8px;"><strong style="color:var(--gray-700);">LinkedIn:</strong> ${m.linkedin?`<a href="${/^https?:\/\//i.test(m.linkedin)?m.linkedin:'https://'+m.linkedin}" target="_blank" style="color:var(--accent);" onclick="event.stopPropagation()">${m.linkedin}</a>`:'—'}</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" onclick="event.stopPropagation();editMember(${i})">Edit</button>
+            <button class="btn btn-danger" style="font-size:11px;padding:4px 10px;" onclick="event.stopPropagation();deleteMember(${i})">Delete</button>
+          </div>
         </div>
       </div>`).join(''):`<div class="notes-body">No members yet — add the first contact at this company.</div>`;
   } else membersCard.style.display='none';
@@ -1485,18 +1489,49 @@ function toggleMemberRow(i){
   el.style.display=open?'none':'block';
   if(chev)chev.style.transform=open?'':'rotate(90deg)';
 }
+let editMemberIndex=null;
 function openMemberModal(){
+  editMemberIndex=null;
   ['mem-name','mem-title','mem-email','mem-phone','mem-linkedin'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('member-modal-title').textContent='Add member';
+  document.getElementById('member-modal-submit-btn').textContent='Add member';
   document.getElementById('member-modal').classList.add('open');
 }
-function closeMemberModal(){ document.getElementById('member-modal').classList.remove('open'); }
-function addMember(){
+function editMember(i){
+  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const m=(r.members||[])[i]; if(!m)return;
+  editMemberIndex=i;
+  document.getElementById('mem-name').value=m.name||'';
+  document.getElementById('mem-title').value=m.title||'';
+  document.getElementById('mem-email').value=m.email||'';
+  document.getElementById('mem-phone').value=m.phone||'';
+  document.getElementById('mem-linkedin').value=m.linkedin||'';
+  document.getElementById('member-modal-title').textContent='Edit member';
+  document.getElementById('member-modal-submit-btn').textContent='Save changes';
+  document.getElementById('member-modal').classList.add('open');
+}
+function closeMemberModal(){ document.getElementById('member-modal').classList.remove('open'); editMemberIndex=null; }
+function saveMemberModal(){
   const r=records.find(x=>x.id===currentId); if(!r)return;
   const name=val('mem-name'); if(!name){showToast('Member name is required');return;}
   const member={name,title:val('mem-title'),email:val('mem-email'),phone:val('mem-phone'),linkedin:val('mem-linkedin')};
-  r.members=(r.members||[]).concat([member]);
-  r.activity=(r.activity||[]).concat([{t:`Added member: ${name}`,d:'Today'}]);
-  closeMemberModal(); saveRecord(r); renderDetail(); showToast(`${name} added`);
+  r.members=r.members||[];
+  if(editMemberIndex==null){
+    r.members.push(member);
+    r.activity=(r.activity||[]).concat([{t:`Added member: ${name}`,d:'Today'}]);
+  } else {
+    r.members[editMemberIndex]=member;
+    r.activity=(r.activity||[]).concat([{t:`Updated member: ${name}`,d:'Today'}]);
+  }
+  closeMemberModal(); saveRecord(r); renderDetail(); showToast(`${name} saved`);
+}
+function deleteMember(i){
+  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const m=(r.members||[])[i]; if(!m)return;
+  if(!confirm(`Remove ${m.name} from ${r.company}'s members?`))return;
+  r.members.splice(i,1);
+  r.activity=(r.activity||[]).concat([{t:`Removed member: ${m.name}`,d:'Today'}]);
+  saveRecord(r); renderDetail(); showToast(`${m.name} removed`);
 }
 
 // ══════════════ CHATBOT ══════════════
