@@ -868,7 +868,13 @@ function renderDashboard(){
     <div class="funnel-count">${counts[s]}</div></div>`).join('');
 
   const acts=[];
-  recs.forEach(r=>r.activity.forEach((a,i)=>acts.push({text:`${r.company}: ${a.t}`,time:a.d,color:STAGE_COLOR[r.stage],order:r.id*100+i})));
+  recs.forEach(r=>{
+    // Rank by the record's actual last-saved time (refreshed on every edit, including
+    // stage moves) so a fresh status change always outranks older activity on other
+    // records — sorting by id alone (as before) ignored real recency entirely.
+    const baseTs=r.updated_at?new Date(r.updated_at).getTime():(r.created_at?new Date(r.created_at).getTime():r.id*1000);
+    r.activity.forEach((a,i)=>acts.push({text:`${r.company}: ${a.t}`,time:a.d,color:STAGE_COLOR[r.stage],order:baseTs-(r.activity.length-1-i)}));
+  });
   acts.sort((a,b)=>b.order-a.order);
   document.getElementById('activity-feed').innerHTML=acts.slice(0,8).map(a=>`
     <div class="act-item"><div class="act-dot-wrap"><div class="act-dot" style="background:${a.color}"></div></div>
@@ -1054,7 +1060,7 @@ const IMPORT_FIELD_MAP_COMMON={
 const IMPORT_FIELD_MAP_EXTRA={
   partners:{portfolio:['portfolio'], category:['category'], model:['model'], tier:['tier'], score:['score'],
     website:['website'], region:['region'], clients:['clients'], workshops:['workshops'], founders:['founders']},
-  customers:{sector:['sector'], package:['package'], aiScore:['ai score','aiscore'],
+  customers:{sector:['sector'], website:['website'], package:['package'], aiScore:['ai score','aiscore'],
     leadSource:['lead source','leadsource'], referredBy:['referred by','referredby'],
     segment:['segment','customer type'], nextStep:['next step','nextstep'],
     subscriptionPeriod:['subscription period','subscriptionperiod'], subscriptionDate:['subscription date','subscriptiondate']},
@@ -1106,7 +1112,7 @@ async function handleImportFile(ev){
         r.website=(get('website')||'').toString();r.region=(get('region')||'').toString();r.clients=(get('clients')||'').toString();
         if(portfolio===2){r.workshops=Number(get('workshops'))||0;r.founders=Number(get('founders'))||0;}
       } else if(pipeline==='customers'){
-        r.sector=(get('sector')||'General').toString();r.package=(get('package')||'—').toString();
+        r.sector=(get('sector')||'General').toString();r.website=(get('website')||'').toString();r.package=(get('package')||'—').toString();
         r.aiScore=Number(get('aiScore'))||null;r.leadSource=(get('leadSource')||get('source')||'Import').toString();
         r.referredBy=Number(get('referredBy'))||null;r.segment=(get('segment')||'Enterprise').toString();
         r.nextStep=(get('nextStep')||nextStepOptions[0]||'').toString();
