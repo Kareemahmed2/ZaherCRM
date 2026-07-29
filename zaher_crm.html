@@ -1149,29 +1149,67 @@ async function handleImportFile(ev){
       const existing=alreadyPersisted
         || newRecords.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase());
       if(existing){
-        if(!newMember){ skippedCount++; continue; }
         existing.members=existing.members||[];
-        // Same person if either the emails match, OR the names match — checking both
-        // (not just email-when-present) so a contact added earlier without an email who
-        // now shows up with one in a later import gets recognized instead of duplicated.
-        const matchIdx=existing.members.findIndex(m=>
-          (newMember.email&&m.email&&m.email.toLowerCase()===newMember.email.toLowerCase())
-          || (m.name||'').toLowerCase()===newMember.name.toLowerCase());
-        if(matchIdx!==-1){
-          const m=existing.members[matchIdx];
-          let enriched=false;
-          if(!m.email&&newMember.email){ m.email=newMember.email; enriched=true; }
-          if(!m.phone&&newMember.phone){ m.phone=newMember.phone; enriched=true; }
-          if(!m.title&&newMember.title){ m.title=newMember.title; enriched=true; }
-          if(enriched){
-            existing.activity.push({t:`Updated member via import: ${newMember.name}`,d:'Today'});
-            if(alreadyPersisted) touchedExisting.add(existing);
-            mergedCount++;
-          } else skippedCount++;
-          continue;
+        const changes=[];
+
+        // Contact: same person if either the emails match, OR the names match — checking
+        // both (not just email-when-present) so a contact added earlier without an email
+        // who now shows up with one in a later import gets recognized, not duplicated.
+        // Only fills fields that are still blank — never overwrites a value already there.
+        if(newMember){
+          const matchIdx=existing.members.findIndex(m=>
+            (newMember.email&&m.email&&m.email.toLowerCase()===newMember.email.toLowerCase())
+            || (m.name||'').toLowerCase()===newMember.name.toLowerCase());
+          if(matchIdx!==-1){
+            const m=existing.members[matchIdx];
+            let filled=false;
+            if(!m.email&&newMember.email){ m.email=newMember.email; filled=true; }
+            if(!m.phone&&newMember.phone){ m.phone=newMember.phone; filled=true; }
+            if(!m.title&&newMember.title){ m.title=newMember.title; filled=true; }
+            if(filled)changes.push(`updated member ${m.name}`);
+          } else {
+            existing.members.push(newMember);
+            changes.push(`added member ${newMember.name}`);
+          }
         }
-        existing.members.push(newMember);
-        existing.activity.push({t:`Added member via import: ${newMember.name}`,d:'Today'});
+
+        // Company-level fields: same "only fill what's still blank" rule, so a re-import
+        // can complete a record's missing info without ever overwriting or rolling back
+        // data that's already there. `stage` is deliberately never touched here — it's
+        // never actually blank on an existing record, and CRM progress (a stage that's
+        // moved forward since the sheet was made) must never be rolled back by a re-import.
+        const fillStr=(field,raw)=>{ if((existing[field]==null||existing[field]==='')&&raw!==undefined&&(''+raw).trim()!==''){ existing[field]=(''+raw).toString(); return true; } return false; };
+        const fillNum=(field,raw)=>{ if(existing[field]==null&&raw!==undefined&&raw!==''&&!isNaN(Number(raw))){ existing[field]=Number(raw); return true; } return false; };
+        let fieldsFilled=false;
+        fieldsFilled=fillStr('notes',get('notes'))||fieldsFilled;
+        if(pipeline==='partners'){
+          fieldsFilled=fillStr('category',get('category'))||fieldsFilled;
+          fieldsFilled=fillStr('model',get('model'))||fieldsFilled;
+          fieldsFilled=fillNum('tier',get('tier'))||fieldsFilled;
+          fieldsFilled=fillNum('score',get('score'))||fieldsFilled;
+          fieldsFilled=fillStr('website',get('website'))||fieldsFilled;
+          fieldsFilled=fillStr('region',get('region'))||fieldsFilled;
+          fieldsFilled=fillStr('clients',get('clients'))||fieldsFilled;
+          fieldsFilled=fillNum('workshops',get('workshops'))||fieldsFilled;
+          fieldsFilled=fillNum('founders',get('founders'))||fieldsFilled;
+        } else if(pipeline==='customers'){
+          fieldsFilled=fillStr('sector',get('sector'))||fieldsFilled;
+          fieldsFilled=fillStr('website',get('website'))||fieldsFilled;
+          fieldsFilled=fillStr('package',get('package'))||fieldsFilled;
+          fieldsFilled=fillNum('aiScore',get('aiScore'))||fieldsFilled;
+          fieldsFilled=fillStr('leadSource',get('leadSource'))||fieldsFilled;
+          fieldsFilled=fillStr('segment',get('segment'))||fieldsFilled;
+          fieldsFilled=fillStr('nextStep',get('nextStep'))||fieldsFilled;
+          fieldsFilled=fillStr('subscriptionPeriod',get('subscriptionPeriod'))||fieldsFilled;
+          fieldsFilled=fillStr('subscriptionDate',get('subscriptionDate'))||fieldsFilled;
+        } else {
+          fieldsFilled=fillStr('fundSize',get('fundSize'))||fieldsFilled;
+          fieldsFilled=fillStr('thesis',get('thesis'))||fieldsFilled;
+        }
+        if(fieldsFilled)changes.push('filled in missing fields');
+
+        if(!changes.length){ skippedCount++; continue; }
+        existing.activity.push({t:`Import: ${changes.join(', ')}`,d:'Today'});
         if(alreadyPersisted) touchedExisting.add(existing);
         mergedCount++;
         continue;
@@ -1228,7 +1266,7 @@ async function handleImportFile(ev){
     records.push(...newRecords);
     const parts=[];
     if(newRecords.length)parts.push(`${newRecords.length} new`);
-    if(mergedCount)parts.push(`${mergedCount} member${mergedCount===1?'':'s'} added to existing`);
+    if(mergedCount)parts.push(`${mergedCount} existing record${mergedCount===1?'':'s'} updated`);
     if(skippedCount)parts.push(`${skippedCount} skipped (no new info)`);
     showToast(`Import: ${parts.join(', ')||'nothing to do'}`);
   }catch(e){ console.error(e); showToast('Import failed: '+e.message); }
