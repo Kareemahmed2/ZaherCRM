@@ -225,6 +225,11 @@
   @keyframes importSpin{to{transform:rotate(360deg);}}
   .import-loading-title{font-size:14px;font-weight:600;margin-bottom:6px;}
   .import-loading-msg{font-size:13px;color:var(--gray-500);min-height:18px;transition:opacity .15s;}
+  .import-undo-bar{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-8px);background:var(--gray-900);color:white;padding:10px 10px 10px 16px;border-radius:var(--r-md);font-size:13px;font-weight:500;z-index:998;display:none;align-items:center;gap:14px;opacity:0;transition:all .2s;box-shadow:var(--shadow-md);}
+  .import-undo-bar.show{display:flex;opacity:1;transform:translateX(-50%) translateY(0);}
+  .import-undo-bar .btn-primary{padding:5px 12px;font-size:12px;}
+  .import-undo-bar .modal-close{color:rgba(255,255,255,0.7);}
+  .import-undo-bar .modal-close:hover{background:rgba(255,255,255,0.15);}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--gray-900);color:white;padding:10px 16px;border-radius:var(--r-md);font-size:13px;font-weight:500;z-index:9999;opacity:0;transition:all .2s;pointer-events:none;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
@@ -565,6 +570,11 @@
 
 <div id="drag-clone"></div>
 <div class="toast" id="toast"></div>
+<div class="import-undo-bar" id="import-undo-bar">
+  <span id="import-undo-text"></span>
+  <button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="undoLastImport()">Undo</button>
+  <button class="modal-close" onclick="hideImportUndoBar()" title="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+</div>
 
 <!-- AUTH GATE -->
 <div class="auth-gate" id="auth-gate">
@@ -668,6 +678,7 @@ const SEED_RECORDS = [
 ];
 let records = [];
 let nextId=100;
+let lastImportUndo=null;
 
 // ══════════════ STATE ══════════════
 let state={pipeline:'partners',portfolio:1,filters:{}};
@@ -1172,6 +1183,45 @@ function hideImportLoading(){
   const box=document.getElementById('import-loading-overlay');
   if(box)box.classList.remove('open');
 }
+// Captures exactly the fields an import can backfill on an already-persisted company,
+// plus its members list and current activity-log length — enough for undoLastImport() to
+// restore it precisely, including cases where the import only ever fills blanks.
+function importUndoSnapshot(pipeline,rec){
+  const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes};
+  if(pipeline==='partners') Object.assign(snap,{category:rec.category,model:rec.model,tier:rec.tier,score:rec.score,website:rec.website,region:rec.region,clients:rec.clients,workshops:rec.workshops,founders:rec.founders});
+  else if(pipeline==='customers') Object.assign(snap,{sector:rec.sector,website:rec.website,package:rec.package,aiScore:rec.aiScore,leadSource:rec.leadSource,segment:rec.segment,nextStep:rec.nextStep,subscriptionPeriod:rec.subscriptionPeriod,subscriptionDate:rec.subscriptionDate});
+  else Object.assign(snap,{fundSize:rec.fundSize,thesis:rec.thesis});
+  return snap;
+}
+function showImportUndoBar(summary){
+  const bar=document.getElementById('import-undo-bar'), txt=document.getElementById('import-undo-text');
+  if(!bar||!txt)return;
+  txt.textContent=`Import: ${summary}.`;
+  bar.classList.add('show');
+}
+function hideImportUndoBar(){
+  const bar=document.getElementById('import-undo-bar');
+  if(bar)bar.classList.remove('show');
+}
+// Undoes the most recent import in this session: deletes the records it created, and
+// restores every existing record it touched back to its importUndoSnapshot() state
+// (fields, members, and activity log truncated back to its pre-import length — safe even
+// if the same company was touched by multiple rows/sheets in that one import).
+async function undoLastImport(){
+  const undo=lastImportUndo; if(!undo)return;
+  lastImportUndo=null; hideImportUndoBar();
+  for(const id of undo.newIds){
+    records=records.filter(x=>x.id!==id);
+    await deleteRecordRemote(id, undo.pipeline);
+  }
+  for(const {rec,snap} of undo.touched){
+    for(const k of Object.keys(snap)){ if(k!=='activityLen') rec[k]=snap[k]; }
+    rec.activity=(rec.activity||[]).slice(0, snap.activityLen);
+    await saveRecord(rec);
+  }
+  refreshView();
+  showToast('Import undone');
+}
 async function handleImportFile(ev){
   const file=ev.target.files[0]; if(!file)return;
   const pipeline=state.pipeline;
@@ -1181,6 +1231,7 @@ async function handleImportFile(ev){
     const wb=XLSX.read(buf,{type:'array'});
     const newRecords=[];
     const touchedExisting=new Set();
+    const undoSnapshots=new Map();
     let mergedCount=0, skippedCount=0;
     let sawDataRows=false, sawHeaderMatch=false;
     // Scan every sheet in the workbook, not just the first — source files aren't always
@@ -1211,6 +1262,10 @@ async function handleImportFile(ev){
       // created by an earlier row in this same import batch — don't create a duplicate
       // record; fold the row's contact into that record's members list instead.
       const alreadyPersisted=records.find(x=>x.pipeline===pipeline&&(x.company||'').trim().toLowerCase()===company.toLowerCase());
+      // Snapshot a previously-persisted company's state the first time THIS import touches
+      // it (before any mutation) — lets "Undo last import" restore it exactly, even if a
+      // later row in this same batch (another contact at the same company) touches it again.
+      if(alreadyPersisted&&!undoSnapshots.has(alreadyPersisted)) undoSnapshots.set(alreadyPersisted, importUndoSnapshot(pipeline, alreadyPersisted));
       const existing=alreadyPersisted
         || newRecords.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase());
       if(existing){
@@ -1337,6 +1392,8 @@ async function handleImportFile(ev){
     if(newRecords.length)parts.push(`${newRecords.length} new`);
     if(mergedCount)parts.push(`${mergedCount} existing record${mergedCount===1?'':'s'} updated`);
     if(skippedCount)parts.push(`${skippedCount} skipped (no new info)`);
+    lastImportUndo={pipeline, newIds:newRecords.map(r=>r.id), touched:Array.from(undoSnapshots.entries()).map(([rec,snap])=>({rec,snap}))};
+    showImportUndoBar(parts.join(', ')||'nothing to do');
     showToast(`Import: ${parts.join(', ')||'nothing to do'}`);
   }catch(e){ console.error(e); showToast('Import failed: '+e.message); }
   finally{ hideImportLoading(); }
