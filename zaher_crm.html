@@ -218,6 +218,13 @@
   .confirm-title{font-size:15px;font-weight:600;margin-bottom:8px;}
   .confirm-msg{font-size:13px;color:var(--gray-500);margin-bottom:20px;line-height:1.6;}
   .confirm-actions{display:flex;justify-content:flex-end;gap:10px;}
+  .import-loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:1001;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+  .import-loading-overlay.open{display:flex;}
+  .import-loading-box{background:var(--white);border-radius:var(--r-lg);width:340px;padding:28px 24px;box-shadow:var(--shadow-md);text-align:center;animation:slideUp .2s ease;}
+  .import-spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;margin:0 auto 16px;animation:importSpin .8s linear infinite;}
+  @keyframes importSpin{to{transform:rotate(360deg);}}
+  .import-loading-title{font-size:14px;font-weight:600;margin-bottom:6px;}
+  .import-loading-msg{font-size:13px;color:var(--gray-500);min-height:18px;transition:opacity .15s;}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--gray-900);color:white;padding:10px 16px;border-radius:var(--r-md);font-size:13px;font-weight:500;z-index:9999;opacity:0;transition:all .2s;pointer-events:none;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
@@ -527,6 +534,14 @@
       <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
       <button class="btn btn-danger" onclick="execDelete()">Delete</button>
     </div>
+  </div>
+</div>
+
+<div class="import-loading-overlay" id="import-loading-overlay">
+  <div class="import-loading-box">
+    <div class="import-spinner"></div>
+    <div class="import-loading-title">Importing your spreadsheet…</div>
+    <div class="import-loading-msg" id="import-loading-msg"></div>
   </div>
 </div>
 
@@ -1120,9 +1135,47 @@ function mapHeaders(headerRow,pipeline){
   });
   return idx;
 }
+const IMPORT_LOADING_MESSAGES=[
+  'Shaking hands with your new partners…',
+  'Introducing companies to each other…',
+  'Brewing coffee for your new contacts…',
+  'Filing away everyone’s business cards…',
+  'Making sure no company feels left out…',
+  'Politely asking duplicate companies to just be one company…',
+  'Warming up the pipeline…',
+  'Double-checking everyone’s job titles…',
+  'Lining up your next big partnership…',
+  'Giving every contact a proper welcome…',
+  'Sorting the ecosystem from the agencies…',
+  'Counting handshakes…',
+  'Making new best friends, one row at a time…',
+  'Nudging a few leads a little closer to "Won"…',
+  'Making sure nobody gets forgotten…',
+  'Rolling out the red carpet for new companies…',
+  'Getting everyone’s LinkedIn in order…',
+  'Almost ready to make some deals…'
+];
+let importLoadingTimer=null;
+function showImportLoading(){
+  const box=document.getElementById('import-loading-overlay'), msgEl=document.getElementById('import-loading-msg');
+  if(!box||!msgEl)return;
+  const msgs=IMPORT_LOADING_MESSAGES.slice();
+  for(let i=msgs.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [msgs[i],msgs[j]]=[msgs[j],msgs[i]]; }
+  let i=0;
+  msgEl.textContent=msgs[0];
+  box.classList.add('open');
+  clearInterval(importLoadingTimer);
+  importLoadingTimer=setInterval(()=>{ i=(i+1)%msgs.length; msgEl.textContent=msgs[i]; },1100);
+}
+function hideImportLoading(){
+  clearInterval(importLoadingTimer); importLoadingTimer=null;
+  const box=document.getElementById('import-loading-overlay');
+  if(box)box.classList.remove('open');
+}
 async function handleImportFile(ev){
   const file=ev.target.files[0]; if(!file)return;
   const pipeline=state.pipeline;
+  showImportLoading();
   try{
     const buf=await file.arrayBuffer();
     const wb=XLSX.read(buf,{type:'array'});
@@ -1286,6 +1339,7 @@ async function handleImportFile(ev){
     if(skippedCount)parts.push(`${skippedCount} skipped (no new info)`);
     showToast(`Import: ${parts.join(', ')||'nothing to do'}`);
   }catch(e){ console.error(e); showToast('Import failed: '+e.message); }
+  finally{ hideImportLoading(); }
   ev.target.value='';
   refreshView();
 }
