@@ -673,12 +673,25 @@ function catChip(cat){ const m=CAT_META[cat]; if(!m) return ''; return `<span cl
 function tierPill(t){ if(!t) return ''; return `<span class="tier-pill t${t}">Tier ${t}</span>`; }
 function isP2(){ return state.pipeline==='partners'&&state.portfolio===2; }
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('show'),2400);}
+// Returns a record, null (no match), or {ambiguous:true,candidates:[...]} when a member-name
+// tier matches more than one company — with common contact names, two different companies
+// having e.g. an "Ahmed Mohamed" is realistic, and silently acting on the first one found
+// would be a wrong-record mutation with no warning. Callers must check `.ambiguous` before
+// treating the result as a real record.
 function findRecord(q){ if(q==null)return null; if(typeof q==='number'||/^\d+$/.test(q)) return records.find(r=>r.id===Number(q)); const s=(''+q).toLowerCase();
-  return records.find(r=>r.name.toLowerCase()===s||r.company.toLowerCase()===s)
-    || records.find(r=>(r.members||[]).some(m=>(m.name||'').toLowerCase()===s))
-    || records.find(r=>r.name.toLowerCase().includes(s)||r.company.toLowerCase().includes(s))
-    || records.find(r=>(r.members||[]).some(m=>(m.name||'').toLowerCase().includes(s)));
+  const byIdentity=records.find(r=>r.name.toLowerCase()===s||r.company.toLowerCase()===s);
+  if(byIdentity)return byIdentity;
+  const exactMember=records.filter(r=>(r.members||[]).some(m=>(m.name||'').toLowerCase()===s));
+  if(exactMember.length===1)return exactMember[0];
+  if(exactMember.length>1)return {ambiguous:true,candidates:exactMember};
+  const byIdentityPartial=records.find(r=>r.name.toLowerCase().includes(s)||r.company.toLowerCase().includes(s));
+  if(byIdentityPartial)return byIdentityPartial;
+  const partialMember=records.filter(r=>(r.members||[]).some(m=>(m.name||'').toLowerCase().includes(s)));
+  if(partialMember.length===1)return partialMember[0];
+  if(partialMember.length>1)return {ambiguous:true,candidates:partialMember};
+  return null;
 }
+function describeAmbiguous(r,q){ return `"${q}" matches a contact at multiple companies (${r.candidates.map(x=>x.company).join(', ')}) — please specify which company.`; }
 function matchInList(list,needle){ if(!needle)return null; const n=(''+needle).toLowerCase(); return list.find(s=>s.toLowerCase()===n) || list.find(s=>s.toLowerCase().includes(n)) || null; }
 function primaryMember(r){ return (r&&r.members&&r.members[0]) || null; }
 
@@ -702,18 +715,40 @@ async function loadRecords(){
   records = merged.length ? merged : SEED_RECORDS.slice();
   nextId = Math.max(100, ...records.map(r=>r.id||0));
 }
+// Returns true once the write is confirmed synced (or there's no Supabase configured, which
+// isn't a failure — just local-only mode), false if Supabase rejected it. Direct UI call sites
+// (buttons, drag-and-drop) intentionally don't wait on this — they stay optimistic and rely on
+// the toast below for the rare failure case. The chatbot DOES check it (see execTool), since
+// otherwise it could confirm "Moved X to Y" to the user before knowing whether that's true.
 async function saveRecord(r){
   r.updated_at = new Date().toISOString();
   if(!r.created_at) r.created_at = r.updated_at;
-  if(!sb) return;
+  if(!sb) return true;
   const {pipeline, ...payload} = r;
   const {error} = await sb.from(TABLE_BY_PIPELINE[pipeline]).upsert(payload);
-  if(error){ console.error(error); showToast('Sync failed — change kept locally only'); }
+  if(error){ console.error(error); showToast('Sync failed — change kept locally only'); return false; }
+  return true;
+}
+// For brand-new records: `id` is a Postgres-generated identity column (see
+// supabase_schema.sql), so we never assign one client-side — that's what let
+// two tabs collide on the same id and silently overwrite each other's row.
+// Insert without `id` and read back whatever Postgres assigned. Returns true/false
+// the same way saveRecord does (see comment above); `r` is mutated in place either way.
+async function createRecord(r){
+  r.updated_at = new Date().toISOString();
+  r.created_at = r.updated_at;
+  if(!sb){ r.id = ++nextId; return true; }
+  const {pipeline, id, ...payload} = r;
+  const {data, error} = await sb.from(TABLE_BY_PIPELINE[pipeline]).insert(payload).select().single();
+  if(error){ console.error(error); showToast('Sync failed — record kept locally only'); r.id = ++nextId; return false; }
+  r.id = data.id;
+  return true;
 }
 async function deleteRecordRemote(id, pipeline){
-  if(!sb) return;
+  if(!sb) return true;
   const {error} = await sb.from(TABLE_BY_PIPELINE[pipeline]).delete().eq('id', id);
-  if(error){ console.error(error); showToast('Sync failed — delete kept locally only'); }
+  if(error){ console.error(error); showToast('Sync failed — delete kept locally only'); return false; }
+  return true;
 }
 
 // ══════════════ NEXT STEPS (customers) ══════════════
@@ -733,7 +768,7 @@ async function addNextStepOption(label){
   return label;
 }
 function nextStepSelectHtml(selected){
-  return nextStepOptions.map(o=>`<option ${o===selected?'selected':''}>${o}</option>`).join('')+'<option value="__add__">+ Add new...</option>';
+  return nextStepOptions.map(o=>`<option ${o===selected?'selected':''}>${escHtml(o)}</option>`).join('')+'<option value="__add__">+ Add new...</option>';
 }
 async function handleNextStepChange(sel){
   if(sel.value==='__add__'){
@@ -847,13 +882,13 @@ function renderDashboard(){
   document.getElementById('dash-thead').innerHTML=`<tr><th>Name</th><th>${state.pipeline==='partners'?'Category':isCustDash?'Sector':'Firm'}</th>${isCustDash?'<th>Website</th>':''}<th>${valCol}</th><th>Stage</th></tr>`;
   document.getElementById('recent-body').innerHTML=recs.slice(0,7).map(r=>{
     const pm=primaryMember(r);
-    const primary=r.company;
-    const secondary=pm?(pm.name+(pm.title?' · '+pm.title:'')):'—';
+    const primary=escHtml(r.company);
+    const secondary=pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—';
     return `
     <tr onclick="openDetail(${r.id})">
       <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${primary}</div><div class="lc">${secondary}</div></div></div></td>
-      <td>${state.pipeline==='partners'?catChip(r.category):`<span class="lc">${r.sector||r.thesis||'—'}</span>`}</td>
-      ${isCustDash?`<td style="font-size:12px;color:var(--gray-500);">${r.website||'—'}</td>`:''}
+      <td>${state.pipeline==='partners'?catChip(r.category):`<span class="lc">${escHtml(r.sector||r.thesis||'—')}</span>`}</td>
+      ${isCustDash?`<td style="font-size:12px;color:var(--gray-500);">${escHtml(r.website||'—')}</td>`:''}
       <td style="font-weight:500;">${isP2()?(r.founders||0):fv(r.value)}</td>
       <td>${stagePill(r.stage)}</td>
     </tr>`;}).join('');
@@ -877,7 +912,7 @@ function renderDashboard(){
   acts.sort((a,b)=>b.order-a.order);
   document.getElementById('activity-feed').innerHTML=acts.slice(0,8).map(a=>`
     <div class="act-item"><div class="act-dot-wrap"><div class="act-dot" style="background:${a.color}"></div></div>
-    <div><div class="act-text">${a.text}</div><div class="act-time">${a.time}</div></div></div>`).join('');
+    <div><div class="act-text">${escHtml(a.text)}</div><div class="act-time">${escHtml(a.time)}</div></div></div>`).join('');
 }
 
 // ══════════════ KANBAN ══════════════
@@ -885,12 +920,12 @@ function buildCard(r){
   let extra='';
   if(state.pipeline==='partners'&&!isP2()) extra=`<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap;">${catChip(r.category)}${tierPill(r.tier)}</div>`;
   else if(isP2()) extra=`<div style="margin-bottom:8px;">${catChip(r.category)}</div>`;
-  else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${r.segment}</span>`:''}${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${r.nextStep}</span>`:''}</div>`;
-  else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${r.fundSize||''} · ${r.thesis||''}</div>`;
+  else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment)}</span>`:''}${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.nextStep)}</span>`:''}</div>`;
+  else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${escHtml(r.fundSize||'')} · ${escHtml(r.thesis||'')}</div>`;
   const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
   const pm=primaryMember(r);
-  const cardPrimary=r.company;
-  const cardSecondary=pm?(pm.name+(pm.title?' · '+pm.title:'')):'—';
+  const cardPrimary=escHtml(r.company);
+  const cardSecondary=pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—';
   return `<div class="k-card" id="kcard-${r.id}" data-id="${r.id}"
     onmousedown="dragStart(event,${r.id})"
     onclick="if(!window._wasDrag)openDetail(${r.id});window._wasDrag=false;">
@@ -899,7 +934,7 @@ function buildCard(r){
       <div class="k-card-info"><div class="kn">${cardPrimary}</div><div class="kc">${cardSecondary}</div></div>
     </div>
     ${extra}${bottom}
-    <div class="k-card-footer"><span class="k-card-source">${r.model||r.source}</span><span class="k-card-date">${r.date}</span></div>
+    <div class="k-card-footer"><span class="k-card-source">${escHtml(r.model||r.source)}</span><span class="k-card-date">${escHtml(r.date)}</span></div>
   </div>`;
 }
 function dragStart(e,id){
@@ -968,7 +1003,7 @@ function renderFilterPanel(panelId){
     return `<div class="form-group"><label class="form-label">${f.label}</label>
       <select class="form-input" onchange="setFilter('${f.key}',this.value)">
         <option value="">All</option>
-        ${vals.map(v=>`<option value="${v}" ${(''+v)===cur?'selected':''}>${v}</option>`).join('')}
+        ${vals.map(v=>`<option value="${escAttr(v)}" ${(''+v)===cur?'selected':''}>${escHtml(v)}</option>`).join('')}
       </select></div>`;
   }).join('');
   if(!isP2()){
@@ -1019,29 +1054,29 @@ function renderDirectory(){
   if(state.pipeline==='partners'){
     head=`<tr><th>Organisation</th><th>Primary contact</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>{ const pm=primaryMember(r);
-      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${r.company}</div><div class="lc">${r.region||''}</div></div></div></td>
-      <td style="font-size:12px;color:var(--gray-700);">${pm?pm.name+(pm.title?' · '+pm.title:''):'—'}</td>
-      <td>${catChip(r.category)}</td><td style="font-size:12px;color:var(--gray-700);">${r.model||'—'}</td>
+      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div><div class="lc">${escHtml(r.region||'')}</div></div></div></td>
+      <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td>
+      <td>${catChip(r.category)}</td><td style="font-size:12px;color:var(--gray-700);">${escHtml(r.model||'—')}</td>
       <td>${r.tier?tierPill(r.tier)+' '+(r.score!=null?`<span style="font-size:11px;color:var(--gray-500);">${r.score}</span>`:''):'<span class="lc">—</span>'}</td>
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else if(state.pipeline==='customers'){
     head=`<tr><th>Company</th><th>Primary contact</th><th>Sector</th><th>Segment</th><th>AI Score</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null; const pm=primaryMember(r);
-      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${r.company}</div></div></div></td>
-      <td style="font-size:12px;color:var(--gray-700);">${pm?pm.name+(pm.title?' · '+pm.title:''):'—'}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span></td>
-      <td><span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${r.segment||'—'}</span></td>
+      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
+      <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span></td>
+      <td><span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment||'—')}</span></td>
       <td>${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">${r.aiScore}</span>`:'<span class="lc">—</span>'}</td>
-      <td style="font-size:12px;color:var(--gray-700);">${r.nextStep||'—'}</td>
-      <td style="font-size:12px;color:var(--gray-500);">${r.leadSource}${ref?` · ${ref.company}`:''}</td>
+      <td style="font-size:12px;color:var(--gray-700);">${escHtml(r.nextStep||'—')}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.leadSource)}${ref?` · ${escHtml(ref.company)}`:''}</td>
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else {
     head=`<tr><th>Firm</th><th>Primary contact</th><th>Fund</th><th>Thesis</th><th>Stage</th><th>Target</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>{ const pm=primaryMember(r);
-      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${r.company}</div></div></div></td>
-      <td style="font-size:12px;color:var(--gray-700);">${pm?pm.name+(pm.title?' · '+pm.title:''):'—'}</td><td style="font-size:12px;">${r.fundSize||'—'}</td>
-      <td style="font-size:12px;color:var(--gray-500);">${r.thesis||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
+      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
+      <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td><td style="font-size:12px;">${escHtml(r.fundSize||'—')}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.thesis||'—')}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }}
   document.getElementById('dir-thead').innerHTML=head;
@@ -1116,10 +1151,25 @@ async function handleImportFile(ev){
       if(existing){
         if(!newMember){ skippedCount++; continue; }
         existing.members=existing.members||[];
-        const isDup=existing.members.some(m=>
+        // Same person if either the emails match, OR the names match — checking both
+        // (not just email-when-present) so a contact added earlier without an email who
+        // now shows up with one in a later import gets recognized instead of duplicated.
+        const matchIdx=existing.members.findIndex(m=>
           (newMember.email&&m.email&&m.email.toLowerCase()===newMember.email.toLowerCase())
-          || (!newMember.email&&(m.name||'').toLowerCase()===newMember.name.toLowerCase()));
-        if(isDup){ skippedCount++; continue; }
+          || (m.name||'').toLowerCase()===newMember.name.toLowerCase());
+        if(matchIdx!==-1){
+          const m=existing.members[matchIdx];
+          let enriched=false;
+          if(!m.email&&newMember.email){ m.email=newMember.email; enriched=true; }
+          if(!m.phone&&newMember.phone){ m.phone=newMember.phone; enriched=true; }
+          if(!m.title&&newMember.title){ m.title=newMember.title; enriched=true; }
+          if(enriched){
+            existing.activity.push({t:`Updated member via import: ${newMember.name}`,d:'Today'});
+            if(alreadyPersisted) touchedExisting.add(existing);
+            mergedCount++;
+          } else skippedCount++;
+          continue;
+        }
         existing.members.push(newMember);
         existing.activity.push({t:`Added member via import: ${newMember.name}`,d:'Today'});
         if(alreadyPersisted) touchedExisting.add(existing);
@@ -1132,7 +1182,7 @@ async function handleImportFile(ev){
       const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];
       const stage=matchInList(stageList,get('stage'))||stageList[0];
       const importTs=new Date().toISOString();
-      const r={id:++nextId,pipeline,name:company,company,
+      const r={pipeline,name:company,company,
         role:'',email:'',phone:'',members:newMember?[newMember]:[],
         stage, value:Number(get('value'))||0, source:(get('source')||'Import').toString(),
         date:(get('date')||'Today').toString(), notes:(get('notes')||'').toString(),
@@ -1157,16 +1207,25 @@ async function handleImportFile(ev){
       }
       newRecords.push(r);
     }
-    if(!newRecords.length&&!touchedExisting.size){showToast('No valid rows found to import');ev.target.value='';return;}
-    records.push(...newRecords);
+    if(!newRecords.length&&!touchedExisting.size){
+      showToast(skippedCount?`All ${skippedCount} row${skippedCount===1?'':'s'} matched existing companies with nothing new to add`:'No valid rows found to import');
+      ev.target.value='';return;
+    }
     if(sb){
       if(newRecords.length){
+        // `id` is a Postgres-generated identity column — never assigned client-side (that's
+        // what let two concurrent imports collide on the same id and silently overwrite each
+        // other). Insert without it and read back whatever Postgres assigned, in row order.
         const payloads=newRecords.map(r=>{const {pipeline,...payload}=r;return payload;});
-        const {error}=await sb.from(TABLE_BY_PIPELINE[pipeline]).insert(payloads);
-        if(error){console.error(error);showToast(`Imported ${newRecords.length} ${pipeline} locally, but sync to Supabase failed`);ev.target.value='';refreshView();return;}
+        const {data,error}=await sb.from(TABLE_BY_PIPELINE[pipeline]).insert(payloads).select();
+        if(error){console.error(error);showToast(`Import failed to sync to Supabase — nothing was added`);ev.target.value='';refreshView();return;}
+        data.forEach((row,i)=>{ newRecords[i].id=row.id; });
       }
       for(const r of touchedExisting){ await saveRecord(r); }
+    } else {
+      newRecords.forEach(r=>{ r.id=++nextId; });
     }
+    records.push(...newRecords);
     const parts=[];
     if(newRecords.length)parts.push(`${newRecords.length} new`);
     if(mergedCount)parts.push(`${mergedCount} member${mergedCount===1?'':'s'} added to existing`);
@@ -1211,7 +1270,7 @@ function drawBar(id,labels,data,color){
   ctx.fillStyle='#888780';ctx.textAlign='center';ctx.font='9px DM Sans';
   labels.forEach((l,i)=>{const words=l.split(' ');const x=pad.l+i*bgW+bgW/2;ctx.fillText((words[0]||'').slice(0,10),x,H-24);if(words[1])ctx.fillText(words.slice(1).join(' ').slice(0,10),x,H-13);});
 }
-function barList(items,color){ const mx=Math.max(...items.map(i=>i.v),1); return items.map(i=>`<div class="bar-row"><div class="bar-name">${i.name}</div><div class="bar-bg"><div class="bar-fill" style="width:${(i.v/mx)*100}%;background:${i.color||color};"></div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${i.extra}</div>`:''}</div>`).join(''); }
+function barList(items,color){ const mx=Math.max(...items.map(i=>i.v),1); return items.map(i=>`<div class="bar-row"><div class="bar-name">${escHtml(i.name)}</div><div class="bar-bg"><div class="bar-fill" style="width:${(i.v/mx)*100}%;background:${i.color||color};"></div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${escHtml(i.extra)}</div>`:''}</div>`).join(''); }
 function renderAnalytics(){
   const recs=activeRecords(), stages=activeStages(), ac=PIPE_ACCENT[state.pipeline];
   const won=recs.filter(r=>TERMINAL.has(r.stage)), active=recs.filter(r=>!TERMINAL.has(r.stage));
@@ -1305,9 +1364,9 @@ function renderDetail(){
   const pmDetail=primaryMember(r);
   document.getElementById('det-role').textContent=pmDetail?(pmDetail.name+(pmDetail.title?' · '+pmDetail.title:'')):'—';
   const srcTag=state.pipeline==='customers'?r.leadSource:r.source;
-  let tags=`<span class="tag">${srcTag}</span>${stagePill(r.stage)}`;
+  let tags=`<span class="tag">${escHtml(srcTag)}</span>${stagePill(r.stage)}`;
   if(state.pipeline==='partners'){ tags=catChip(r.category)+tierPill(r.tier)+tags; }
-  else if(state.pipeline==='customers'&&r.sector){ tags=`<span class="tag">${r.sector}</span>`+tags; }
+  else if(state.pipeline==='customers'&&r.sector){ tags=`<span class="tag">${escHtml(r.sector)}</span>`+tags; }
   document.getElementById('det-tags').innerHTML=tags;
   document.getElementById('det-notes').textContent=r.notes||'—';
   document.getElementById('det-contact-btn').onclick=()=>showToast('✉ Opening email to '+((pmDetail&&pmDetail.email)||'—'));
@@ -1329,7 +1388,7 @@ function renderDetail(){
     fields.push(['Fund size',r.fundSize||'—',false],['Thesis',r.thesis||'—',false],['Target raise',ff(r.value),false]);
   }
   fields.push(['Date entered',fmtTs(r.created_at),false],['Last modified',fmtTs(r.updated_at),false]);
-  document.getElementById('det-fields').innerHTML=fields.map(([k,v,link])=>`<div class="field-item"><div class="field-key">${k}</div><div class="field-val${link?' link':''}">${v||'—'}</div></div>`).join('');
+  document.getElementById('det-fields').innerHTML=fields.map(([k,v,link])=>`<div class="field-item"><div class="field-key">${k}</div><div class="field-val${link?' link':''}">${escHtml(v)||'—'}</div></div>`).join('');
   if(state.pipeline==='customers'){
     document.getElementById('det-fields').innerHTML += `<div class="field-item"><div class="field-key">Next step</div><select class="form-input" style="margin-top:2px;" onchange="changeNextStep(${r.id},this)">${nextStepSelectHtml(r.nextStep)}</select></div>`;
   }
@@ -1342,14 +1401,14 @@ function renderDetail(){
     document.getElementById('det-members-list').innerHTML=members.length?members.map((m,i)=>`
       <div class="field-item" style="border-right:none;cursor:pointer;" onclick="toggleMemberRow(${i})">
         <div class="field-val" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <span>${m.name}${m.title?' <span style="color:var(--gray-500);font-weight:400;">· '+m.title+'</span>':''}</span>
+          <span>${escHtml(m.name)}${m.title?' <span style="color:var(--gray-500);font-weight:400;">· '+escHtml(m.title)+'</span>':''}</span>
           <span id="mem-chev-${i}" style="color:var(--gray-500);font-size:11px;transition:transform .15s;flex-shrink:0;">▸</span>
         </div>
         <div id="mem-detail-${i}" style="display:none;font-size:12px;color:var(--gray-500);margin-top:8px;">
-          <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Title:</strong> ${m.title||'—'}</div>
-          <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Email:</strong> ${m.email?`<a href="mailto:${m.email}" style="color:var(--accent);" onclick="event.stopPropagation()">${m.email}</a>`:'—'}</div>
-          <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Phone:</strong> ${m.phone||'—'}</div>
-          <div style="margin-bottom:8px;"><strong style="color:var(--gray-700);">LinkedIn:</strong> ${m.linkedin?`<a href="${/^https?:\/\//i.test(m.linkedin)?m.linkedin:'https://'+m.linkedin}" target="_blank" style="color:var(--accent);" onclick="event.stopPropagation()">${m.linkedin}</a>`:'—'}</div>
+          <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Title:</strong> ${escHtml(m.title)||'—'}</div>
+          <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Email:</strong> ${m.email?`<a href="mailto:${escHtml(m.email)}" style="color:var(--accent);" onclick="event.stopPropagation()">${escHtml(m.email)}</a>`:'—'}</div>
+          <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Phone:</strong> ${escHtml(m.phone)||'—'}</div>
+          <div style="margin-bottom:8px;"><strong style="color:var(--gray-700);">LinkedIn:</strong> ${m.linkedin?`<a href="${escHtml(/^https?:\/\//i.test(m.linkedin)?m.linkedin:'https://'+m.linkedin)}" target="_blank" style="color:var(--accent);" onclick="event.stopPropagation()">${escHtml(m.linkedin)}</a>`:'—'}</div>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" onclick="event.stopPropagation();editMember(${i})">Edit</button>
             <button class="btn btn-danger" style="font-size:11px;padding:4px 10px;" onclick="event.stopPropagation();deleteMember(${i})">Delete</button>
@@ -1364,7 +1423,7 @@ function renderDetail(){
     scoreCard.style.display='';
     document.getElementById('det-score-tier').className='tier-pill t'+r.tier;
     document.getElementById('det-score-tier').textContent='Tier '+r.tier;
-    document.getElementById('det-score-breakdown').innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;"><span class="score-big" style="color:${r.tier===1?'#3B6D11':'#854F0B'}">${r.score}</span><span style="font-size:12px;color:var(--gray-500);">/ 100 · threshold 50 = Tier 1</span></div><div style="font-size:12px;color:var(--gray-500);line-height:1.6;">${r.clients||''}</div>`;
+    document.getElementById('det-score-breakdown').innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;"><span class="score-big" style="color:${r.tier===1?'#3B6D11':'#854F0B'}">${r.score}</span><span style="font-size:12px;color:var(--gray-500);">/ 100 · threshold 50 = Tier 1</span></div><div style="font-size:12px;color:var(--gray-500);line-height:1.6;">${escHtml(r.clients||'')}</div>`;
   } else scoreCard.style.display='none';
 
   // stage tracker
@@ -1381,11 +1440,12 @@ function renderDetail(){
   const acts=r.activity.slice().reverse();
   document.getElementById('det-timeline').innerHTML=acts.map((a,i)=>`
     <div class="tl-item"><div class="tl-dot-col"><div class="tl-dot"></div>${i<acts.length-1?'<div class="tl-line"></div>':''}</div>
-    <div style="flex:1;"><div class="tl-text">${a.t}</div><div class="tl-date">${a.d}</div></div></div>`).join('');
+    <div style="flex:1;"><div class="tl-text">${escHtml(a.t)}</div><div class="tl-date">${escHtml(a.d)}</div></div></div>`).join('');
 }
 
 // ══════════════ MODALS ══════════════
-const escAttr=v=>(v==null?'':(''+v)).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+const escHtml=v=>(v==null?'':(''+v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const escAttr=escHtml;
 let editId=null;
 function toggleSubscriptionFields(segment){
   document.getElementById('f-subperiod-group').style.display=segment==='Enterprise'?'':'none';
@@ -1439,7 +1499,7 @@ function renderModalForm(p,r,stage){
     ${companyContactRows}
     ${extraFieldsHtml(p,r)}
     ${stageSourceRow}
-    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="f-notes" rows="2" placeholder="Context...">${r?(r.notes||''):''}</textarea></div>`;
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="f-notes" rows="2" placeholder="Context...">${r?escHtml(r.notes||''):''}</textarea></div>`;
   document.getElementById('modal').classList.add('open');
 }
 function openModal(stage){
@@ -1461,13 +1521,13 @@ function openEditModal(){
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');editId=null;}
 function val(id){const el=document.getElementById(id);return el?el.value.trim():'';}
-function addRecord(){
+async function addRecord(){
   const company=val('f-company'); if(!company){showToast('Organisation name is required');return;}
   const p=state.pipeline;
   const contactName=val('f-name'),contactRole=val('f-role'),contactEmail=val('f-email'),contactPhone=val('f-phone');
   const hasContact=contactName||contactRole||contactEmail||contactPhone;
   const members=hasContact?[{name:contactName||company,title:contactRole,email:contactEmail,phone:contactPhone,linkedin:''}]:[];
-  const r={id:++nextId,pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:val('f-notes'),value:Number(val('f-value'))||0,activity:[{t:'Added to CRM',d:'Today'}]};
+  const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:val('f-notes'),value:Number(val('f-value'))||0,activity:[{t:'Added to CRM',d:'Today'}]};
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){
     r.sector=val('f-sector')||'General';r.website=val('f-website');r.leadSource=val('f-leadsource')||'Manual';r.segment=val('f-segment')||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;
@@ -1475,7 +1535,8 @@ function addRecord(){
     r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
   }
   else {r.fundSize=val('f-fundsize');r.thesis=val('f-thesis');}
-  records.push(r); closeModal(); saveRecord(r);
+  await createRecord(r);
+  records.push(r); closeModal();
   if(p==='partners')state.portfolio=r.portfolio;
   showPage('pipeline'); showToast(`${company} added`);
 }
@@ -1589,6 +1650,16 @@ const TOOLS=[
   {type:'function',function:{name:'score_agency',description:'Run the agency qualification scoring rubric and return score + tier.',parameters:{type:'object',properties:{clientType:{type:'string',enum:['b2c','mixed','b2b']},services:{type:'array',items:{type:'string',enum:['seo','content','ads','brand']}},rosterSize:{type:'number'},namedSeoTeam:{type:'boolean'},listsGeo:{type:'boolean'},offlineOnly:{type:'boolean'},leadgenOnly:{type:'boolean'}},required:['clientType']}}},
   {type:'function',function:{name:'switch_pipeline',description:'Switch the visible pipeline / portfolio.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors']},portfolio:{type:'number',enum:[1,2]}},required:['pipeline']}}}
 ];
+// update_record's `field` comes straight from the LLM's tool call with no other validation —
+// without an allow-list it could set structural/identity fields (id, pipeline, members, ...)
+// and corrupt a record. `stage` is deliberately excluded — move_stage is the validated path
+// for that (checks the value against the pipeline's real stage list).
+const UPDATE_FIELD_ALLOWLIST={
+  common:['value','notes','source','date'],
+  partners:['category','model','tier','score','website','region','clients','workshops','founders'],
+  customers:['sector','website','package','aiScore','leadSource','referredBy','segment','nextStep','subscriptionPeriod','subscriptionDate'],
+  investors:['fundSize','thesis']
+};
 function snapshot(){
   return records.map(r=>{
     const o={id:r.id,pipeline:r.pipeline,company:r.company,stage:r.stage};
@@ -1620,13 +1691,17 @@ CURRENT DATA (${records.length} records):
 ${JSON.stringify(snapshot())}`;
 }
 function buildSystemMessage(){ return {role:'system',content:buildSystem()}; }
-function execTool(name,input){
+// Appended to a tool's confirmation when its Supabase write didn't actually go through —
+// saveRecord/deleteRecordRemote/createRecord already toast this separately, but the chatbot's
+// own reply text would otherwise still claim success as fact before that's known to be true.
+function syncNote(ok){ return ok?'.':' (locally only — it failed to sync to Supabase, so the change may not persist).'; }
+async function execTool(name,input){
   try{
-    if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;r.activity.push({t:`Stage: ${old} → ${match}`,d:'Today'});saveRecord(r);refreshView();return `Moved ${r.company} to ${match}.`;}
-    if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;let f=input.field,v=input.value;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:'Today'});saveRecord(r);refreshView();return `Updated ${f} on ${r.company}.`;}
-    if(name==='add_record'){const pipeline=['partners','customers','investors'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors.`;const portfolio=input.portfolio||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={id:++nextId,pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=input.segment||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else{r.fundSize='';r.thesis='';}records.push(r);saveRecord(r);refreshView();return `Added ${r.company} to ${pipeline}.`;}
-    if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;records=records.filter(x=>x.id!==r.id);deleteRecordRemote(r.id,r.pipeline);refreshView();return `Deleted ${r.company}.`;}
-    if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;r.activity.push({t:input.text,d:'Today'});saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}".`;}
+    if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;r.activity.push({t:`Stage: ${old} → ${match}`,d:'Today'});const ok=await saveRecord(r);refreshView();return `Moved ${r.company} to ${match}${syncNote(ok)}`;}
+    if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:'Today'});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
+    if(name==='add_record'){const pipeline=['partners','customers','investors'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors.`;const portfolio=input.portfolio||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=input.segment||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else{r.fundSize='';r.thesis='';}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
+    if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);records=records.filter(x=>x.id!==r.id);const ok=await deleteRecordRemote(r.id,r.pipeline);refreshView();return `Deleted ${r.company}${syncNote(ok)}`;}
+    if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);r.activity.push({t:input.text,d:'Today'});const ok=await saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}"${syncNote(ok)}`;}
     if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}
     if(name==='switch_pipeline'){setPipeline(input.pipeline);if(input.pipeline==='partners'&&input.portfolio)setPortfolio(input.portfolio);return `Switched to ${input.pipeline}${input.portfolio?' portfolio '+input.portfolio:''}.`;}
     return 'Unknown tool.';
@@ -1662,7 +1737,7 @@ async function sendChat(){
       if(calls.length===0)break;
       for(const c of calls){
         let args={}; try{args=JSON.parse(c.function.arguments||'{}');}catch(e){}
-        const out=execTool(c.function.name,args);
+        const out=await execTool(c.function.name,args);
         typing.remove();addAction(labelTool(c.function.name,args));b.appendChild(typing);
         chatHistory.push({role:'tool',tool_call_id:c.id,content:typeof out==='string'?out:JSON.stringify(out)});
       }
@@ -1676,7 +1751,7 @@ async function sendChat(){
   document.getElementById('chat-input').focus();
 }
 function labelTool(name,input){
-  const m={move_stage:`Moved ${input.record} → ${input.stage}`,update_record:`Updated ${input.record}`,add_record:`Added ${input.company}`,delete_record:`Deleted ${input.record}`,log_activity:`Logged activity on ${input.record}`,score_agency:`Ran agency scoring`,switch_pipeline:`Switched to ${input.pipeline}`};
+  const m={move_stage:`Moved ${escHtml(input.record)} → ${escHtml(input.stage)}`,update_record:`Updated ${escHtml(input.record)}`,add_record:`Added ${escHtml(input.company)}`,delete_record:`Deleted ${escHtml(input.record)}`,log_activity:`Logged activity on ${escHtml(input.record)}`,score_agency:`Ran agency scoring`,switch_pipeline:`Switched to ${escHtml(input.pipeline)}`};
   return m[name]||name;
 }
 

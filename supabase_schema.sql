@@ -227,17 +227,24 @@ create trigger investors_set_updated_at
 alter table customers add column if not exists "nextStep" text;
 
 -- One-time backfill from `records` — safe to re-run (on conflict do nothing).
+-- `overriding system value` is required once `id` becomes an identity column
+-- further down this script (a re-run would otherwise reject the explicit id
+-- list) and is a no-op while `id` is still a plain bigint, so this insert
+-- stays valid both before and after that later migration runs.
 insert into partners (id, portfolio, category, name, company, role, email, phone, stage, model, tier, score, website, region, clients, value, workshops, founders, source, date, notes, activity, created_at, updated_at)
+overriding system value
 select id, portfolio, category, name, company, role, email, phone, stage, model, tier, score, website, region, clients, value, workshops, founders, source, date, notes, activity, created_at, updated_at
 from records where pipeline = 'partners'
 on conflict (id) do nothing;
 
 insert into customers (id, name, company, role, email, phone, stage, sector, package, "aiScore", value, "leadSource", "referredBy", segment, "nextStep", date, notes, activity, created_at, updated_at)
+overriding system value
 select id, name, company, role, email, phone, stage, sector, package, "aiScore", value, "leadSource", "referredBy", segment, "nextStep", date, notes, activity, created_at, updated_at
 from records where pipeline = 'customers'
 on conflict (id) do nothing;
 
 insert into investors (id, name, company, role, email, phone, stage, "fundSize", thesis, value, source, date, notes, activity, created_at, updated_at)
+overriding system value
 select id, name, company, role, email, phone, stage, "fundSize", thesis, value, source, date, notes, activity, created_at, updated_at
 from records where pipeline = 'investors'
 on conflict (id) do nothing;
@@ -362,3 +369,35 @@ where jsonb_array_length(members) = 0
 update investors
 set name = company, role = '', email = '', phone = ''
 where name is distinct from company;
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Fix: id columns were plain `bigint primary key` with no sequence — the app
+-- assigned ids itself, as `Math.max(...existing ids)+1` computed from
+-- whatever was loaded into that browser tab. Two teammates using the CRM at
+-- the same time (or one person in two tabs) could compute the same next id,
+-- and because the app always writes via `upsert()`, the second write didn't
+-- fail — it silently overwrote the first person's record with unrelated
+-- data. Postgres-generated identity ids remove the race entirely: the app no
+-- longer assigns ids for new records, it reads back whatever Postgres
+-- assigned right after insert. (added 2026-07-29)
+-- ═══════════════════════════════════════════════════════════════════════
+
+do $$
+begin
+  if not exists (select 1 from pg_attribute where attrelid='partners'::regclass and attname='id' and attidentity<>'') then
+    alter table partners alter column id add generated always as identity;
+  end if;
+  if not exists (select 1 from pg_attribute where attrelid='customers'::regclass and attname='id' and attidentity<>'') then
+    alter table customers alter column id add generated always as identity;
+  end if;
+  if not exists (select 1 from pg_attribute where attrelid='investors'::regclass and attname='id' and attidentity<>'') then
+    alter table investors alter column id add generated always as identity;
+  end if;
+end $$;
+
+-- Point each table's identity sequence past whatever the highest existing id
+-- is, so newly-generated ids never collide with rows that already exist —
+-- safe (and worth) re-running any time.
+select setval(pg_get_serial_sequence('partners','id'),  coalesce((select max(id) from partners),0)+1,  false);
+select setval(pg_get_serial_sequence('customers','id'), coalesce((select max(id) from customers),0)+1, false);
+select setval(pg_get_serial_sequence('investors','id'), coalesce((select max(id) from investors),0)+1, false);
