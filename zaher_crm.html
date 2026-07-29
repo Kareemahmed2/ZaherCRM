@@ -1089,7 +1089,9 @@ function renderDirectory(){
 // gets its own column mapping instead of one generic map guessing at every field.
 const IMPORT_FIELD_MAP_COMMON={
   name:['name','contact','contact name'], company:['company','brand','organisation','organization'],
-  role:['role','title'], email:['email'], phone:['phone'], stage:['stage'],
+  role:['role','title'], email:['email'], phone:['phone'],
+  linkedin:['linkedin','linkedin url','linkedin profile'],
+  stage:['stage'],
   value:['value','mrr','arr','target','mrr/yr','mrr per year','potential arr','target raise'],
   source:['source'], date:['date'], notes:['notes']
 };
@@ -1137,9 +1139,9 @@ async function handleImportFile(ev){
       // that company — they land in `members[0]` instead of being dropped or stored
       // as a top-level contact.
       const importName=(get('name')||'').toString().trim();
-      const hasContact=(importName&&importName.toLowerCase()!==company.toLowerCase())||get('email')||get('phone')||get('role');
+      const hasContact=(importName&&importName.toLowerCase()!==company.toLowerCase())||get('email')||get('phone')||get('role')||get('linkedin');
       const newMember=hasContact
-        ? {name:importName||company,title:(get('role')||'').toString(),email:(get('email')||'').toString(),phone:(get('phone')||'').toString(),linkedin:''}
+        ? {name:importName||company,title:(get('role')||'').toString(),email:(get('email')||'').toString(),phone:(get('phone')||'').toString(),linkedin:(get('linkedin')||'').toString()}
         : null;
 
       // If this company already exists in the pipeline — either already in the DB, or
@@ -1166,6 +1168,7 @@ async function handleImportFile(ev){
             if(!m.email&&newMember.email){ m.email=newMember.email; filled=true; }
             if(!m.phone&&newMember.phone){ m.phone=newMember.phone; filled=true; }
             if(!m.title&&newMember.title){ m.title=newMember.title; filled=true; }
+            if(!m.linkedin&&newMember.linkedin){ m.linkedin=newMember.linkedin; filled=true; }
             if(filled)changes.push(`updated member ${m.name}`);
           } else {
             existing.members.push(newMember);
