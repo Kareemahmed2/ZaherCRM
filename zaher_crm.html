@@ -724,8 +724,12 @@ async function saveRecord(r){
   r.updated_at = new Date().toISOString();
   if(!r.created_at) r.created_at = r.updated_at;
   if(!sb) return true;
-  const {pipeline, ...payload} = r;
-  const {error} = await sb.from(TABLE_BY_PIPELINE[pipeline]).upsert(payload);
+  // Always an update, never an insert — `id` is a GENERATED ALWAYS identity column, so
+  // Postgres rejects any INSERT (which is what upsert() attempts first) that supplies an
+  // explicit id. saveRecord is only ever called on records that already have one (brand-new
+  // records go through createRecord instead), so a plain update-by-id is correct here anyway.
+  const {pipeline, id, ...payload} = r;
+  const {error} = await sb.from(TABLE_BY_PIPELINE[pipeline]).update(payload).eq('id', id);
   if(error){ console.error(error); showToast('Sync failed — change kept locally only'); return false; }
   return true;
 }
