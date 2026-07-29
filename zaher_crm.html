@@ -888,7 +888,7 @@ function renderDashboard(){
     <tr onclick="openDetail(${r.id})">
       <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${primary}</div><div class="lc">${secondary}</div></div></div></td>
       <td>${state.pipeline==='partners'?catChip(r.category):`<span class="lc">${escHtml(r.sector||r.thesis||'—')}</span>`}</td>
-      ${isCustDash?`<td style="font-size:12px;color:var(--gray-500);">${escHtml(r.website||'—')}</td>`:''}
+      ${isCustDash?`<td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>`:''}
       <td style="font-weight:500;">${isP2()?(r.founders||0):fv(r.value)}</td>
       <td>${stagePill(r.stage)}</td>
     </tr>`;}).join('');
@@ -1122,14 +1122,20 @@ async function handleImportFile(ev){
   try{
     const buf=await file.arrayBuffer();
     const wb=XLSX.read(buf,{type:'array'});
-    const sheet=wb.Sheets[wb.SheetNames[0]];
-    const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
-    if(!rows||rows.length<2){showToast('No data rows found in file');ev.target.value='';return;}
-    const idx=mapHeaders(rows[0],pipeline);
-    if(idx.company===undefined&&idx.name===undefined){showToast('Could not find name/company columns in the header row');ev.target.value='';return;}
     const newRecords=[];
     const touchedExisting=new Set();
     let mergedCount=0, skippedCount=0;
+    let sawDataRows=false, sawHeaderMatch=false;
+    // Scan every sheet in the workbook, not just the first — source files aren't always
+    // pre-merged into one master tab (e.g. one sheet per vertical/category).
+    for(const sheetName of wb.SheetNames){
+    const sheet=wb.Sheets[sheetName];
+    const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+    if(!rows||rows.length<2)continue;
+    sawDataRows=true;
+    const idx=mapHeaders(rows[0],pipeline);
+    if(idx.company===undefined&&idx.name===undefined)continue;
+    sawHeaderMatch=true;
     for(let i=1;i<rows.length;i++){
       const row=rows[i]; if(!row||!row.length)continue;
       const get=f=>idx[f]!==undefined?row[idx[f]]:undefined;
@@ -1248,6 +1254,9 @@ async function handleImportFile(ev){
       }
       newRecords.push(r);
     }
+    }
+    if(!sawDataRows){showToast('No data rows found in file');ev.target.value='';return;}
+    if(!sawHeaderMatch){showToast('Could not find name/company columns in the header row');ev.target.value='';return;}
     if(!newRecords.length&&!touchedExisting.size){
       showToast(skippedCount?`All ${skippedCount} row${skippedCount===1?'':'s'} matched existing companies with nothing new to add`:'No valid rows found to import');
       ev.target.value='';return;
@@ -1429,7 +1438,7 @@ function renderDetail(){
     fields.push(['Fund size',r.fundSize||'—',false],['Thesis',r.thesis||'—',false],['Target raise',ff(r.value),false]);
   }
   fields.push(['Date entered',fmtTs(r.created_at),false],['Last modified',fmtTs(r.updated_at),false]);
-  document.getElementById('det-fields').innerHTML=fields.map(([k,v,link])=>`<div class="field-item"><div class="field-key">${k}</div><div class="field-val${link?' link':''}">${escHtml(v)||'—'}</div></div>`).join('');
+  document.getElementById('det-fields').innerHTML=fields.map(([k,v,link])=>`<div class="field-item"><div class="field-key">${k}</div><div class="field-val${link?' link':''}">${(link?linkHtml(v):escHtml(v))||'—'}</div></div>`).join('');
   if(state.pipeline==='customers'){
     document.getElementById('det-fields').innerHTML += `<div class="field-item"><div class="field-key">Next step</div><select class="form-input" style="margin-top:2px;" onchange="changeNextStep(${r.id},this)">${nextStepSelectHtml(r.nextStep)}</select></div>`;
   }
@@ -1449,7 +1458,7 @@ function renderDetail(){
           <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Title:</strong> ${escHtml(m.title)||'—'}</div>
           <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Email:</strong> ${m.email?`<a href="mailto:${escHtml(m.email)}" style="color:var(--accent);" onclick="event.stopPropagation()">${escHtml(m.email)}</a>`:'—'}</div>
           <div style="margin-bottom:4px;"><strong style="color:var(--gray-700);">Phone:</strong> ${escHtml(m.phone)||'—'}</div>
-          <div style="margin-bottom:8px;"><strong style="color:var(--gray-700);">LinkedIn:</strong> ${m.linkedin?`<a href="${escHtml(/^https?:\/\//i.test(m.linkedin)?m.linkedin:'https://'+m.linkedin)}" target="_blank" style="color:var(--accent);" onclick="event.stopPropagation()">${escHtml(m.linkedin)}</a>`:'—'}</div>
+          <div style="margin-bottom:8px;"><strong style="color:var(--gray-700);">LinkedIn:</strong> ${linkHtml(m.linkedin)||'—'}</div>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" onclick="event.stopPropagation();editMember(${i})">Edit</button>
             <button class="btn btn-danger" style="font-size:11px;padding:4px 10px;" onclick="event.stopPropagation();deleteMember(${i})">Delete</button>
@@ -1487,6 +1496,8 @@ function renderDetail(){
 // ══════════════ MODALS ══════════════
 const escHtml=v=>(v==null?'':(''+v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const escAttr=escHtml;
+const toUrl=v=>{ const s=(v==null?'':(''+v)).trim(); return s?(/^https?:\/\//i.test(s)?s:'https://'+s):''; };
+const linkHtml=v=>{ const s=(v==null?'':(''+v)).trim(); return s?`<a href="${escAttr(toUrl(s))}" target="_blank" style="color:var(--accent);" onclick="event.stopPropagation()">${escHtml(s)}</a>`:''; };
 let editId=null;
 function toggleSubscriptionFields(segment){
   document.getElementById('f-subperiod-group').style.display=segment==='Enterprise'?'':'none';
