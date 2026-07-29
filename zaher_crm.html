@@ -605,34 +605,34 @@ const ADMIN_EMAIL = 'ka.mahrous@zaher.ai';
 // ══════════════ SEED DATA (fallback until Supabase is configured / seeded) ══════════════
 const SEED_RECORDS = [
   // ── PARTNERS · Portfolio 1 · Marketing Agencies ──
-  {id:1,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Fahad Khan',company:'Bytes Future',role:'Managing Partner',email:'fahad@bytesfuture.com',phone:'+966 50 111 2201',stage:'Trust',model:'Reseller',tier:1,score:90,website:'bytesfuture.com',region:'GCC',clients:'Strong multi-market B2C base (Clutch-verified)',value:38000,source:'LinkedIn',date:'Apr 6',notes:'Top-scoring Tier 1 agency. Strong reseller candidate — wants to add AI Visibility Audits to retainer.',activity:[{t:'Qualified — score 90, Tier 1',d:'Apr 4'},{t:'Intro call completed',d:'Apr 6'}]},
-  {id:2,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Reem Khalid',company:'Room 11',role:'Founder',email:'reem@room11.sa',phone:'+966 50 111 2202',stage:'Educational Collaboration',model:'Reseller',tier:1,score:85,website:'room11.sa',region:'KSA',clients:'S Caffe, Reem Al Bawadi, Chicos, Flavers +35',value:32000,source:'Referral',date:'Apr 9',notes:'Strong F&B / retail roster. Joint webinar proposed as educational collaboration.',activity:[{t:'Qualified — score 85, Tier 1',d:'Apr 5'},{t:'Co-webinar topic agreed',d:'Apr 9'}]},
-  {id:3,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Omar Nabil',company:'Chain Reaction',role:'Head of Growth',email:'omar@chainreaction.sa',phone:'+966 50 111 2203',stage:'Pilot Partnership',model:'Reseller',tier:1,score:85,website:'chainreaction.sa',region:'KSA',clients:'Samsung KSA, KFC, Pizza Hut, LG, Lenovo',value:40000,source:'Cold Outreach',date:'Mar 24',notes:'Enterprise client base. Running a paid pilot on 3 client brands.',activity:[{t:'Qualified — score 85, Tier 1',d:'Mar 20'},{t:'Pilot on 3 brands started',d:'Mar 24'}]},
-  {id:4,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Sara Otaibi',company:'Steps / Steps Grow',role:'BD Director',email:'sara@steps.com.sa',phone:'+966 50 111 2204',stage:'Awareness',model:'Reseller',tier:1,score:85,website:'steps.com.sa',region:'KSA',clients:'SEO-first agency, GCC e-commerce base',value:30000,source:'LinkedIn',date:'Apr 15',notes:'SEO-first — natural fit for GEO as a service extension. First outreach sent.',activity:[{t:'Qualified — score 85, Tier 1',d:'Apr 14'},{t:'Intro message sent',d:'Apr 15'}]},
-  {id:5,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Karim Adel',company:'Dottopia',role:'Partnerships Lead',email:'karim@dottopia.com',phone:'+20 100 111 2205',stage:'Educational Collaboration',model:'Referral',tier:1,score:75,website:'dottopia.com',region:'Egypt',clients:'TECNO, Clorox, Hardees, Baskin-Robbins',value:22000,source:'Referral',date:'Apr 8',notes:'Referral model to start. Sharing the Arabic AI Visibility Index with their clients.',activity:[{t:'Qualified — score 75, Tier 1',d:'Apr 3'},{t:'Index shared with team',d:'Apr 8'}]},
-  {id:6,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Mona Saleh',company:'Digital Wasfa',role:'Founder',email:'mona@digitalwasfa.com',phone:'+966 50 111 2206',stage:'Awareness',model:'Referral',tier:1,score:65,website:'digitalwasfa.com',region:'KSA',clients:'Bilingual AR/EN SEO, Saudi e-commerce focus',value:15000,source:'LinkedIn',date:'Apr 15',notes:'Arabic SEO specialist — strong language fit for GEO.',activity:[{t:'Qualified — score 65, Tier 1',d:'Apr 15'}]},
-  {id:7,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Youssef Amin',company:'TAC Universe',role:'Performance Lead',email:'youssef@tacuniverse.com',phone:'+971 50 111 2207',stage:'Trust',model:'Referral',tier:1,score:65,website:'tacuniverse.com',region:'UAE/KSA',clients:'Aramex Global, Pringles — 3x TikTok Ad Awards',value:18000,source:'Cold Outreach',date:'Mar 30',notes:'Performance-focused. Delivered one successful referral audit already.',activity:[{t:'Qualified — score 65, Tier 1',d:'Mar 26'},{t:'First referral audit delivered',d:'Mar 30'}]},
-  {id:8,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Hossam Ali',company:'Entshar Technology',role:'CEO',email:'hossam@entshar.net',phone:'+20 100 111 2208',stage:'Awareness',model:'Referral',tier:1,score:65,website:'entshar.net',region:'Egypt',clients:'Pizza Hut + 7 named projects',value:14000,source:'LinkedIn',date:'Apr 14',notes:'Egypt-based, mid roster. Outreach queued.',activity:[{t:'Qualified — score 65, Tier 1',d:'Apr 14'}]},
-  {id:9,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Nada Fteha',company:'Mighty Leap',role:'Founder',email:'nada@mightyleapeg.com',phone:'+20 100 111 2209',stage:'Educational Collaboration',model:'Referral',tier:1,score:55,website:'mightyleapeg.com',region:'Egypt',clients:'Alpha Egypt Tours, Dentistree, Better Homes',value:12000,source:'Referral',date:'Apr 10',notes:'Thinner roster but engaged. Good early referral partner.',activity:[{t:'Qualified — score 55, Tier 1',d:'Apr 10'}]},
+  {id:1,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Bytes Future',company:'Bytes Future',role:'',email:'',phone:'',members:[{name:'Fahad Khan',title:'Managing Partner',email:'fahad@bytesfuture.com',phone:'+966 50 111 2201',linkedin:''}],stage:'Trust',model:'Reseller',tier:1,score:90,website:'bytesfuture.com',region:'GCC',clients:'Strong multi-market B2C base (Clutch-verified)',value:38000,source:'LinkedIn',date:'Apr 6',notes:'Top-scoring Tier 1 agency. Strong reseller candidate — wants to add AI Visibility Audits to retainer.',activity:[{t:'Qualified — score 90, Tier 1',d:'Apr 4'},{t:'Intro call completed',d:'Apr 6'}]},
+  {id:2,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Room 11',company:'Room 11',role:'',email:'',phone:'',members:[{name:'Reem Khalid',title:'Founder',email:'reem@room11.sa',phone:'+966 50 111 2202',linkedin:''}],stage:'Educational Collaboration',model:'Reseller',tier:1,score:85,website:'room11.sa',region:'KSA',clients:'S Caffe, Reem Al Bawadi, Chicos, Flavers +35',value:32000,source:'Referral',date:'Apr 9',notes:'Strong F&B / retail roster. Joint webinar proposed as educational collaboration.',activity:[{t:'Qualified — score 85, Tier 1',d:'Apr 5'},{t:'Co-webinar topic agreed',d:'Apr 9'}]},
+  {id:3,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Chain Reaction',company:'Chain Reaction',role:'',email:'',phone:'',members:[{name:'Omar Nabil',title:'Head of Growth',email:'omar@chainreaction.sa',phone:'+966 50 111 2203',linkedin:''}],stage:'Pilot Partnership',model:'Reseller',tier:1,score:85,website:'chainreaction.sa',region:'KSA',clients:'Samsung KSA, KFC, Pizza Hut, LG, Lenovo',value:40000,source:'Cold Outreach',date:'Mar 24',notes:'Enterprise client base. Running a paid pilot on 3 client brands.',activity:[{t:'Qualified — score 85, Tier 1',d:'Mar 20'},{t:'Pilot on 3 brands started',d:'Mar 24'}]},
+  {id:4,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Steps / Steps Grow',company:'Steps / Steps Grow',role:'',email:'',phone:'',members:[{name:'Sara Otaibi',title:'BD Director',email:'sara@steps.com.sa',phone:'+966 50 111 2204',linkedin:''}],stage:'Awareness',model:'Reseller',tier:1,score:85,website:'steps.com.sa',region:'KSA',clients:'SEO-first agency, GCC e-commerce base',value:30000,source:'LinkedIn',date:'Apr 15',notes:'SEO-first — natural fit for GEO as a service extension. First outreach sent.',activity:[{t:'Qualified — score 85, Tier 1',d:'Apr 14'},{t:'Intro message sent',d:'Apr 15'}]},
+  {id:5,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Dottopia',company:'Dottopia',role:'',email:'',phone:'',members:[{name:'Karim Adel',title:'Partnerships Lead',email:'karim@dottopia.com',phone:'+20 100 111 2205',linkedin:''}],stage:'Educational Collaboration',model:'Referral',tier:1,score:75,website:'dottopia.com',region:'Egypt',clients:'TECNO, Clorox, Hardees, Baskin-Robbins',value:22000,source:'Referral',date:'Apr 8',notes:'Referral model to start. Sharing the Arabic AI Visibility Index with their clients.',activity:[{t:'Qualified — score 75, Tier 1',d:'Apr 3'},{t:'Index shared with team',d:'Apr 8'}]},
+  {id:6,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Digital Wasfa',company:'Digital Wasfa',role:'',email:'',phone:'',members:[{name:'Mona Saleh',title:'Founder',email:'mona@digitalwasfa.com',phone:'+966 50 111 2206',linkedin:''}],stage:'Awareness',model:'Referral',tier:1,score:65,website:'digitalwasfa.com',region:'KSA',clients:'Bilingual AR/EN SEO, Saudi e-commerce focus',value:15000,source:'LinkedIn',date:'Apr 15',notes:'Arabic SEO specialist — strong language fit for GEO.',activity:[{t:'Qualified — score 65, Tier 1',d:'Apr 15'}]},
+  {id:7,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'TAC Universe',company:'TAC Universe',role:'',email:'',phone:'',members:[{name:'Youssef Amin',title:'Performance Lead',email:'youssef@tacuniverse.com',phone:'+971 50 111 2207',linkedin:''}],stage:'Trust',model:'Referral',tier:1,score:65,website:'tacuniverse.com',region:'UAE/KSA',clients:'Aramex Global, Pringles — 3x TikTok Ad Awards',value:18000,source:'Cold Outreach',date:'Mar 30',notes:'Performance-focused. Delivered one successful referral audit already.',activity:[{t:'Qualified — score 65, Tier 1',d:'Mar 26'},{t:'First referral audit delivered',d:'Mar 30'}]},
+  {id:8,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Entshar Technology',company:'Entshar Technology',role:'',email:'',phone:'',members:[{name:'Hossam Ali',title:'CEO',email:'hossam@entshar.net',phone:'+20 100 111 2208',linkedin:''}],stage:'Awareness',model:'Referral',tier:1,score:65,website:'entshar.net',region:'Egypt',clients:'Pizza Hut + 7 named projects',value:14000,source:'LinkedIn',date:'Apr 14',notes:'Egypt-based, mid roster. Outreach queued.',activity:[{t:'Qualified — score 65, Tier 1',d:'Apr 14'}]},
+  {id:9,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Mighty Leap',company:'Mighty Leap',role:'',email:'',phone:'',members:[{name:'Nada Fteha',title:'Founder',email:'nada@mightyleapeg.com',phone:'+20 100 111 2209',linkedin:''}],stage:'Educational Collaboration',model:'Referral',tier:1,score:55,website:'mightyleapeg.com',region:'Egypt',clients:'Alpha Egypt Tours, Dentistree, Better Homes',value:12000,source:'Referral',date:'Apr 10',notes:'Thinner roster but engaged. Good early referral partner.',activity:[{t:'Qualified — score 55, Tier 1',d:'Apr 10'}]},
   // ── PARTNERS · Portfolio 1 · SaaS & E-commerce Platforms ──
-  {id:10,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'Partnerships Team',company:'Salla',email:'partners@salla.dev',phone:'+966 50 111 3010',role:'Partner Manager',stage:'Educational Collaboration',model:'Merchant Education',tier:null,score:null,website:'salla.dev',region:'KSA',clients:'68,000+ merchants · Mahally marketplace',value:120000,source:'Inbound',date:'Apr 2',notes:'Largest Gulf commerce platform. Path: merchant education → AI Visibility Score → marketplace listing.',activity:[{t:'Intro via merchant academy',d:'Mar 28'},{t:'Education content proposed',d:'Apr 2'}]},
-  {id:11,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'BD Team',company:'Zid',role:'Partnerships Lead',email:'partners@zid.sa',phone:'+966 50 111 3011',stage:'Trust',model:'Marketplace App',tier:null,score:null,website:'zid.sa',region:'KSA',clients:'Saudi commerce platform · Zid Academy',value:90000,source:'Referral',date:'Mar 22',notes:'Automatic 30% rev share removes the commercial "convince" step. Building toward a marketplace app.',activity:[{t:'Partner terms reviewed (30% share)',d:'Mar 18'},{t:'App scope discussion',d:'Mar 22'}]},
-  {id:12,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'Partner Program',company:'Shopify',role:'Tech Partnerships',email:'partners@shopify.com',phone:'—',stage:'Awareness',model:'Merchant Service',tier:null,score:null,website:'shopify.com',region:'Global',clients:'8,000+ App Store apps',value:150000,source:'LinkedIn',date:'Apr 12',notes:'Long-term benchmark. App Store is the product model to aim at.',activity:[{t:'Partner program researched',d:'Apr 12'}]},
-  {id:13,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'Regional Implementers',company:'WooCommerce (via agencies)',role:'Implementation network',email:'—',phone:'—',stage:'Awareness',model:'Deep-Link',tier:null,score:null,website:'woocommerce.com',region:'MENA',clients:'Large SME store base via WordPress',value:40000,source:'Inbound',date:'Apr 13',notes:'Reach through the regional agencies who build WooCommerce stores, not Automattic directly.',activity:[{t:'Channel mapped',d:'Apr 13'}]},
+  {id:10,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'Salla',company:'Salla',role:'',email:'',phone:'',members:[{name:'Partnerships Team',title:'Partner Manager',email:'partners@salla.dev',phone:'+966 50 111 3010',linkedin:''}],stage:'Educational Collaboration',model:'Merchant Education',tier:null,score:null,website:'salla.dev',region:'KSA',clients:'68,000+ merchants · Mahally marketplace',value:120000,source:'Inbound',date:'Apr 2',notes:'Largest Gulf commerce platform. Path: merchant education → AI Visibility Score → marketplace listing.',activity:[{t:'Intro via merchant academy',d:'Mar 28'},{t:'Education content proposed',d:'Apr 2'}]},
+  {id:11,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'Zid',company:'Zid',role:'',email:'',phone:'',members:[{name:'BD Team',title:'Partnerships Lead',email:'partners@zid.sa',phone:'+966 50 111 3011',linkedin:''}],stage:'Trust',model:'Marketplace App',tier:null,score:null,website:'zid.sa',region:'KSA',clients:'Saudi commerce platform · Zid Academy',value:90000,source:'Referral',date:'Mar 22',notes:'Automatic 30% rev share removes the commercial "convince" step. Building toward a marketplace app.',activity:[{t:'Partner terms reviewed (30% share)',d:'Mar 18'},{t:'App scope discussion',d:'Mar 22'}]},
+  {id:12,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'Shopify',company:'Shopify',role:'',email:'',phone:'',members:[{name:'Partner Program',title:'Tech Partnerships',email:'partners@shopify.com',phone:'—',linkedin:''}],stage:'Awareness',model:'Merchant Service',tier:null,score:null,website:'shopify.com',region:'Global',clients:'8,000+ App Store apps',value:150000,source:'LinkedIn',date:'Apr 12',notes:'Long-term benchmark. App Store is the product model to aim at.',activity:[{t:'Partner program researched',d:'Apr 12'}]},
+  {id:13,pipeline:'partners',portfolio:1,category:'SaaS & E-commerce Platforms',name:'WooCommerce (via agencies)',company:'WooCommerce (via agencies)',role:'',email:'',phone:'',members:[{name:'Regional Implementers',title:'Implementation network',email:'—',phone:'—',linkedin:''}],stage:'Awareness',model:'Deep-Link',tier:null,score:null,website:'woocommerce.com',region:'MENA',clients:'Large SME store base via WordPress',value:40000,source:'Inbound',date:'Apr 13',notes:'Reach through the regional agencies who build WooCommerce stores, not Automattic directly.',activity:[{t:'Channel mapped',d:'Apr 13'}]},
   // ── PARTNERS · Portfolio 1 · Operational Touchpoint ──
-  {id:14,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Mohamed Wahba',company:'Bosta',role:'Head of Merchant Success',email:'mwahba@bosta.co',phone:'+20 100 111 4014',stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'bosta.co',region:'Egypt',clients:'E-commerce logistics · large merchant base',value:45000,source:'Cold Outreach',date:'Apr 11',notes:'Angle: "we help people find you, not just ship you." Value-added differentiator vs commodity shipping.',activity:[{t:'Positioning research done',d:'Apr 9'},{t:'Merchant-success outreach sent',d:'Apr 11'}]},
-  {id:15,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Lina Fares',company:'Aramex',role:'Partnerships',email:'lina.fares@aramex.com',phone:'+971 50 111 4015',stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'aramex.com',region:'UAE',clients:'Regional logistics enterprise',value:60000,source:'LinkedIn',date:'Apr 14',notes:'Enterprise — expect a slow cycle. Needs its own tailored research before outreach.',activity:[{t:'Account researched',d:'Apr 14'}]},
-  {id:16,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Turki Saud',company:'SMSA Express',role:'Business Development',email:'turki@smsaexpress.com',phone:'+966 50 111 4016',stage:'Educational Collaboration',model:'Merchant Benefit',tier:null,score:null,website:'smsaexpress.com',region:'KSA',clients:'Saudi last-mile leader',value:50000,source:'Referral',date:'Apr 3',notes:'Interested in a co-branded merchant visibility report.',activity:[{t:'Report concept shared',d:'Apr 3'}]},
-  {id:17,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Hassan Ali',company:'iMile',role:'Growth',email:'hassan@imile.com',phone:'+971 50 111 4017',stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'imile.com',region:'UAE',clients:'Last-mile delivery, GCC',value:30000,source:'LinkedIn',date:'Apr 15',notes:'Early research stage.',activity:[{t:'Added to pipeline',d:'Apr 15'}]},
-  {id:18,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Ali Kamal',company:'ShipBlu',role:'Co-Founder',email:'ali@shipblu.com',phone:'+20 100 111 4018',stage:'Trust',model:'Merchant Benefit',tier:null,score:null,website:'shipblu.com',region:'Egypt',clients:'Egypt e-commerce fulfilment',value:25000,source:'Referral',date:'Mar 29',notes:'Founder-to-founder trust already established. Warmest logistics conversation.',activity:[{t:'Founder intro',d:'Mar 25'},{t:'Merchant perk discussed',d:'Mar 29'}]},
+  {id:14,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Bosta',company:'Bosta',role:'',email:'',phone:'',members:[{name:'Mohamed Wahba',title:'Head of Merchant Success',email:'mwahba@bosta.co',phone:'+20 100 111 4014',linkedin:''}],stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'bosta.co',region:'Egypt',clients:'E-commerce logistics · large merchant base',value:45000,source:'Cold Outreach',date:'Apr 11',notes:'Angle: "we help people find you, not just ship you." Value-added differentiator vs commodity shipping.',activity:[{t:'Positioning research done',d:'Apr 9'},{t:'Merchant-success outreach sent',d:'Apr 11'}]},
+  {id:15,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Aramex',company:'Aramex',role:'',email:'',phone:'',members:[{name:'Lina Fares',title:'Partnerships',email:'lina.fares@aramex.com',phone:'+971 50 111 4015',linkedin:''}],stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'aramex.com',region:'UAE',clients:'Regional logistics enterprise',value:60000,source:'LinkedIn',date:'Apr 14',notes:'Enterprise — expect a slow cycle. Needs its own tailored research before outreach.',activity:[{t:'Account researched',d:'Apr 14'}]},
+  {id:16,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'SMSA Express',company:'SMSA Express',role:'',email:'',phone:'',members:[{name:'Turki Saud',title:'Business Development',email:'turki@smsaexpress.com',phone:'+966 50 111 4016',linkedin:''}],stage:'Educational Collaboration',model:'Merchant Benefit',tier:null,score:null,website:'smsaexpress.com',region:'KSA',clients:'Saudi last-mile leader',value:50000,source:'Referral',date:'Apr 3',notes:'Interested in a co-branded merchant visibility report.',activity:[{t:'Report concept shared',d:'Apr 3'}]},
+  {id:17,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'iMile',company:'iMile',role:'',email:'',phone:'',members:[{name:'Hassan Ali',title:'Growth',email:'hassan@imile.com',phone:'+971 50 111 4017',linkedin:''}],stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'imile.com',region:'UAE',clients:'Last-mile delivery, GCC',value:30000,source:'LinkedIn',date:'Apr 15',notes:'Early research stage.',activity:[{t:'Added to pipeline',d:'Apr 15'}]},
+  {id:18,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'ShipBlu',company:'ShipBlu',role:'',email:'',phone:'',members:[{name:'Ali Kamal',title:'Co-Founder',email:'ali@shipblu.com',phone:'+20 100 111 4018',linkedin:''}],stage:'Trust',model:'Merchant Benefit',tier:null,score:null,website:'shipblu.com',region:'Egypt',clients:'Egypt e-commerce fulfilment',value:25000,source:'Referral',date:'Mar 29',notes:'Founder-to-founder trust already established. Warmest logistics conversation.',activity:[{t:'Founder intro',d:'Mar 25'},{t:'Merchant perk discussed',d:'Mar 29'}]},
   // ── PARTNERS · Portfolio 2 · Startup Development Orgs ──
-  {id:19,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'Programs Team',company:'Flat6Labs Cairo',role:'Program Manager',email:'programs@flat6labs.com',phone:'+20 100 111 5019',stage:'Workshop Delivered',model:'Workshop / Perk',tier:null,score:null,website:'flat6labs.com',region:'Egypt',clients:'2 cohorts/yr · 8–10 startups each',value:0,workshops:2,founders:18,source:'Referral',date:'Apr 5',notes:'Egypt\'s largest accelerator. Ran the "Is your startup visible to AI search?" workshop for one cohort.',activity:[{t:'Workshop slot confirmed',d:'Mar 30'},{t:'Workshop delivered — 18 founders',d:'Apr 5'}]},
-  {id:20,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'V-Lab Team',company:'AUC Venture Lab',role:'Program Lead',email:'vlab@aucegypt.edu',phone:'+20 100 111 5020',stage:'Recurring Relationship',model:'Workshop / Perk',tier:null,score:null,website:'aucegypt.edu',region:'Egypt',clients:'1,000+ entrepreneurs · $356M raised by alumni',value:0,workshops:3,founders:24,source:'Founder network (AUC)',date:'Mar 15',notes:'Abdalla\'s alma mater — warmest door. Now invited back each cycle. Standing perk.',activity:[{t:'First workshop delivered',d:'Feb 20'},{t:'Invited back for Spring cohort',d:'Mar 15'}]},
-  {id:21,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'Incubator Team',company:'Nahdet El-Mahrousa',role:'Coordinator',email:'info@nahdetmasr.org',phone:'+20 100 111 5021',stage:'Conversation',model:'Workshop / Perk',tier:null,score:null,website:'nahdetmasr.org',region:'Egypt',clients:'30+ social enterprises supported',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 12',notes:'Social-enterprise incubator. Different founder population. Early conversation.',activity:[{t:'Intro email sent',d:'Apr 12'}]},
+  {id:19,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'Flat6Labs Cairo',company:'Flat6Labs Cairo',role:'',email:'',phone:'',members:[{name:'Programs Team',title:'Program Manager',email:'programs@flat6labs.com',phone:'+20 100 111 5019',linkedin:''}],stage:'Workshop Delivered',model:'Workshop / Perk',tier:null,score:null,website:'flat6labs.com',region:'Egypt',clients:'2 cohorts/yr · 8–10 startups each',value:0,workshops:2,founders:18,source:'Referral',date:'Apr 5',notes:'Egypt\'s largest accelerator. Ran the "Is your startup visible to AI search?" workshop for one cohort.',activity:[{t:'Workshop slot confirmed',d:'Mar 30'},{t:'Workshop delivered — 18 founders',d:'Apr 5'}]},
+  {id:20,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'AUC Venture Lab',company:'AUC Venture Lab',role:'',email:'',phone:'',members:[{name:'V-Lab Team',title:'Program Lead',email:'vlab@aucegypt.edu',phone:'+20 100 111 5020',linkedin:''}],stage:'Recurring Relationship',model:'Workshop / Perk',tier:null,score:null,website:'aucegypt.edu',region:'Egypt',clients:'1,000+ entrepreneurs · $356M raised by alumni',value:0,workshops:3,founders:24,source:'Founder network (AUC)',date:'Mar 15',notes:'Abdalla\'s alma mater — warmest door. Now invited back each cycle. Standing perk.',activity:[{t:'First workshop delivered',d:'Feb 20'},{t:'Invited back for Spring cohort',d:'Mar 15'}]},
+  {id:21,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'Nahdet El-Mahrousa',company:'Nahdet El-Mahrousa',role:'',email:'',phone:'',members:[{name:'Incubator Team',title:'Coordinator',email:'info@nahdetmasr.org',phone:'+20 100 111 5021',linkedin:''}],stage:'Conversation',model:'Workshop / Perk',tier:null,score:null,website:'nahdetmasr.org',region:'Egypt',clients:'30+ social enterprises supported',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 12',notes:'Social-enterprise incubator. Different founder population. Early conversation.',activity:[{t:'Intro email sent',d:'Apr 12'}]},
   // ── PARTNERS · Portfolio 2 · Government & National Dev ──
-  {id:22,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'Innovation Team',company:'TIEC',role:'Partnerships Officer',email:'info@tiec.gov.eg',phone:'+20 100 111 5022',stage:'Conversation',model:'Education Partner',tier:null,score:null,website:'tiec.gov.eg',region:'Egypt',clients:'National tech entrepreneurship center (ITIDA)',value:0,workshops:0,founders:0,source:'Inbound',date:'Apr 8',notes:'Framed around strengthening their curriculum, never as a sales channel. Masterclass proposed.',activity:[{t:'Masterclass concept sent',d:'Apr 8'}]},
-  {id:23,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'Industry Development',company:'ITIDA',role:'Program Officer',email:'info@itida.gov.eg',phone:'+20 100 111 5023',stage:'Awareness',model:'Education Partner',tier:null,score:null,website:'itida.gov.eg',region:'Egypt',clients:'National ICT industry agency',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 14',notes:'Parent agency of TIEC — target separately for established software exporters.',activity:[{t:'Approach planned',d:'Apr 14'}]},
-  {id:24,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'SME Programs',company:'MSMEDA',role:'Advisor',email:'info@msmeda.org.eg',phone:'+20 100 111 5024',stage:'Awareness',model:'Education Partner',tier:null,score:null,website:'msmeda.org.eg',region:'Egypt',clients:'National SME development agency',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 15',notes:'SMEs may have enough digital presence for real audits, not just education.',activity:[{t:'Added to pipeline',d:'Apr 15'}]},
+  {id:22,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'TIEC',company:'TIEC',role:'',email:'',phone:'',members:[{name:'Innovation Team',title:'Partnerships Officer',email:'info@tiec.gov.eg',phone:'+20 100 111 5022',linkedin:''}],stage:'Conversation',model:'Education Partner',tier:null,score:null,website:'tiec.gov.eg',region:'Egypt',clients:'National tech entrepreneurship center (ITIDA)',value:0,workshops:0,founders:0,source:'Inbound',date:'Apr 8',notes:'Framed around strengthening their curriculum, never as a sales channel. Masterclass proposed.',activity:[{t:'Masterclass concept sent',d:'Apr 8'}]},
+  {id:23,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'ITIDA',company:'ITIDA',role:'',email:'',phone:'',members:[{name:'Industry Development',title:'Program Officer',email:'info@itida.gov.eg',phone:'+20 100 111 5023',linkedin:''}],stage:'Awareness',model:'Education Partner',tier:null,score:null,website:'itida.gov.eg',region:'Egypt',clients:'National ICT industry agency',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 14',notes:'Parent agency of TIEC — target separately for established software exporters.',activity:[{t:'Approach planned',d:'Apr 14'}]},
+  {id:24,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'MSMEDA',company:'MSMEDA',role:'',email:'',phone:'',members:[{name:'SME Programs',title:'Advisor',email:'info@msmeda.org.eg',phone:'+20 100 111 5024',linkedin:''}],stage:'Awareness',model:'Education Partner',tier:null,score:null,website:'msmeda.org.eg',region:'Egypt',clients:'National SME development agency',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 15',notes:'SMEs may have enough digital presence for real audits, not just education.',activity:[{t:'Added to pipeline',d:'Apr 15'}]},
 
   // ── CUSTOMERS ── (company-based identity: `name`===`company`, contact lives in `members`)
   {id:40,pipeline:'customers',name:'Noon.com',company:'Noon.com',website:'noon.com',role:'',email:'',phone:'',members:[{name:'Sara Rashid',title:'Head of Marketing',email:'sara@noon.com',phone:'+20 100 222 4040',linkedin:''}],stage:'Pilot',sector:'E-Commerce',package:'Audit + Content',aiScore:71,value:26000,leadSource:'LinkedIn',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Annual',date:'Apr 12',notes:'Interested in the GEO package. Pilot running on 20 product categories.',activity:[{t:'Demo completed',d:'Apr 10'},{t:'Pilot scope agreed',d:'Apr 12'}]},
@@ -644,12 +644,12 @@ const SEED_RECORDS = [
   {id:46,pipeline:'customers',name:'Fordeal MENA',company:'Fordeal MENA',website:'fordeal.com',role:'',email:'',phone:'',members:[{name:'Amira Hassan',title:'Digital Director',email:'ahassan@fordeal.com',phone:'+20 100 222 4046',linkedin:''}],stage:'Active Client',sector:'E-Commerce',package:'Audit + Content',aiScore:84,value:8500,leadSource:'Cold Outreach',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Annual (renewed)',date:'Mar 12',notes:'Arabic product visibility inside Perplexity and SGE. Renewed for 12 months.',activity:[{t:'Contract signed',d:'Mar 12'}]},
 
   // ── INVESTORS ──
-  {id:60,pipeline:'investors',name:'Tarek El Ghamry',company:'Algebra Ventures',role:'General Partner',email:'tarek@algebra.vc',phone:'+20 100 333 6060',stage:'First Meeting',fundSize:'$80M',thesis:'MENA SaaS Infrastructure',value:500000,source:'Event',date:'Apr 9',notes:'Interested in the GEO infrastructure thesis. Wants MRR trajectory and retention cohorts.',activity:[{t:'Met at RiseUp Summit',d:'Apr 6'},{t:'Pitch deck sent',d:'Apr 8'}]},
-  {id:61,pipeline:'investors',name:'Lina Khalaf',company:'Shorooq Partners',role:'Investment Manager',email:'lkhalaf@shorooq.vc',phone:'+971 50 333 6061',stage:'Due Diligence',fundSize:'$150M',thesis:'MENA B2B SaaS',value:750000,source:'LinkedIn',date:'Apr 4',notes:'Backed Salla and Foodics. Asked for a full data room by April 20.',activity:[{t:'Connection via Anwar',d:'Apr 1'},{t:'Data room requested',d:'Apr 4'}]},
-  {id:62,pipeline:'investors',name:'Hassan Mekkawy',company:'Flat6Labs (Fund)',role:'Managing Partner',email:'hmekkawy@flat6labs.com',phone:'+20 100 333 6062',stage:'Prospecting',fundSize:'$40M',thesis:'MENA Early Stage',value:250000,source:'Referral',date:'Apr 13',notes:'Exploring portfolio-wide GEO access vs pure equity.',activity:[{t:'Referral from Dr. Ahmed Samy',d:'Apr 12'}]},
-  {id:63,pipeline:'investors',name:'Nadia Al Saad',company:'STV',role:'Principal',email:'nadia@stv.com',phone:'+966 50 333 6063',stage:'Term Sheet',fundSize:'$500M',thesis:'Gulf Deep Tech',value:1000000,source:'Cold Outreach',date:'Mar 25',notes:'Term sheet discussion ongoing. Valuation gap ~20%. Anwar leading.',activity:[{t:'First pitch',d:'Mar 23'},{t:'Term sheet draft received',d:'Apr 10'}]},
-  {id:64,pipeline:'investors',name:'Karim Beshara',company:'500 Global MENA',role:'Partner',email:'kbeshara@500.co',phone:'+20 100 333 6064',stage:'First Meeting',fundSize:'$143M',thesis:'Global Emerging Markets',value:150000,source:'LinkedIn',date:'Apr 7',notes:'Wants to understand GEO CAC vs LTV before a second call.',activity:[{t:'First call completed',d:'Apr 7'}]},
-  {id:65,pipeline:'investors',name:'Sara Hamdan',company:'Wamda Capital',role:'Investment Associate',email:'shamdan@wamda.com',phone:'+971 50 333 6065',stage:'Closed',fundSize:'$75M',thesis:'MENA Digital Growth',value:300000,source:'Referral',date:'Mar 5',notes:'Seed convertible note closed. Strategic intros to 3 portfolio companies included.',activity:[{t:'Term sheet agreed',d:'Mar 3'},{t:'Note signed — seed closed',d:'Mar 5'}]}
+  {id:60,pipeline:'investors',name:'Algebra Ventures',company:'Algebra Ventures',role:'',email:'',phone:'',members:[{name:'Tarek El Ghamry',title:'General Partner',email:'tarek@algebra.vc',phone:'+20 100 333 6060',linkedin:''}],stage:'First Meeting',fundSize:'$80M',thesis:'MENA SaaS Infrastructure',value:500000,source:'Event',date:'Apr 9',notes:'Interested in the GEO infrastructure thesis. Wants MRR trajectory and retention cohorts.',activity:[{t:'Met at RiseUp Summit',d:'Apr 6'},{t:'Pitch deck sent',d:'Apr 8'}]},
+  {id:61,pipeline:'investors',name:'Shorooq Partners',company:'Shorooq Partners',role:'',email:'',phone:'',members:[{name:'Lina Khalaf',title:'Investment Manager',email:'lkhalaf@shorooq.vc',phone:'+971 50 333 6061',linkedin:''}],stage:'Due Diligence',fundSize:'$150M',thesis:'MENA B2B SaaS',value:750000,source:'LinkedIn',date:'Apr 4',notes:'Backed Salla and Foodics. Asked for a full data room by April 20.',activity:[{t:'Connection via Anwar',d:'Apr 1'},{t:'Data room requested',d:'Apr 4'}]},
+  {id:62,pipeline:'investors',name:'Flat6Labs (Fund)',company:'Flat6Labs (Fund)',role:'',email:'',phone:'',members:[{name:'Hassan Mekkawy',title:'Managing Partner',email:'hmekkawy@flat6labs.com',phone:'+20 100 333 6062',linkedin:''}],stage:'Prospecting',fundSize:'$40M',thesis:'MENA Early Stage',value:250000,source:'Referral',date:'Apr 13',notes:'Exploring portfolio-wide GEO access vs pure equity.',activity:[{t:'Referral from Dr. Ahmed Samy',d:'Apr 12'}]},
+  {id:63,pipeline:'investors',name:'STV',company:'STV',role:'',email:'',phone:'',members:[{name:'Nadia Al Saad',title:'Principal',email:'nadia@stv.com',phone:'+966 50 333 6063',linkedin:''}],stage:'Term Sheet',fundSize:'$500M',thesis:'Gulf Deep Tech',value:1000000,source:'Cold Outreach',date:'Mar 25',notes:'Term sheet discussion ongoing. Valuation gap ~20%. Anwar leading.',activity:[{t:'First pitch',d:'Mar 23'},{t:'Term sheet draft received',d:'Apr 10'}]},
+  {id:64,pipeline:'investors',name:'500 Global MENA',company:'500 Global MENA',role:'',email:'',phone:'',members:[{name:'Karim Beshara',title:'Partner',email:'kbeshara@500.co',phone:'+20 100 333 6064',linkedin:''}],stage:'First Meeting',fundSize:'$143M',thesis:'Global Emerging Markets',value:150000,source:'LinkedIn',date:'Apr 7',notes:'Wants to understand GEO CAC vs LTV before a second call.',activity:[{t:'First call completed',d:'Apr 7'}]},
+  {id:65,pipeline:'investors',name:'Wamda Capital',company:'Wamda Capital',role:'',email:'',phone:'',members:[{name:'Sara Hamdan',title:'Investment Associate',email:'shamdan@wamda.com',phone:'+971 50 333 6065',linkedin:''}],stage:'Closed',fundSize:'$75M',thesis:'MENA Digital Growth',value:300000,source:'Referral',date:'Mar 5',notes:'Seed convertible note closed. Strategic intros to 3 portfolio companies included.',activity:[{t:'Term sheet agreed',d:'Mar 3'},{t:'Note signed — seed closed',d:'Mar 5'}]}
 ];
 let records = [];
 let nextId=100;
@@ -680,7 +680,7 @@ function findRecord(q){ if(q==null)return null; if(typeof q==='number'||/^\d+$/.
     || records.find(r=>(r.members||[]).some(m=>(m.name||'').toLowerCase().includes(s)));
 }
 function matchInList(list,needle){ if(!needle)return null; const n=(''+needle).toLowerCase(); return list.find(s=>s.toLowerCase()===n) || list.find(s=>s.toLowerCase().includes(n)) || null; }
-function customerPrimaryMember(r){ return (r&&r.members&&r.members[0]) || null; }
+function primaryMember(r){ return (r&&r.members&&r.members[0]) || null; }
 
 // ══════════════ SUPABASE PERSISTENCE ══════════════
 const TABLE_BY_PIPELINE = {partners:'partners', customers:'customers', investors:'investors'};
@@ -846,13 +846,12 @@ function renderDashboard(){
   const isCustDash=state.pipeline==='customers';
   document.getElementById('dash-thead').innerHTML=`<tr><th>Name</th><th>${state.pipeline==='partners'?'Category':isCustDash?'Sector':'Firm'}</th>${isCustDash?'<th>Website</th>':''}<th>${valCol}</th><th>Stage</th></tr>`;
   document.getElementById('recent-body').innerHTML=recs.slice(0,7).map(r=>{
-    const isCust=r.pipeline==='customers';
-    const pm=isCust?customerPrimaryMember(r):null;
-    const primary=isCust?r.company:r.name;
-    const secondary=isCust?(pm?pm.name+(pm.title?' · '+pm.title:''):'—'):r.company;
+    const pm=primaryMember(r);
+    const primary=r.company;
+    const secondary=pm?(pm.name+(pm.title?' · '+pm.title:'')):'—';
     return `
     <tr onclick="openDetail(${r.id})">
-      <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(isCust?r.company:(r.name||r.company))}</div><div><div class="ln">${primary}</div><div class="lc">${secondary}</div></div></div></td>
+      <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${primary}</div><div class="lc">${secondary}</div></div></div></td>
       <td>${state.pipeline==='partners'?catChip(r.category):`<span class="lc">${r.sector||r.thesis||'—'}</span>`}</td>
       ${isCustDash?`<td style="font-size:12px;color:var(--gray-500);">${r.website||'—'}</td>`:''}
       <td style="font-weight:500;">${isP2()?(r.founders||0):fv(r.value)}</td>
@@ -889,15 +888,14 @@ function buildCard(r){
   else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${r.segment}</span>`:''}${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${r.nextStep}</span>`:''}</div>`;
   else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${r.fundSize||''} · ${r.thesis||''}</div>`;
   const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
-  const isCust=r.pipeline==='customers';
-  const pm=isCust?customerPrimaryMember(r):null;
-  const cardPrimary=isCust?r.company:r.name;
-  const cardSecondary=isCust?(pm?pm.name+(pm.title?' · '+pm.title:''):'—'):r.company;
+  const pm=primaryMember(r);
+  const cardPrimary=r.company;
+  const cardSecondary=pm?(pm.name+(pm.title?' · '+pm.title:'')):'—';
   return `<div class="k-card" id="kcard-${r.id}" data-id="${r.id}"
     onmousedown="dragStart(event,${r.id})"
     onclick="if(!window._wasDrag)openDetail(${r.id});window._wasDrag=false;">
     <div class="k-card-top">
-      <div class="av ${avc(r.id)}" style="width:28px;height:28px;font-size:9px;">${ini(isCust?r.company:(r.name||r.company))}</div>
+      <div class="av ${avc(r.id)}" style="width:28px;height:28px;font-size:9px;">${ini(r.company)}</div>
       <div class="k-card-info"><div class="kn">${cardPrimary}</div><div class="kc">${cardSecondary}</div></div>
     </div>
     ${extra}${bottom}
@@ -1019,15 +1017,17 @@ function renderDirectory(){
   list=applyFilters(list);
   let head,rowFn;
   if(state.pipeline==='partners'){
-    head=`<tr><th>Organisation</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th><th>Added</th><th>Updated</th></tr>`;
-    rowFn=r=>`<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name)}</div><div><div class="ln">${r.name}</div><div class="lc">${r.company} · ${r.region||''}</div></div></div></td>
+    head=`<tr><th>Organisation</th><th>Primary contact</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th><th>Added</th><th>Updated</th></tr>`;
+    rowFn=r=>{ const pm=primaryMember(r);
+      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${r.company}</div><div class="lc">${r.region||''}</div></div></div></td>
+      <td style="font-size:12px;color:var(--gray-700);">${pm?pm.name+(pm.title?' · '+pm.title:''):'—'}</td>
       <td>${catChip(r.category)}</td><td style="font-size:12px;color:var(--gray-700);">${r.model||'—'}</td>
       <td>${r.tier?tierPill(r.tier)+' '+(r.score!=null?`<span style="font-size:11px;color:var(--gray-500);">${r.score}</span>`:''):'<span class="lc">—</span>'}</td>
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
-  } else if(state.pipeline==='customers'){
+  }} else if(state.pipeline==='customers'){
     head=`<tr><th>Company</th><th>Primary contact</th><th>Sector</th><th>Segment</th><th>AI Score</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th><th>Added</th><th>Updated</th></tr>`;
-    rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null; const pm=customerPrimaryMember(r);
+    rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null; const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${r.company}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?pm.name+(pm.title?' · '+pm.title:''):'—'}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${r.sector}</span></td>
       <td><span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${r.segment||'—'}</span></td>
@@ -1037,12 +1037,13 @@ function renderDirectory(){
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else {
-    head=`<tr><th>Contact</th><th>Firm</th><th>Fund</th><th>Thesis</th><th>Stage</th><th>Target</th><th>Added</th><th>Updated</th></tr>`;
-    rowFn=r=>`<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.name)}</div><div><div class="ln">${r.name}</div></div></div></td>
-      <td style="font-size:12px;color:var(--gray-700);">${r.company}</td><td style="font-size:12px;">${r.fundSize||'—'}</td>
+    head=`<tr><th>Firm</th><th>Primary contact</th><th>Fund</th><th>Thesis</th><th>Stage</th><th>Target</th><th>Added</th><th>Updated</th></tr>`;
+    rowFn=r=>{ const pm=primaryMember(r);
+      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${r.company}</div></div></div></td>
+      <td style="font-size:12px;color:var(--gray-700);">${pm?pm.name+(pm.title?' · '+pm.title:''):'—'}</td><td style="font-size:12px;">${r.fundSize||'—'}</td>
       <td style="font-size:12px;color:var(--gray-500);">${r.thesis||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
-  }
+  }}
   document.getElementById('dir-thead').innerHTML=head;
   document.getElementById('dir-body').innerHTML=list.map(r=>`<tr onclick="openDetail(${r.id})">${rowFn(r)}</tr>`).join('');
 }
@@ -1090,17 +1091,49 @@ async function handleImportFile(ev){
     const idx=mapHeaders(rows[0],pipeline);
     if(idx.company===undefined&&idx.name===undefined){showToast('Could not find name/company columns in the header row');ev.target.value='';return;}
     const newRecords=[];
+    const touchedExisting=new Set();
+    let mergedCount=0, skippedCount=0;
     for(let i=1;i<rows.length;i++){
       const row=rows[i]; if(!row||!row.length)continue;
       const get=f=>idx[f]!==undefined?row[idx[f]]:undefined;
       const company=(get('company')||get('name')||'').toString().trim(); if(!company)continue;
+      // Every pipeline is company-based: `company` is the record's identity, and any
+      // name/role/email/phone columns in the import file describe a contact person at
+      // that company — they land in `members[0]` instead of being dropped or stored
+      // as a top-level contact.
+      const importName=(get('name')||'').toString().trim();
+      const hasContact=(importName&&importName.toLowerCase()!==company.toLowerCase())||get('email')||get('phone')||get('role');
+      const newMember=hasContact
+        ? {name:importName||company,title:(get('role')||'').toString(),email:(get('email')||'').toString(),phone:(get('phone')||'').toString(),linkedin:''}
+        : null;
+
+      // If this company already exists in the pipeline — either already in the DB, or
+      // created by an earlier row in this same import batch — don't create a duplicate
+      // record; fold the row's contact into that record's members list instead.
+      const alreadyPersisted=records.find(x=>x.pipeline===pipeline&&(x.company||'').trim().toLowerCase()===company.toLowerCase());
+      const existing=alreadyPersisted
+        || newRecords.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase());
+      if(existing){
+        if(!newMember){ skippedCount++; continue; }
+        existing.members=existing.members||[];
+        const isDup=existing.members.some(m=>
+          (newMember.email&&m.email&&m.email.toLowerCase()===newMember.email.toLowerCase())
+          || (!newMember.email&&(m.name||'').toLowerCase()===newMember.name.toLowerCase()));
+        if(isDup){ skippedCount++; continue; }
+        existing.members.push(newMember);
+        existing.activity.push({t:`Added member via import: ${newMember.name}`,d:'Today'});
+        if(alreadyPersisted) touchedExisting.add(existing);
+        mergedCount++;
+        continue;
+      }
+
       let portfolio;
       if(pipeline==='partners'){ const pf=Number(get('portfolio')); portfolio=(pf===1||pf===2)?pf:state.portfolio; }
       const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];
       const stage=matchInList(stageList,get('stage'))||stageList[0];
       const importTs=new Date().toISOString();
-      const r={id:++nextId,pipeline,name:(get('name')||company).toString(),company,
-        role:(get('role')||'').toString(),email:(get('email')||'').toString(),phone:(get('phone')||'').toString(),
+      const r={id:++nextId,pipeline,name:company,company,
+        role:'',email:'',phone:'',members:newMember?[newMember]:[],
         stage, value:Number(get('value'))||0, source:(get('source')||'Import').toString(),
         date:(get('date')||'Today').toString(), notes:(get('notes')||'').toString(),
         created_at:importTs, updated_at:importTs,
@@ -1118,26 +1151,27 @@ async function handleImportFile(ev){
         r.nextStep=(get('nextStep')||nextStepOptions[0]||'').toString();
         r.subscriptionPeriod=r.segment==='Enterprise'?(get('subscriptionPeriod')||'').toString():'';
         r.subscriptionDate=r.segment==='SaaS'?(get('subscriptionDate')||'').toString():'';
-        const importName=(get('name')||'').toString().trim();
-        const hasContact=(importName&&importName.toLowerCase()!==company.toLowerCase())||get('email')||get('phone')||get('role');
-        r.members=hasContact
-          ? [{name:importName||company,title:(get('role')||'').toString(),email:(get('email')||'').toString(),phone:(get('phone')||'').toString(),linkedin:''}]
-          : [];
-        r.name=company;r.role='';r.email='';r.phone='';
         delete r.source;
       } else {
         r.fundSize=(get('fundSize')||'').toString();r.thesis=(get('thesis')||'').toString();
       }
       newRecords.push(r);
     }
-    if(!newRecords.length){showToast('No valid rows found to import');ev.target.value='';return;}
+    if(!newRecords.length&&!touchedExisting.size){showToast('No valid rows found to import');ev.target.value='';return;}
     records.push(...newRecords);
     if(sb){
-      const payloads=newRecords.map(r=>{const {pipeline,...payload}=r;return payload;});
-      const {error}=await sb.from(TABLE_BY_PIPELINE[pipeline]).insert(payloads);
-      if(error){console.error(error);showToast(`Imported ${newRecords.length} ${pipeline} locally, but sync to Supabase failed`);ev.target.value='';refreshView();return;}
+      if(newRecords.length){
+        const payloads=newRecords.map(r=>{const {pipeline,...payload}=r;return payload;});
+        const {error}=await sb.from(TABLE_BY_PIPELINE[pipeline]).insert(payloads);
+        if(error){console.error(error);showToast(`Imported ${newRecords.length} ${pipeline} locally, but sync to Supabase failed`);ev.target.value='';refreshView();return;}
+      }
+      for(const r of touchedExisting){ await saveRecord(r); }
     }
-    showToast(`Imported ${newRecords.length} ${pipeline}`);
+    const parts=[];
+    if(newRecords.length)parts.push(`${newRecords.length} new`);
+    if(mergedCount)parts.push(`${mergedCount} member${mergedCount===1?'':'s'} added to existing`);
+    if(skippedCount)parts.push(`${skippedCount} skipped (no new info)`);
+    showToast(`Import: ${parts.join(', ')||'nothing to do'}`);
   }catch(e){ console.error(e); showToast('Import failed: '+e.message); }
   ev.target.value='';
   refreshView();
@@ -1268,19 +1302,18 @@ function renderDetail(){
   document.getElementById('det-av').className='profile-av '+avc(r.id);
   document.getElementById('det-av').textContent=ini(r.name||r.company);
   document.getElementById('det-name').textContent=r.name;
-  const isCustDetail=state.pipeline==='customers';
-  const pmDetail=isCustDetail?customerPrimaryMember(r):null;
-  document.getElementById('det-role').textContent=isCustDetail?(pmDetail?pmDetail.name+(pmDetail.title?' · '+pmDetail.title:''):'—'):r.company+(r.role?' · '+r.role:'');
+  const pmDetail=primaryMember(r);
+  document.getElementById('det-role').textContent=pmDetail?(pmDetail.name+(pmDetail.title?' · '+pmDetail.title:'')):'—';
   const srcTag=state.pipeline==='customers'?r.leadSource:r.source;
   let tags=`<span class="tag">${srcTag}</span>${stagePill(r.stage)}`;
   if(state.pipeline==='partners'){ tags=catChip(r.category)+tierPill(r.tier)+tags; }
   else if(state.pipeline==='customers'&&r.sector){ tags=`<span class="tag">${r.sector}</span>`+tags; }
   document.getElementById('det-tags').innerHTML=tags;
   document.getElementById('det-notes').textContent=r.notes||'—';
-  document.getElementById('det-contact-btn').onclick=()=>showToast('✉ Opening email to '+((isCustDetail?(pmDetail&&pmDetail.email):r.email)||'—'));
+  document.getElementById('det-contact-btn').onclick=()=>showToast('✉ Opening email to '+((pmDetail&&pmDetail.email)||'—'));
 
   // fields per pipeline
-  let fields=isCustDetail?[]:[['Email',r.email,true],['Phone',r.phone,false],['Company',r.company,false]];
+  let fields=[];
   if(state.pipeline==='partners'){
     fields.push(['Category',r.category,false],['Model',r.model||'—',false],['Region',r.region||'—',false]);
     if(!isP2())fields.push(['Potential ARR',ff(r.value),false],['Tier',r.tier?'Tier '+r.tier+(r.score!=null?' ('+r.score+')':''):'—',false]);
@@ -1301,9 +1334,9 @@ function renderDetail(){
     document.getElementById('det-fields').innerHTML += `<div class="field-item"><div class="field-key">Next step</div><select class="form-input" style="margin-top:2px;" onchange="changeNextStep(${r.id},this)">${nextStepSelectHtml(r.nextStep)}</select></div>`;
   }
 
-  // members card (customers only)
+  // members card (all pipelines — company-based identity, contact(s) live in members)
   const membersCard=document.getElementById('det-members-card');
-  if(isCustDetail){
+  {
     membersCard.style.display='';
     const members=r.members||[];
     document.getElementById('det-members-list').innerHTML=members.length?members.map((m,i)=>`
@@ -1323,7 +1356,7 @@ function renderDetail(){
           </div>
         </div>
       </div>`).join(''):`<div class="notes-body">No members yet — add the first contact at this company.</div>`;
-  } else membersCard.style.display='none';
+  }
 
   // agency score card
   const scoreCard=document.getElementById('det-score-card');
@@ -1396,13 +1429,11 @@ function renderModalForm(p,r,stage){
       <span style="font-size:12px;color:var(--gray-500);">Adding several at once?</span>
       <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="closeModal();document.getElementById('import-file').click();">Import ${{partners:'partners',customers:'customers',investors:'investors'}[p]} from CSV/Excel</button>
     </div>`;
-  const companyContactRows = p==='customers'
-    ? `<div class="form-group"><label class="form-label">Company / Brand *</label><input class="form-input" id="f-company" placeholder="Company" value="${escAttr(r?r.company:'')}"></div>`
-    : `<div class="form-row"><div class="form-group"><label class="form-label">${p==='partners'?'Organisation':'Company / Brand'} *</label><input class="form-input" id="f-company" placeholder="Company" value="${escAttr(r?r.company:'')}"></div>
-    <div class="form-group"><label class="form-label">Contact name</label><input class="form-input" id="f-name" placeholder="Person" value="${escAttr(r?r.name:'')}"></div></div>
-    <div class="form-row"><div class="form-group"><label class="form-label">Role</label><input class="form-input" id="f-role" placeholder="Title" value="${escAttr(r?r.role:'')}"></div>
-    <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f-email" placeholder="name@company.com" value="${escAttr(r?r.email:'')}"></div></div>
-    <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="f-phone" placeholder="+971 5x xxx xxxx" value="${escAttr(r?r.phone:'')}"></div>`;
+  const companyContactRows = `<div class="form-group"><label class="form-label">${p==='partners'?'Organisation':'Company / Brand'} *</label><input class="form-input" id="f-company" placeholder="Company" value="${escAttr(r?r.company:'')}"></div>`
+    + (r?'':`<div class="form-row"><div class="form-group"><label class="form-label">Contact name</label><input class="form-input" id="f-name" placeholder="Person (optional — becomes the first member)"></div>
+    <div class="form-group"><label class="form-label">Role</label><input class="form-input" id="f-role" placeholder="Title"></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f-email" placeholder="name@company.com"></div>
+    <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="f-phone" placeholder="+971 5x xxx xxxx"></div></div>`);
   document.getElementById('modal-body').innerHTML=`
     ${importRow}
     ${companyContactRows}
@@ -1433,11 +1464,13 @@ function val(id){const el=document.getElementById(id);return el?el.value.trim():
 function addRecord(){
   const company=val('f-company'); if(!company){showToast('Organisation name is required');return;}
   const p=state.pipeline;
-  const r={id:++nextId,pipeline:p,name:p==='customers'?company:(val('f-name')||company),company,role:p==='customers'?'':val('f-role'),email:p==='customers'?'':val('f-email'),phone:p==='customers'?'':val('f-phone'),stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:val('f-notes'),value:Number(val('f-value'))||0,activity:[{t:'Added to CRM',d:'Today'}]};
+  const contactName=val('f-name'),contactRole=val('f-role'),contactEmail=val('f-email'),contactPhone=val('f-phone');
+  const hasContact=contactName||contactRole||contactEmail||contactPhone;
+  const members=hasContact?[{name:contactName||company,title:contactRole,email:contactEmail,phone:contactPhone,linkedin:''}]:[];
+  const r={id:++nextId,pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:val('f-notes'),value:Number(val('f-value'))||0,activity:[{t:'Added to CRM',d:'Today'}]};
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){
     r.sector=val('f-sector')||'General';r.website=val('f-website');r.leadSource=val('f-leadsource')||'Manual';r.segment=val('f-segment')||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;
-    r.members=[];
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
     r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
   }
@@ -1450,9 +1483,7 @@ function saveEditedRecord(){
   const r=records.find(x=>x.id===editId); if(!r)return;
   const company=val('f-company'); if(!company){showToast('Organisation name is required');return;}
   const p=r.pipeline;
-  r.company=company; r.stage=val('f-stage'); r.notes=val('f-notes'); r.value=Number(val('f-value'))||0;
-  if(p==='customers'){ r.name=company; }
-  else { r.name=val('f-name')||company; r.role=val('f-role'); r.email=val('f-email'); r.phone=val('f-phone'); }
+  r.company=company; r.name=company; r.stage=val('f-stage'); r.notes=val('f-notes'); r.value=Number(val('f-value'))||0;
   if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); }
   else if(p==='customers'){
     r.sector=val('f-sector')||'General'; r.website=val('f-website'); r.leadSource=val('f-leadsource')||r.leadSource; r.segment=val('f-segment')||'Enterprise'; r.nextStep=val('f-nextstep')||r.nextStep;
@@ -1552,7 +1583,7 @@ const SUGGESTIONS=[
 const TOOLS=[
   {type:'function',function:{name:'move_stage',description:'Move a record to a different stage in its pipeline.',parameters:{type:'object',properties:{record:{type:'string',description:'Company or contact name'},stage:{type:'string',description:'Target stage name'}},required:['record','stage']}}},
   {type:'function',function:{name:'update_record',description:'Update fields on a record (value, notes, model, tier, aiScore, package, nextStep, etc.).',parameters:{type:'object',properties:{record:{type:'string'},field:{type:'string',description:'field name e.g. value, notes, model, aiScore, package, region, nextStep'},value:{type:'string'}},required:['record','field','value']}}},
-  {type:'function',function:{name:'add_record',description:'Add a new record to a pipeline.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors']},company:{type:'string'},name:{type:'string'},stage:{type:'string'},category:{type:'string'},portfolio:{type:'number'},value:{type:'number'},sector:{type:'string'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only — SaaS or Enterprise'},subscriptionPeriod:{type:'string',description:'Customers only, Enterprise segment — free text subscription period'},subscriptionDate:{type:'string',description:'Customers only, SaaS segment — subscription date'}},required:['pipeline','company']}}},
+  {type:'function',function:{name:'add_record',description:'Add a new record to a pipeline. Records are company-based — pass contactName/contactEmail/etc. to also add that person as the company\'s first member.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors']},company:{type:'string'},stage:{type:'string'},category:{type:'string'},portfolio:{type:'number'},value:{type:'number'},sector:{type:'string'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only — SaaS or Enterprise'},subscriptionPeriod:{type:'string',description:'Customers only, Enterprise segment — free text subscription period'},subscriptionDate:{type:'string',description:'Customers only, SaaS segment — subscription date'},contactName:{type:'string',description:'Optional — name of a contact person at this company, becomes its first member'},contactTitle:{type:'string'},contactEmail:{type:'string'},contactPhone:{type:'string'}},required:['pipeline','company']}}},
   {type:'function',function:{name:'delete_record',description:'Delete a record from the CRM.',parameters:{type:'object',properties:{record:{type:'string'}},required:['record']}}},
   {type:'function',function:{name:'log_activity',description:'Log an activity note on a record.',parameters:{type:'object',properties:{record:{type:'string'},text:{type:'string'}},required:['record','text']}}},
   {type:'function',function:{name:'score_agency',description:'Run the agency qualification scoring rubric and return score + tier.',parameters:{type:'object',properties:{clientType:{type:'string',enum:['b2c','mixed','b2b']},services:{type:'array',items:{type:'string',enum:['seo','content','ads','brand']}},rosterSize:{type:'number'},namedSeoTeam:{type:'boolean'},listsGeo:{type:'boolean'},offlineOnly:{type:'boolean'},leadgenOnly:{type:'boolean'}},required:['clientType']}}},
@@ -1561,11 +1592,10 @@ const TOOLS=[
 function snapshot(){
   return records.map(r=>{
     const o={id:r.id,pipeline:r.pipeline,company:r.company,stage:r.stage};
-    if(r.pipeline!=='customers') o.contact=r.name;
+    o.members=(r.members||[]).map(m=>({name:m.name,title:m.title}));
     if(r.pipeline==='partners'){o.portfolio=r.portfolio;o.category=r.category;o.model=r.model;o.tier=r.tier;o.score=r.score;if(r.portfolio===2){o.workshops=r.workshops;o.founders=r.founders;}else o.value=r.value;}
     else if(r.pipeline==='customers'){
       o.sector=r.sector;o.segment=r.segment;o.aiScore=r.aiScore;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;
-      o.members=(r.members||[]).map(m=>({name:m.name,title:m.title}));
       if(r.segment==='Enterprise')o.subscriptionPeriod=r.subscriptionPeriod;
       else if(r.segment==='SaaS')o.subscriptionDate=r.subscriptionDate;
       if(r.referredBy){const p=records.find(x=>x.id===r.referredBy);o.referredBy=p?p.company:null;}
@@ -1577,9 +1607,10 @@ function buildSystem(){
   return `You are the assistant inside Zaher.AI's CRM. Zaher.AI is an Arabic GEO (Generative Engine Optimization / AI Visibility) company that helps Arabic brands get cited in AI search (ChatGPT, Gemini, Perplexity).
 
 The CRM has THREE pipelines:
+All three pipelines are company-based: the company/organisation is each record's identity, and any contacts at that company live in a \`members\` list (name, title, email, phone, linkedin) rather than as hardcoded top-level fields.
 - partners: partner organisations. Two portfolios. Portfolio 1 (Revenue) stages: ${STAGES.partners1.join(' → ')}. Categories: Marketing Agencies, SaaS & E-commerce Platforms, Operational Touchpoint. Portfolio 2 (Ecosystem, measured on workshops/founders not revenue) stages: ${STAGES.partners2.join(' → ')}. Categories: Startup Development Orgs, Government & National Dev.
-- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Each is tagged SaaS or Enterprise (segment). Some are referred by partners. Customers are company-based: the company is the record's identity, and each has a \`members\` list of contacts at that company instead of one hardcoded contact. Enterprise customers track a subscriptionPeriod (free text); SaaS customers track a subscriptionDate.
-- investors: fundraising. Stages: ${STAGES.investors.join(' → ')}.
+- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Each is tagged SaaS or Enterprise (segment). Some are referred by partners. Enterprise customers track a subscriptionPeriod (free text); SaaS customers track a subscriptionDate.
+- investors: fundraising firms. Stages: ${STAGES.investors.join(' → ')}.
 
 Agency scoring rubric (use score_agency): hard-skip if lists GEO/AEO, offline-only, or lead-gen-only. Pure B2B => auto Tier 2. Otherwise points: B2C +20 / mixed +10; SEO +20; Content +15; Ads +10; Brand +10; roster 20+ +20 / 10-19 +10; named SEO team +15. Tiers: 50+ = Tier 1, 25-49 = Tier 2, under 25 = Tier 3.
 
@@ -1593,7 +1624,7 @@ function execTool(name,input){
   try{
     if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;r.activity.push({t:`Stage: ${old} → ${match}`,d:'Today'});saveRecord(r);refreshView();return `Moved ${r.company} to ${match}.`;}
     if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;let f=input.field,v=input.value;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:'Today'});saveRecord(r);refreshView();return `Updated ${f} on ${r.company}.`;}
-    if(name==='add_record'){const pipeline=['partners','customers','investors'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors.`;const portfolio=input.portfolio||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const r={id:++nextId,pipeline,company:input.company,name:pipeline==='customers'?input.company:(input.name||input.company),role:'',email:'',phone:'',stage,source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=input.segment||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.members=[];r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else{r.fundSize='';r.thesis='';}records.push(r);saveRecord(r);refreshView();return `Added ${r.company} to ${pipeline}.`;}
+    if(name==='add_record'){const pipeline=['partners','customers','investors'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors.`;const portfolio=input.portfolio||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={id:++nextId,pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=input.segment||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else{r.fundSize='';r.thesis='';}records.push(r);saveRecord(r);refreshView();return `Added ${r.company} to ${pipeline}.`;}
     if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;records=records.filter(x=>x.id!==r.id);deleteRecordRemote(r.id,r.pipeline);refreshView();return `Deleted ${r.company}.`;}
     if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;r.activity.push({t:input.text,d:'Today'});saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}".`;}
     if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}

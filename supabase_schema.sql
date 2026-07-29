@@ -320,3 +320,45 @@ set "nextStep" = r."nextStep"
 from records r
 where r.id = c.id and r.pipeline = 'customers'
   and c."nextStep" is null and r."nextStep" is not null;
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Partners & investors: company-based identity + members list (added 2026-07-29)
+-- Extends the same company-first / members model that customers already got
+-- (2026-07-26 block above) to partners and investors: the organisation name
+-- becomes the record's identity, and the single contact that used to live in
+-- name/role/email/phone becomes that org's first member. Safe to re-run — the
+-- backfill only touches rows whose `members` array is still empty.
+-- ═══════════════════════════════════════════════════════════════════════
+
+alter table partners add column if not exists members jsonb not null default '[]'::jsonb;
+alter table investors add column if not exists members jsonb not null default '[]'::jsonb;
+
+update partners
+set members = jsonb_build_array(jsonb_build_object(
+  'name', name,
+  'title', coalesce(role, ''),
+  'email', coalesce(email, ''),
+  'phone', coalesce(phone, ''),
+  'linkedin', ''
+))
+where jsonb_array_length(members) = 0
+  and name is distinct from company;
+
+update partners
+set name = company, role = '', email = '', phone = ''
+where name is distinct from company;
+
+update investors
+set members = jsonb_build_array(jsonb_build_object(
+  'name', name,
+  'title', coalesce(role, ''),
+  'email', coalesce(email, ''),
+  'phone', coalesce(phone, ''),
+  'linkedin', ''
+))
+where jsonb_array_length(members) = 0
+  and name is distinct from company;
+
+update investors
+set name = company, role = '', email = '', phone = ''
+where name is distinct from company;
