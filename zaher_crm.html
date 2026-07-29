@@ -1188,7 +1188,7 @@ async function handleImportFile(ev){
         // never actually blank on an existing record, and CRM progress (a stage that's
         // moved forward since the sheet was made) must never be rolled back by a re-import.
         const fillStr=(field,raw)=>{ if((existing[field]==null||existing[field]==='')&&raw!==undefined&&(''+raw).trim()!==''){ existing[field]=(''+raw).toString(); return true; } return false; };
-        const fillNum=(field,raw)=>{ if(existing[field]==null&&raw!==undefined&&raw!==''&&!isNaN(Number(raw))){ existing[field]=Number(raw); return true; } return false; };
+        const fillNum=(field,raw)=>{ if(existing[field]==null&&raw!==undefined&&raw!==''&&!isNaN(Number(raw))){ existing[field]=Math.round(Number(raw)); return true; } return false; };
         let fieldsFilled=false;
         fieldsFilled=fillStr('notes',get('notes'))||fieldsFilled;
         if(pipeline==='partners'){
@@ -1238,13 +1238,13 @@ async function handleImportFile(ev){
       if(pipeline==='partners'){
         const cats=Object.keys(CAT_META);
         r.portfolio=portfolio;r.category=matchInList(cats,get('category'))||cats[0];
-        r.model=(get('model')||'').toString();r.tier=Number(get('tier'))||null;r.score=Number(get('score'))||null;
+        r.model=(get('model')||'').toString();r.tier=Math.round(Number(get('tier')))||null;r.score=Math.round(Number(get('score')))||null;
         r.website=(get('website')||'').toString();r.region=(get('region')||'').toString();r.clients=(get('clients')||'').toString();
-        if(portfolio===2){r.workshops=Number(get('workshops'))||0;r.founders=Number(get('founders'))||0;}
+        if(portfolio===2){r.workshops=Math.round(Number(get('workshops')))||0;r.founders=Math.round(Number(get('founders')))||0;}
       } else if(pipeline==='customers'){
         r.sector=(get('sector')||'General').toString();r.website=(get('website')||'').toString();r.package=(get('package')||'—').toString();
-        r.aiScore=Number(get('aiScore'))||null;r.leadSource=(get('leadSource')||get('source')||'Import').toString();
-        r.referredBy=Number(get('referredBy'))||null;r.segment=(get('segment')||'Enterprise').toString();
+        r.aiScore=Math.round(Number(get('aiScore')))||null;r.leadSource=(get('leadSource')||get('source')||'Import').toString();
+        r.referredBy=Math.round(Number(get('referredBy')))||null;r.segment=(get('segment')||'Enterprise').toString();
         r.nextStep=(get('nextStep')||nextStepOptions[0]||'').toString();
         r.subscriptionPeriod=r.segment==='Enterprise'?(get('subscriptionPeriod')||'').toString():'';
         r.subscriptionDate=r.segment==='SaaS'?(get('subscriptionDate')||'').toString():'';
