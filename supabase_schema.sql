@@ -401,3 +401,83 @@ end $$;
 select setval(pg_get_serial_sequence('partners','id'),  coalesce((select max(id) from partners),0)+1,  false);
 select setval(pg_get_serial_sequence('customers','id'), coalesce((select max(id) from customers),0)+1, false);
 select setval(pg_get_serial_sequence('investors','id'), coalesce((select max(id) from investors),0)+1, false);
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Events pipeline (added 2026-07-30)
+-- A fourth pipeline, structurally different from partners/customers/investors:
+-- not company-based (no members list, no monetary value) — `name`/`company`
+-- hold the event title instead, `stage` is reused as the event's status, and
+-- location is either a virtual field group or an in-person field group
+-- depending on `format`. Mirrors the partners/customers/investors tables above
+-- (same id/activity/timestamp/RLS conventions), just with events-specific columns.
+-- ═══════════════════════════════════════════════════════════════════════
+
+create table if not exists events (
+  id               bigint generated always as identity primary key,
+  name             text not null,
+  company          text not null,
+  role             text,
+  email            text,
+  phone            text,
+  members          jsonb not null default '[]'::jsonb,
+  stage            text not null,
+  "eventType"      text,
+  description      text,
+  "startAt"        timestamptz,
+  "endAt"          timestamptz,
+  timezone         text,
+  format           text check (format in ('Virtual','In-Person')),
+  "meetingUrl"     text,
+  "meetingPasscode" text,
+  "dialIn"         text,
+  "venueName"      text,
+  address          text,
+  "mapUrl"         text,
+  capacity         int,
+  date             text,
+  notes            text,
+  activity         jsonb not null default '[]'::jsonb,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+
+drop trigger if exists events_set_updated_at on events;
+create trigger events_set_updated_at
+  before update on events
+  for each row execute function set_updated_at();
+
+alter table events enable row level security;
+
+drop policy if exists "zaher team read events" on events;
+create policy "zaher team read events" on events for select using (is_zaher_team());
+drop policy if exists "zaher team insert events" on events;
+create policy "zaher team insert events" on events for insert with check (is_zaher_team());
+drop policy if exists "zaher team update events" on events;
+create policy "zaher team update events" on events for update using (is_zaher_team()) with check (is_zaher_team());
+drop policy if exists "zaher team delete events" on events;
+create policy "zaher team delete events" on events for delete using (is_zaher_team());
+
+select setval(pg_get_serial_sequence('events','id'), coalesce((select max(id) from events),0)+1, false);
+
+-- Event type options (mirrors next_step_options above) — an extensible, team-editable
+-- list of event types, seeded with the suggestions from the original spec.
+create table if not exists event_type_options (
+  id         bigint generated always as identity primary key,
+  label      text not null unique,
+  created_at timestamptz not null default now()
+);
+
+insert into event_type_options (label) values
+  ('Webinar'),
+  ('Trade Show'),
+  ('Product Demo'),
+  ('1-on-1 Meeting'),
+  ('Conference')
+on conflict (label) do nothing;
+
+alter table event_type_options enable row level security;
+
+drop policy if exists "zaher team read event_type_options" on event_type_options;
+create policy "zaher team read event_type_options" on event_type_options for select using (is_zaher_team());
+drop policy if exists "zaher team insert event_type_options" on event_type_options;
+create policy "zaher team insert event_type_options" on event_type_options for insert with check (is_zaher_team());

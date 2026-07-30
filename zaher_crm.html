@@ -30,6 +30,7 @@
   body.pl-partners  { --accent:#185FA5; --accent-hover:#0C447C; --accent-bg:#E6F1FB; }
   body.pl-customers { --accent:#3B6D11; --accent-hover:#2C5210; --accent-bg:#EAF3DE; }
   body.pl-investors { --accent:#0E7474; --accent-hover:#085858; --accent-bg:#E0F4F4; }
+  body.pl-events    { --accent:#854F0B; --accent-hover:#6B3D08; --accent-bg:#FAEEDA; }
   body { font-family:var(--font); background:var(--gray-50); color:var(--gray-900); min-height:100vh; display:flex; font-size:14px; line-height:1.5; user-select:none; }
 
   /* ── SIDEBAR ── */
@@ -56,6 +57,7 @@
   .pl-btn[data-pl="partners"].active  { background:#185FA5; }
   .pl-btn[data-pl="customers"].active { background:#3B6D11; }
   .pl-btn[data-pl="investors"].active { background:#0E7474; }
+  .pl-btn[data-pl="events"].active { background:#854F0B; }
   .sidebar-footer { margin-top:auto; padding:12px; border-top:1px solid var(--border); }
   .user-chip { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--r-sm); cursor:pointer; }
   .user-chip:hover { background:var(--gray-100); }
@@ -303,6 +305,7 @@
     <button class="pl-btn active" data-pl="partners" onclick="setPipeline('partners')"><span class="dot" style="background:#378ADD"></span>Partners</button>
     <button class="pl-btn" data-pl="customers" onclick="setPipeline('customers')"><span class="dot" style="background:#639922"></span>Customers</button>
     <button class="pl-btn" data-pl="investors" onclick="setPipeline('investors')"><span class="dot" style="background:#0E7474"></span>Investors</button>
+    <button class="pl-btn" data-pl="events" onclick="setPipeline('events')"><span class="dot" style="background:#854F0B"></span>Events</button>
   </div>
 
   <div class="sidebar-section">
@@ -440,6 +443,10 @@
         <div class="score-card" id="det-score-card" style="display:none;">
           <div class="card-header"><span class="card-title">Agency score</span><span class="tier-pill" id="det-score-tier"></span></div>
           <div class="score-breakdown" id="det-score-breakdown"></div>
+        </div>
+        <div class="notes-card" id="det-description-card" style="display:none;">
+          <div class="card-header"><span class="card-title">Description</span></div>
+          <div class="notes-body" id="det-description"></div>
         </div>
         <div class="notes-card" id="det-members-card" style="display:none;">
           <div class="card-header"><span class="card-title">Members</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openMemberModal()">+ Add Member</button></div>
@@ -597,15 +604,19 @@ const STAGES = {
   partners1: ['Awareness','Educational Collaboration','Trust','Pilot Partnership','Revenue Partnership','Strategic Alliance'],
   partners2: ['Awareness','Conversation','Workshop Delivered','Recurring Relationship','Ecosystem Status'],
   customers: ['Audit Requested','Audit Delivered','Discovery Call','Proposal','Pilot','Active Client'],
-  investors: ['Prospecting','First Meeting','Due Diligence','Term Sheet','Closed']
+  investors: ['Prospecting','First Meeting','Due Diligence','Term Sheet','Closed'],
+  events: ['Draft','Scheduled','In Progress','Completed','Canceled']
 };
-const TERMINAL = new Set(['Revenue Partnership','Strategic Alliance','Recurring Relationship','Ecosystem Status','Active Client','Closed']);
+const TERMINAL = new Set(['Revenue Partnership','Strategic Alliance','Recurring Relationship','Ecosystem Status','Active Client','Closed','Completed','Canceled']);
 const STAGE_COLOR = {
   'Awareness':'#378ADD','Educational Collaboration':'#7F77DD','Trust':'#EF9F27','Pilot Partnership':'#D97706','Revenue Partnership':'#639922','Strategic Alliance':'#3B6D11',
   'Conversation':'#7F77DD','Workshop Delivered':'#EF9F27','Recurring Relationship':'#0E7474','Ecosystem Status':'#639922',
   'Audit Requested':'#378ADD','Audit Delivered':'#7F77DD','Discovery Call':'#EF9F27','Proposal':'#D97706','Pilot':'#0E7474','Active Client':'#639922',
-  'Prospecting':'#378ADD','First Meeting':'#7F77DD','Due Diligence':'#EF9F27','Term Sheet':'#D97706','Closed':'#639922'
+  'Prospecting':'#378ADD','First Meeting':'#7F77DD','Due Diligence':'#EF9F27','Term Sheet':'#D97706','Closed':'#639922',
+  'Draft':'#888780','Scheduled':'#378ADD','In Progress':'#EF9F27','Completed':'#639922','Canceled':'#E24B4A'
 };
+const EVENT_TYPES=['Webinar','Trade Show','Product Demo','1-on-1 Meeting','Conference'];
+const TIMEZONES=['UTC','Asia/Riyadh','Asia/Dubai','Asia/Qatar','Asia/Kuwait','Africa/Cairo','Asia/Amman','Asia/Beirut','Europe/London','Europe/Paris','America/New_York','America/Los_Angeles','Asia/Kolkata'];
 const CAT_META = {
   'Marketing Agencies':{c:'#185FA5',bg:'#E6F1FB'},
   'SaaS & E-commerce Platforms':{c:'#534AB7',bg:'#EEEDFE'},
@@ -615,7 +626,7 @@ const CAT_META = {
 };
 const AV_COLORS=['av-blue','av-green','av-amber','av-purple','av-red','av-teal'];
 const PALETTE=['#378ADD','#639922','#EF9F27','#7F77DD','#E24B4A','#0E7474','#185FA5','#534AB7'];
-const PIPE_ACCENT={partners:'#185FA5',customers:'#3B6D11',investors:'#0E7474'};
+const PIPE_ACCENT={partners:'#185FA5',customers:'#3B6D11',investors:'#0E7474',events:'#854F0B'};
 
 // ══════════════ SUPABASE ══════════════
 const SUPABASE_URL = 'https://lzztbjjbtpuyatyxbrke.supabase.co';
@@ -674,7 +685,12 @@ const SEED_RECORDS = [
   {id:62,pipeline:'investors',name:'Flat6Labs (Fund)',company:'Flat6Labs (Fund)',role:'',email:'',phone:'',members:[{name:'Hassan Mekkawy',title:'Managing Partner',email:'hmekkawy@flat6labs.com',phone:'+20 100 333 6062',linkedin:''}],stage:'Prospecting',fundSize:'$40M',thesis:'MENA Early Stage',value:250000,source:'Referral',date:'Apr 13',notes:'Exploring portfolio-wide GEO access vs pure equity.',activity:[{t:'Referral from Dr. Ahmed Samy',d:'Apr 12'}]},
   {id:63,pipeline:'investors',name:'STV',company:'STV',role:'',email:'',phone:'',members:[{name:'Nadia Al Saad',title:'Principal',email:'nadia@stv.com',phone:'+966 50 333 6063',linkedin:''}],stage:'Term Sheet',fundSize:'$500M',thesis:'Gulf Deep Tech',value:1000000,source:'Cold Outreach',date:'Mar 25',notes:'Term sheet discussion ongoing. Valuation gap ~20%. Anwar leading.',activity:[{t:'First pitch',d:'Mar 23'},{t:'Term sheet draft received',d:'Apr 10'}]},
   {id:64,pipeline:'investors',name:'500 Global MENA',company:'500 Global MENA',role:'',email:'',phone:'',members:[{name:'Karim Beshara',title:'Partner',email:'kbeshara@500.co',phone:'+20 100 333 6064',linkedin:''}],stage:'First Meeting',fundSize:'$143M',thesis:'Global Emerging Markets',value:150000,source:'LinkedIn',date:'Apr 7',notes:'Wants to understand GEO CAC vs LTV before a second call.',activity:[{t:'First call completed',d:'Apr 7'}]},
-  {id:65,pipeline:'investors',name:'Wamda Capital',company:'Wamda Capital',role:'',email:'',phone:'',members:[{name:'Sara Hamdan',title:'Investment Associate',email:'shamdan@wamda.com',phone:'+971 50 333 6065',linkedin:''}],stage:'Closed',fundSize:'$75M',thesis:'MENA Digital Growth',value:300000,source:'Referral',date:'Mar 5',notes:'Seed convertible note closed. Strategic intros to 3 portfolio companies included.',activity:[{t:'Term sheet agreed',d:'Mar 3'},{t:'Note signed — seed closed',d:'Mar 5'}]}
+  {id:65,pipeline:'investors',name:'Wamda Capital',company:'Wamda Capital',role:'',email:'',phone:'',members:[{name:'Sara Hamdan',title:'Investment Associate',email:'shamdan@wamda.com',phone:'+971 50 333 6065',linkedin:''}],stage:'Closed',fundSize:'$75M',thesis:'MENA Digital Growth',value:300000,source:'Referral',date:'Mar 5',notes:'Seed convertible note closed. Strategic intros to 3 portfolio companies included.',activity:[{t:'Term sheet agreed',d:'Mar 3'},{t:'Note signed — seed closed',d:'Mar 5'}]},
+
+  // ── EVENTS ── (not company-based: `name`===`company` holds the event title)
+  {id:80,pipeline:'events',name:'Arabic AI Visibility 101',company:'Arabic AI Visibility 101',role:'',email:'',phone:'',members:[],stage:'Draft',eventType:'Webinar',description:'Intro webinar walking Arabic brands through how AI search (ChatGPT, Gemini, Perplexity) surfaces — and how to get cited.',startAt:'2026-08-10T12:00:00.000Z',endAt:'2026-08-10T13:00:00.000Z',timezone:'Asia/Riyadh',format:'Virtual',meetingUrl:'https://zoom.us/j/1234567890',meetingPasscode:'geo2026',dialIn:'+966 11 800 1234, code 1234',date:'Jul 20',notes:'Still finalizing the deck.',activity:[{t:'Added to CRM',d:'Jul 20'}]},
+  {id:81,pipeline:'events',name:'MENA Growth Summit — Zaher AI Booth',company:'MENA Growth Summit — Zaher AI Booth',role:'',email:'',phone:'',members:[],stage:'Scheduled',eventType:'Trade Show',description:'Booth presence at the MENA Growth Summit to demo AI Visibility Audits to attending brands and agencies.',startAt:'2026-09-14T06:00:00.000Z',endAt:'2026-09-15T16:00:00.000Z',timezone:'Asia/Dubai',format:'In-Person',venueName:'Dubai World Trade Centre',address:'Sheikh Zayed Rd, Dubai, UAE',mapUrl:'https://maps.google.com/?q=Dubai+World+Trade+Centre',capacity:200,date:'Jul 22',notes:'Booth confirmed, badge count due Aug 1.',activity:[{t:'Booth secured',d:'Jul 22'}]},
+  {id:82,pipeline:'events',name:'Zaher AI Visibility Demo — Talabat',company:'Zaher AI Visibility Demo — Talabat',role:'',email:'',phone:'',members:[],stage:'Completed',eventType:'Product Demo',description:'Walkthrough of the AI Visibility Score and content recommendations for Talabat\'s marketing team.',startAt:'2026-07-11T09:00:00.000Z',endAt:'2026-07-11T09:45:00.000Z',timezone:'Africa/Cairo',format:'Virtual',meetingUrl:'https://meet.google.com/abc-defg-hij',meetingPasscode:'',dialIn:'',date:'Jul 11',notes:'Well received — following up with a proposal.',activity:[{t:'Demo delivered',d:'Jul 11'}]}
 ];
 let records = [];
 let nextId=100;
@@ -722,21 +738,24 @@ function matchInList(list,needle){ if(!needle)return null; const n=(''+needle).t
 function primaryMember(r){ return (r&&r.members&&r.members[0]) || null; }
 
 // ══════════════ SUPABASE PERSISTENCE ══════════════
-const TABLE_BY_PIPELINE = {partners:'partners', customers:'customers', investors:'investors'};
+const TABLE_BY_PIPELINE = {partners:'partners', customers:'customers', investors:'investors', events:'events'};
 async function loadRecords(){
   if(!sb){ records = SEED_RECORDS.slice(); nextId = Math.max(100, ...records.map(r=>r.id||0)); return; }
-  const [p, c, i] = await Promise.all([
+  const [p, c, i, e] = await Promise.all([
     sb.from('partners').select('*').order('id'),
     sb.from('customers').select('*').order('id'),
-    sb.from('investors').select('*').order('id')
+    sb.from('investors').select('*').order('id'),
+    sb.from('events').select('*').order('id')
   ]);
   if(p.error) console.error(p.error);
   if(c.error) console.error(c.error);
   if(i.error) console.error(i.error);
+  if(e.error) console.error(e.error);
   const merged = [
     ...((p.data||[]).map(r=>({...r,pipeline:'partners'}))),
     ...((c.data||[]).map(r=>({...r,pipeline:'customers'}))),
-    ...((i.data||[]).map(r=>({...r,pipeline:'investors'})))
+    ...((i.data||[]).map(r=>({...r,pipeline:'investors'}))),
+    ...((e.data||[]).map(r=>({...r,pipeline:'events'})))
   ];
   records = merged.length ? merged : SEED_RECORDS.slice();
   nextId = Math.max(100, ...records.map(r=>r.id||0));
@@ -818,6 +837,42 @@ async function changeNextStep(id,sel){
   r.nextStep=val; saveRecord(r); refreshView();
 }
 
+// ══════════════ EVENT TYPES (events) ══════════════
+let eventTypeOptions=EVENT_TYPES.slice();
+async function loadEventTypeOptions(){
+  if(!sb) return;
+  const {data,error}=await sb.from('event_type_options').select('*').order('id');
+  if(!error && data && data.length) eventTypeOptions=data.map(o=>o.label);
+}
+async function addEventTypeOption(label){
+  label=(label||'').trim(); if(!label) return null;
+  if(!eventTypeOptions.includes(label)){
+    eventTypeOptions.push(label);
+    if(sb){ const {error}=await sb.from('event_type_options').insert({label}); if(error) console.error(error); }
+  }
+  return label;
+}
+function eventTypeSelectHtml(selected){
+  return eventTypeOptions.map(o=>`<option ${o===selected?'selected':''}>${escHtml(o)}</option>`).join('')+'<option value="__add__">+ Add new...</option>';
+}
+async function handleEventTypeChange(sel){
+  if(sel.value==='__add__'){
+    const label=prompt('New event type:');
+    if(label){ await addEventTypeOption(label); sel.innerHTML=eventTypeSelectHtml(label); }
+    else sel.value=eventTypeOptions[0]||'';
+  }
+}
+function timezoneSelectHtml(selected){
+  return TIMEZONES.map(tz=>`<option ${tz===selected?'selected':''}>${tz}</option>`).join('');
+}
+function toggleEventLocationFields(format){
+  document.getElementById('f-virtual-group').style.display=format==='Virtual'?'':'none';
+  document.getElementById('f-inperson-group').style.display=format==='In-Person'?'':'none';
+}
+function fmtDateTime(ts){ if(!ts) return '—'; const d=new Date(ts); return isNaN(d)?'—':d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
+function toDatetimeLocal(ts){ if(!ts) return ''; const d=new Date(ts); if(isNaN(d))return ''; const p=n=>(''+n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+function fromDatetimeLocal(v){ if(!v) return null; const d=new Date(v); return isNaN(d)?null:d.toISOString(); }
+
 // ══════════════ AGENCY SCORING ══════════════
 function scoreAgency(inp){
   if(inp.listsGeo) return {skip:true,reason:'Lists GEO/AEO as a service — competitor',score:0,tier:null,lines:[]};
@@ -850,14 +905,14 @@ function setPipeline(p){
   const isPartners=p==='partners';
   document.getElementById('portfolio-toggle').style.display=isPartners?'':'none';
   document.getElementById('score-btn').style.display=isPartners?'':'none';
-  document.getElementById('topbar-mode-chip').textContent={partners:'Partners',customers:'Customers',investors:'Investors'}[p];
-  document.getElementById('nav-section-label').textContent={partners:'Partnerships',customers:'Sales',investors:'Fundraising'}[p];
-  document.getElementById('nav-pipeline-label').textContent={partners:'Pipeline',customers:'Pipeline',investors:'Deal Flow'}[p];
-  document.getElementById('nav-directory-label').textContent={partners:'Directory',customers:'Contacts',investors:'Investors'}[p];
-  const addLbl={partners:'Add Partner',customers:'Add Customer',investors:'Add Investor'}[p];
+  document.getElementById('topbar-mode-chip').textContent={partners:'Partners',customers:'Customers',investors:'Investors',events:'Events'}[p];
+  document.getElementById('nav-section-label').textContent={partners:'Partnerships',customers:'Sales',investors:'Fundraising',events:'Events'}[p];
+  document.getElementById('nav-pipeline-label').textContent={partners:'Pipeline',customers:'Pipeline',investors:'Deal Flow',events:'Schedule'}[p];
+  document.getElementById('nav-directory-label').textContent={partners:'Directory',customers:'Contacts',investors:'Investors',events:'Events'}[p];
+  const addLbl={partners:'Add Partner',customers:'Add Customer',investors:'Add Investor',events:'Add Event'}[p];
   document.getElementById('add-btn-label').textContent=addLbl;
   document.getElementById('add-btn-label2').textContent=addLbl;
-  document.getElementById('import-btn-label').textContent={partners:'Import Partners',customers:'Import Customers',investors:'Import Investors'}[p];
+  document.getElementById('import-btn-label').textContent={partners:'Import Partners',customers:'Import Customers',investors:'Import Investors',events:'Import Events'}[p];
   showPage('dashboard');
 }
 function setPortfolio(pf){
@@ -875,7 +930,8 @@ function showPage(page){
   ['dashboard','pipeline','directory','analytics'].forEach(n=>document.getElementById('nav-'+n).classList.toggle('active',n===page));
   document.getElementById('page-'+page).classList.add('active');
   const rec=records.find(r=>r.id===currentId);
-  const titles={dashboard:'Dashboard',pipeline:state.pipeline==='investors'?'Deal Flow':'Pipeline',directory:{partners:'Directory',customers:'Contacts',investors:'Investors'}[state.pipeline],analytics:'Analytics',detail:rec?rec.name:'Detail'};
+  const pipelineTitles={investors:'Deal Flow',events:'Schedule'};
+  const titles={dashboard:'Dashboard',pipeline:pipelineTitles[state.pipeline]||'Pipeline',directory:{partners:'Directory',customers:'Contacts',investors:'Investors',events:'Events'}[state.pipeline],analytics:'Analytics',detail:rec?rec.name:'Detail'};
   document.getElementById('topbar-title').textContent=titles[page]||page;
   if(page==='dashboard')renderDashboard();
   if(page==='pipeline')renderPipeline();
@@ -892,8 +948,13 @@ function renderDashboard(){
   const won=recs.filter(r=>TERMINAL.has(r.stage));
   const active=recs.filter(r=>!TERMINAL.has(r.stage));
   updateBadge();
+  const isEvents=state.pipeline==='events';
   let cards;
-  if(isP2()){
+  if(isEvents){
+    const completed=recs.filter(r=>r.stage==='Completed').length;
+    const canceled=recs.filter(r=>r.stage==='Canceled').length;
+    cards=[['Total events',total,'All'],['Upcoming',active.length,'Draft/Scheduled/In Progress'],['Completed',completed,total?((completed/total)*100).toFixed(0)+'% rate':'0%'],['Canceled',canceled,total?((canceled/total)*100).toFixed(0)+'% rate':'0%']];
+  } else if(isP2()){
     const wshops=recs.reduce((s,r)=>s+(r.workshops||0),0);
     const founders=recs.reduce((s,r)=>s+(r.founders||0),0);
     cards=[['Ecosystem partners',total,'All'],['Workshops delivered',wshops,'Leading indicator'],['Founders reached',founders,'Educated'],['Recurring / Ecosystem',won.length,'Standing']];
@@ -906,7 +967,18 @@ function renderDashboard(){
   }
   document.getElementById('stats-grid').innerHTML=cards.map(c=>`<div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-value">${c[1]}</div><div class="stat-delta">${c[2]}</div></div>`).join('');
 
-  document.getElementById('dash-table-title').textContent='Recent '+{partners:'partners',customers:'customers',investors:'investors'}[state.pipeline];
+  document.getElementById('dash-table-title').textContent='Recent '+{partners:'partners',customers:'customers',investors:'investors',events:'events'}[state.pipeline];
+  if(isEvents){
+    document.getElementById('dash-thead').innerHTML=`<tr><th>Title</th><th>Type</th><th>Start</th><th>Format</th><th>Status</th></tr>`;
+    document.getElementById('recent-body').innerHTML=recs.slice(0,7).map(r=>`
+    <tr onclick="openDetail(${r.id})">
+      <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
+      <td><span class="lc">${escHtml(r.eventType||'—')}</span></td>
+      <td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.startAt)}</td>
+      <td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format||'—')}</span></td>
+      <td>${stagePill(r.stage)}</td>
+    </tr>`).join('');
+  } else {
   const valCol=isP2()?'Founders':(state.pipeline==='investors'?'Target':'Value');
   const isCustDash=state.pipeline==='customers';
   document.getElementById('dash-thead').innerHTML=`<tr><th>Name</th><th>${state.pipeline==='partners'?'Category':isCustDash?'Sector':'Firm'}</th><th>Website</th><th>${valCol}</th><th>Stage</th></tr>`;
@@ -922,6 +994,7 @@ function renderDashboard(){
       <td style="font-weight:500;">${isP2()?(r.founders||0):fv(r.value)}</td>
       <td>${stagePill(r.stage)}</td>
     </tr>`;}).join('');
+  }
 
   document.getElementById('funnel-title').textContent=isP2()?'Ecosystem funnel':'Funnel';
   const counts={}; stages.forEach(s=>counts[s]=recs.filter(r=>r.stage===s).length);
@@ -952,10 +1025,11 @@ function buildCard(r){
   else if(isP2()) extra=`<div style="margin-bottom:8px;">${catChip(r.category)}</div>`;
   else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment)}</span>`:''}${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.nextStep)}</span>`:''}</div>`;
   else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${escHtml(r.fundSize||'')} · ${escHtml(r.thesis||'')}</div>`;
-  const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
+  else if(state.pipeline==='events') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${r.eventType?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.eventType)}</span>`:''}${r.format?`<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format)}</span>`:''}</div>`;
+  const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:state.pipeline==='events'?`<div class="k-card-value" style="font-size:12px;">${fmtDateTime(r.startAt)}</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
   const pm=primaryMember(r);
   const cardPrimary=escHtml(r.company);
-  const cardSecondary=pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—';
+  const cardSecondary=state.pipeline==='events'?(r.format==='In-Person'?escHtml(r.venueName||r.address||'In-Person'):'Virtual'):(pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—');
   return `<div class="k-card" id="kcard-${r.id}" data-id="${r.id}"
     onmousedown="dragStart(event,${r.id})"
     onclick="if(!window._wasDrag)openDetail(${r.id});window._wasDrag=false;">
@@ -964,7 +1038,7 @@ function buildCard(r){
       <div class="k-card-info"><div class="kn">${cardPrimary}</div><div class="kc">${cardSecondary}</div></div>
     </div>
     ${extra}${bottom}
-    <div class="k-card-footer"><span class="k-card-source">${escHtml(r.model||r.source)}</span><span class="k-card-date">${escHtml(r.date)}</span></div>
+    <div class="k-card-footer"><span class="k-card-source">${escHtml(state.pipeline==='events'?(r.timezone||''):(r.model||r.source))}</span><span class="k-card-date">${escHtml(r.date)}</span></div>
   </div>`;
 }
 function dragStart(e,id){
@@ -1020,6 +1094,7 @@ function filterFieldsFor(p){
     return fields;
   }
   if(p==='customers') return [{key:'sector',label:'Sector'},{key:'segment',label:'Segment'},{key:'leadSource',label:'Lead source'},{key:'stage',label:'Stage'}];
+  if(p==='events') return [{key:'eventType',label:'Event type'},{key:'format',label:'Format'},{key:'timezone',label:'Timezone'},{key:'stage',label:'Status'}];
   return [{key:'thesis',label:'Thesis'},{key:'fundSize',label:'Fund size'},{key:'stage',label:'Stage'},{key:'source',label:'Source'}];
 }
 function toggleFilterPanel(id){ document.getElementById(id).classList.toggle('open'); }
@@ -1036,7 +1111,7 @@ function renderFilterPanel(panelId){
         ${vals.map(v=>`<option value="${escAttr(v)}" ${(''+v)===cur?'selected':''}>${escHtml(v)}</option>`).join('')}
       </select></div>`;
   }).join('');
-  if(!isP2()){
+  if(!isP2()&&state.pipeline!=='events'){
     html+=`<div class="form-group"><label class="form-label">Min ticket ($)</label><input class="form-input" type="number" placeholder="0" value="${state.filters.valueMin||''}" oninput="setFilter('valueMin',this.value)"></div>
     <div class="form-group"><label class="form-label">Max ticket ($)</label><input class="form-input" type="number" placeholder="Any" value="${state.filters.valueMax||''}" oninput="setFilter('valueMax',this.value)"></div>`;
   }
@@ -1065,7 +1140,7 @@ function renderPipeline(){
     const cards=list.filter(r=>r.stage===stage);
     const tot=cards.reduce((s,r)=>s+(r.value||0),0);
     return `<div class="kanban-col" data-stage="${stage}">
-      <div class="col-header"><div><div class="col-name">${stage}</div>${(!isP2()&&tot)?`<div class="col-total">${fv(tot)}</div>`:''}</div><span class="col-count">${cards.length}</span></div>
+      <div class="col-header"><div><div class="col-name">${stage}</div>${(!isP2()&&state.pipeline!=='events'&&tot)?`<div class="col-total">${fv(tot)}</div>`:''}</div><span class="col-count">${cards.length}</span></div>
       <div class="col-cards">${cards.map(buildCard).join('')}</div>
       <button class="add-card-btn" onclick="openModal('${stage}')">+ Add</button>
     </div>`;
@@ -1103,6 +1178,17 @@ function renderDirectory(){
       <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.leadSource)}${ref?` · ${escHtml(ref.company)}`:''}</td>
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
+  }} else if(state.pipeline==='events'){
+    head=`<tr><th>Title</th><th>Type</th><th>Format</th><th>Location</th><th>Start</th><th>End</th><th>Timezone</th><th>Status</th><th>Added</th><th>Updated</th></tr>`;
+    rowFn=r=>{ const loc=r.format==='In-Person'?(r.venueName||r.address||'—'):(r.meetingUrl||'Virtual');
+      return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
+      <td style="font-size:12px;color:var(--gray-700);">${escHtml(r.eventType||'—')}</td>
+      <td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format||'—')}</span></td>
+      <td style="font-size:12px;color:var(--gray-500);">${r.format==='In-Person'?escHtml(loc):(linkHtml(loc)||'—')}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.startAt)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.endAt)}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.timezone||'—')}</td>
+      <td>${stagePill(r.stage)}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else {
     head=`<tr><th>Firm</th><th>Primary contact</th><th>Fund</th><th>Thesis</th><th>Website</th><th>Stage</th><th>Target</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>{ const pm=primaryMember(r);
@@ -1120,7 +1206,7 @@ function renderDirectory(){
 // already uses via activeRecords()) — one entity type per file, so each pipeline
 // gets its own column mapping instead of one generic map guessing at every field.
 const IMPORT_FIELD_MAP_COMMON={
-  name:['name','contact','contact name'], company:['company','brand','organisation','organization'],
+  name:['name','contact','contact name'], company:['company','brand','organisation','organization','event title'],
   role:['role','title'], email:['email'], phone:['phone'],
   linkedin:['linkedin','linkedin url','linkedin profile'],
   stage:['stage'],
@@ -1134,7 +1220,12 @@ const IMPORT_FIELD_MAP_EXTRA={
     leadSource:['lead source','leadsource'], referredBy:['referred by','referredby'],
     segment:['segment','customer type'], nextStep:['next step','nextstep'],
     subscriptionPeriod:['subscription period','subscriptionperiod'], subscriptionDate:['subscription date','subscriptiondate']},
-  investors:{fundSize:['fund size','fundsize'], thesis:['thesis'], website:['website']}
+  investors:{fundSize:['fund size','fundsize'], thesis:['thesis'], website:['website']},
+  events:{eventType:['event type','eventtype','type'], description:['description'],
+    startAt:['start','start date','start time','startat'], endAt:['end','end date','end time','endat'],
+    timezone:['timezone','time zone'], format:['format'],
+    meetingUrl:['meeting url','meetingurl','meeting link','url'], meetingPasscode:['meeting passcode','passcode'], dialIn:['dial in','dial-in','dialin'],
+    venueName:['venue','venue name','venuename'], address:['address'], mapUrl:['map url','map link','mapurl','coordinates'], capacity:['capacity']}
 };
 function mapHeaders(headerRow,pipeline){
   const norm=h=>(h==null?'':h.toString()).trim().toLowerCase();
@@ -1192,6 +1283,7 @@ function importUndoSnapshot(pipeline,rec){
   const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes};
   if(pipeline==='partners') Object.assign(snap,{category:rec.category,model:rec.model,tier:rec.tier,score:rec.score,website:rec.website,region:rec.region,clients:rec.clients,workshops:rec.workshops,founders:rec.founders});
   else if(pipeline==='customers') Object.assign(snap,{sector:rec.sector,website:rec.website,package:rec.package,aiScore:rec.aiScore,leadSource:rec.leadSource,segment:rec.segment,nextStep:rec.nextStep,subscriptionPeriod:rec.subscriptionPeriod,subscriptionDate:rec.subscriptionDate});
+  else if(pipeline==='events') Object.assign(snap,{eventType:rec.eventType,description:rec.description,startAt:rec.startAt,endAt:rec.endAt,timezone:rec.timezone,format:rec.format,meetingUrl:rec.meetingUrl,meetingPasscode:rec.meetingPasscode,dialIn:rec.dialIn,venueName:rec.venueName,address:rec.address,mapUrl:rec.mapUrl,capacity:rec.capacity});
   else Object.assign(snap,{fundSize:rec.fundSize,thesis:rec.thesis,website:rec.website});
   return snap;
 }
@@ -1325,6 +1417,20 @@ async function handleImportFile(ev){
           fieldsFilled=fillStr('nextStep',get('nextStep'))||fieldsFilled;
           fieldsFilled=fillStr('subscriptionPeriod',get('subscriptionPeriod'))||fieldsFilled;
           fieldsFilled=fillStr('subscriptionDate',get('subscriptionDate'))||fieldsFilled;
+        } else if(pipeline==='events'){
+          fieldsFilled=fillStr('eventType',get('eventType'))||fieldsFilled;
+          fieldsFilled=fillStr('description',get('description'))||fieldsFilled;
+          fieldsFilled=fillStr('startAt',get('startAt'))||fieldsFilled;
+          fieldsFilled=fillStr('endAt',get('endAt'))||fieldsFilled;
+          fieldsFilled=fillStr('timezone',get('timezone'))||fieldsFilled;
+          fieldsFilled=fillStr('format',get('format'))||fieldsFilled;
+          fieldsFilled=fillStr('meetingUrl',get('meetingUrl'))||fieldsFilled;
+          fieldsFilled=fillStr('meetingPasscode',get('meetingPasscode'))||fieldsFilled;
+          fieldsFilled=fillStr('dialIn',get('dialIn'))||fieldsFilled;
+          fieldsFilled=fillStr('venueName',get('venueName'))||fieldsFilled;
+          fieldsFilled=fillStr('address',get('address'))||fieldsFilled;
+          fieldsFilled=fillStr('mapUrl',get('mapUrl'))||fieldsFilled;
+          fieldsFilled=fillNum('capacity',get('capacity'))||fieldsFilled;
         } else {
           fieldsFilled=fillStr('fundSize',get('fundSize'))||fieldsFilled;
           fieldsFilled=fillStr('thesis',get('thesis'))||fieldsFilled;
@@ -1364,6 +1470,21 @@ async function handleImportFile(ev){
         r.subscriptionPeriod=r.segment==='Enterprise'?(get('subscriptionPeriod')||'').toString():'';
         r.subscriptionDate=r.segment==='SaaS'?(get('subscriptionDate')||'').toString():'';
         delete r.source;
+      } else if(pipeline==='events'){
+        r.eventType=(get('eventType')||eventTypeOptions[0]||'').toString();r.description=(get('description')||'').toString();
+        const rawStart=get('startAt'),rawEnd=get('endAt');
+        r.startAt=rawStart?(isNaN(new Date(rawStart))?null:new Date(rawStart).toISOString()):null;
+        r.endAt=rawEnd?(isNaN(new Date(rawEnd))?null:new Date(rawEnd).toISOString()):null;
+        r.timezone=(get('timezone')||'UTC').toString();
+        r.format=matchInList(['Virtual','In-Person'],get('format'))||'Virtual';
+        r.meetingUrl=r.format==='Virtual'?(get('meetingUrl')||'').toString():'';
+        r.meetingPasscode=r.format==='Virtual'?(get('meetingPasscode')||'').toString():'';
+        r.dialIn=r.format==='Virtual'?(get('dialIn')||'').toString():'';
+        r.venueName=r.format==='In-Person'?(get('venueName')||'').toString():'';
+        r.address=r.format==='In-Person'?(get('address')||'').toString():'';
+        r.mapUrl=r.format==='In-Person'?(get('mapUrl')||'').toString():'';
+        r.capacity=r.format==='In-Person'?(Math.round(Number(get('capacity')))||null):null;
+        delete r.value; delete r.source;
       } else {
         r.fundSize=(get('fundSize')||'').toString();r.thesis=(get('thesis')||'').toString();r.website=(get('website')||'').toString();
       }
@@ -1414,6 +1535,9 @@ function exportRecords(fmt){
     subscriptionPeriod:r.subscriptionPeriod||'', subscriptionDate:r.subscriptionDate||'',
     members:(r.members||[]).map(m=>`${m.name}${m.title?' ('+m.title+')':''}${m.email?' <'+m.email+'>':''}`).join('; '),
     fundSize:r.fundSize||'', thesis:r.thesis||'',
+    eventType:r.eventType||'', description:r.description||'', startAt:r.startAt||'', endAt:r.endAt||'', timezone:r.timezone||'', format:r.format||'',
+    meetingUrl:r.meetingUrl||'', meetingPasscode:r.meetingPasscode||'', dialIn:r.dialIn||'',
+    venueName:r.venueName||'', address:r.address||'', mapUrl:r.mapUrl||'', capacity:r.capacity!=null?r.capacity:'',
     date_entered:fmtTs(r.created_at), date_modified:fmtTs(r.updated_at)
   }));
   const ws=XLSX.utils.json_to_sheet(rows);
@@ -1442,9 +1566,13 @@ function barList(items,color){ const mx=Math.max(...items.map(i=>i.v),1); return
 function renderAnalytics(){
   const recs=activeRecords(), stages=activeStages(), ac=PIPE_ACCENT[state.pipeline];
   const won=recs.filter(r=>TERMINAL.has(r.stage)), active=recs.filter(r=>!TERMINAL.has(r.stage));
+  const isEvents=state.pipeline==='events';
   // KPIs
   let kpis;
-  if(isP2()){
+  if(isEvents){
+    const completed=recs.filter(r=>r.stage==='Completed').length, canceled=recs.filter(r=>r.stage==='Canceled').length;
+    kpis=[['Total events',recs.length],['Upcoming',active.length],['Completed',completed],['Canceled',canceled]];
+  } else if(isP2()){
     const w=recs.reduce((s,r)=>s+(r.workshops||0),0),f=recs.reduce((s,r)=>s+(r.founders||0),0);
     kpis=[['Ecosystem partners',recs.length],['Workshops delivered',w],['Founders reached',f],['Recurring / Ecosystem',won.length]];
   } else {
@@ -1453,8 +1581,8 @@ function renderAnalytics(){
   }
   document.getElementById('an-kpis').innerHTML=kpis.map(k=>`<div class="stat-card"><div class="stat-label">${k[0]}</div><div class="stat-value">${k[1]}</div><div class="stat-delta">${state.pipeline}</div></div>`).join('');
   // stage chart
-  document.getElementById('an-bar-title').textContent=isP2()?'Ecosystem stage — partner count':'Value by stage';
-  const useCount=isP2();
+  document.getElementById('an-bar-title').textContent=isP2()?'Ecosystem stage — partner count':(isEvents?'Events by status':'Value by stage');
+  const useCount=isP2()||isEvents;
   const vals=stages.map(s=>recs.filter(r=>r.stage===s).reduce((a,r)=>a+(useCount?1:(r.value||0)),0));
   setTimeout(()=>drawBar('chart-stage',stages,vals,ac),30);
   // breakdown
@@ -1467,6 +1595,10 @@ function renderAnalytics(){
     bTitle='By sector';
     const secs=[...new Set(recs.map(r=>r.sector))];
     bItems=secs.map((c,i)=>({name:c,v:recs.filter(r=>r.sector===c).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.sector===c).reduce((a,r)=>a+(r.value||0),0))}));
+  } else if(isEvents){
+    bTitle='By event type';
+    const types=[...new Set(recs.map(r=>r.eventType))];
+    bItems=types.map((c,i)=>({name:c,v:recs.filter(r=>r.eventType===c).length,color:PALETTE[i%PALETTE.length]}));
   } else {
     bTitle='By thesis';
     const th=[...new Set(recs.map(r=>r.thesis))];
@@ -1476,7 +1608,10 @@ function renderAnalytics(){
   document.getElementById('an-breakdown').innerHTML=barList(bItems,ac);
   // two big stats
   let s1,s2;
-  if(isP2()){
+  if(isEvents){
+    s1=['#639922',recs.filter(r=>r.stage==='Completed').length,'Completed events',won.length+' terminal'];
+    s2=['#EF9F27',active.length,'Upcoming events','Draft/Scheduled/In Progress'];
+  } else if(isP2()){
     s1=['#3B6D11',recs.reduce((s,r)=>s+(r.workshops||0),0),'Workshops delivered',won.length+' recurring'];
     s2=['#0E7474',recs.reduce((s,r)=>s+(r.founders||0),0),'Founders educated','Leading indicator'];
   } else {
@@ -1485,13 +1620,18 @@ function renderAnalytics(){
   }
   document.getElementById('an-stat-1').innerHTML=`<div class="val" style="color:${s1[0]}">${s1[1]}</div><div class="lbl">${s1[2]}</div><div class="sub">${s1[3]}</div>`;
   document.getElementById('an-stat-2').innerHTML=`<div class="val" style="color:${s2[0]}">${s2[1]}</div><div class="lbl">${s2[2]}</div><div class="sub">${s2[3]}</div>`;
-  // extra: source (or lead-source attribution for customers)
+  // extra: source (or lead-source attribution for customers, or format for events)
   if(state.pipeline==='customers'){
     document.getElementById('an-extra-title').textContent='Lead source & partner attribution';
     const srcs=[...new Set(recs.map(r=>r.leadSource))];
     const notFounder=recs.filter(r=>r.leadSource!=='Founder network').length;
     const items=srcs.map((s,i)=>({name:s,v:recs.filter(r=>r.leadSource===s).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.leadSource===s).reduce((a,r)=>a+(r.value||0),0))}));
     document.getElementById('an-extra').innerHTML=`<div style="padding:8px 20px 4px;font-size:12px;color:var(--gray-500);">${recs.length?Math.round(notFounder/recs.length*100):0}% of leads are from non-founder-network sources · ${recs.filter(r=>r.referredBy).length} partner-referred</div>`+barList(items,ac);
+  } else if(isEvents){
+    document.getElementById('an-extra-title').textContent='By format';
+    const fmts=['Virtual','In-Person'];
+    const items=fmts.map((s,i)=>({name:s,v:recs.filter(r=>r.format===s).length,color:PALETTE[i%PALETTE.length]}));
+    document.getElementById('an-extra').innerHTML=barList(items,ac);
   } else {
     document.getElementById('an-extra-title').textContent='By source';
     const srcs=[...new Set(recs.map(r=>r.source))];
@@ -1530,11 +1670,12 @@ function renderDetail(){
   document.getElementById('det-av').textContent=ini(r.name||r.company);
   document.getElementById('det-name').textContent=r.name;
   const pmDetail=primaryMember(r);
-  document.getElementById('det-role').textContent=pmDetail?(pmDetail.name+(pmDetail.title?' · '+pmDetail.title:'')):'—';
-  const srcTag=state.pipeline==='customers'?r.leadSource:r.source;
+  document.getElementById('det-role').textContent=state.pipeline==='events'?(r.eventType||'—'):(pmDetail?(pmDetail.name+(pmDetail.title?' · '+pmDetail.title:'')):'—');
+  const srcTag=state.pipeline==='customers'?r.leadSource:(state.pipeline==='events'?r.format:r.source);
   let tags=`<span class="tag">${escHtml(srcTag)}</span>${stagePill(r.stage)}`;
   if(state.pipeline==='partners'){ tags=catChip(r.category)+tierPill(r.tier)+tags; }
   else if(state.pipeline==='customers'&&r.sector){ tags=`<span class="tag">${escHtml(r.sector)}</span>`+tags; }
+  else if(state.pipeline==='events'&&r.eventType){ tags=`<span class="tag">${escHtml(r.eventType)}</span>`+tags; }
   document.getElementById('det-tags').innerHTML=tags;
   document.getElementById('det-notes').textContent=r.notes||'—';
   document.getElementById('det-contact-btn').onclick=()=>showToast('✉ Opening email to '+((pmDetail&&pmDetail.email)||'—'));
@@ -1552,6 +1693,16 @@ function renderDetail(){
     if(r.website)fields.push(['Website',r.website,true]);
     if(r.segment==='Enterprise')fields.push(['Subscription period',r.subscriptionPeriod||'—',false]);
     else if(r.segment==='SaaS')fields.push(['Subscription date',r.subscriptionDate||'—',false]);
+  } else if(state.pipeline==='events'){
+    fields.push(['Format',r.format||'—',false],['Start',fmtDateTime(r.startAt),false],['End',fmtDateTime(r.endAt),false],['Timezone',r.timezone||'—',false]);
+    if(r.format==='Virtual'){
+      if(r.meetingUrl)fields.push(['Meeting link',r.meetingUrl,true]);
+      fields.push(['Passcode',r.meetingPasscode||'—',false],['Dial-in',r.dialIn||'—',false]);
+    } else if(r.format==='In-Person'){
+      fields.push(['Venue',r.venueName||'—',false],['Address',r.address||'—',false]);
+      if(r.mapUrl)fields.push(['Map link',r.mapUrl,true]);
+      fields.push(['Capacity',r.capacity!=null?(''+r.capacity):'—',false]);
+    }
   } else {
     fields.push(['Fund size',r.fundSize||'—',false],['Thesis',r.thesis||'—',false],['Target raise',ff(r.value),false]);
     if(r.website)fields.push(['Website',r.website,true]);
@@ -1562,9 +1713,18 @@ function renderDetail(){
     document.getElementById('det-fields').innerHTML += `<div class="field-item"><div class="field-key">Next step</div><select class="form-input" style="margin-top:2px;" onchange="changeNextStep(${r.id},this)">${nextStepSelectHtml(r.nextStep)}</select></div>`;
   }
 
-  // members card (all pipelines — company-based identity, contact(s) live in members)
+  // description card (events only)
+  const descCard=document.getElementById('det-description-card');
+  if(state.pipeline==='events'){
+    descCard.style.display='';
+    document.getElementById('det-description').textContent=r.description||'—';
+  } else descCard.style.display='none';
+
+  // members card (company-based pipelines — contact(s) live in members; events have none)
   const membersCard=document.getElementById('det-members-card');
-  {
+  if(state.pipeline==='events'){
+    membersCard.style.display='none';
+  } else {
     membersCard.style.display='';
     const members=r.members||[];
     document.getElementById('det-members-list').innerHTML=members.length?members.map((m,i)=>`
@@ -1642,6 +1802,26 @@ function extraFieldsHtml(p,r){
         <div class="form-group" id="f-subdate-group" style="display:${seg==='SaaS'?'':'none'};"><label class="form-label">Subscription date</label><input class="form-input" id="f-subdate" placeholder="e.g. 2026-01-01" value="${escAttr(r?r.subscriptionDate:'')}"></div>
       </div>
       <div class="form-group"><label class="form-label">Next step</label><select class="form-input" id="f-nextstep" onchange="handleNextStepChange(this)">${nextStepSelectHtml(r?r.nextStep:nextStepOptions[0])}</select></div>`;
+  } else if(p==='events'){
+    const format=r?(r.format||'Virtual'):'Virtual';
+    const tz=r?(r.timezone||'Asia/Riyadh'):'Asia/Riyadh';
+    return `<div class="form-group"><label class="form-label">Event type</label><select class="form-input" id="f-eventtype" onchange="handleEventTypeChange(this)">${eventTypeSelectHtml(r?r.eventType:eventTypeOptions[0])}</select></div>
+      <div class="form-group"><label class="form-label">Description</label><textarea class="form-input" id="f-description" rows="2" placeholder="What's this event about...">${r?escHtml(r.description||''):''}</textarea></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Start</label><input class="form-input" type="datetime-local" id="f-start" value="${r?toDatetimeLocal(r.startAt):''}"></div>
+      <div class="form-group"><label class="form-label">End</label><input class="form-input" type="datetime-local" id="f-end" value="${r?toDatetimeLocal(r.endAt):''}"></div></div>
+      <div class="form-group"><label class="form-label">Timezone</label><select class="form-input" id="f-timezone">${timezoneSelectHtml(tz)}</select></div>
+      <div class="form-group"><label class="form-label">Format</label><select class="form-input" id="f-format" onchange="toggleEventLocationFields(this.value)"><option value="Virtual" ${format==='Virtual'?'selected':''}>Virtual</option><option value="In-Person" ${format==='In-Person'?'selected':''}>In-Person</option></select></div>
+      <div id="f-virtual-group" style="display:${format==='Virtual'?'':'none'};">
+        <div class="form-row"><div class="form-group"><label class="form-label">Meeting URL</label><input class="form-input" id="f-meetingurl" placeholder="https://zoom.us/j/..." value="${escAttr(r?r.meetingUrl:'')}"></div>
+        <div class="form-group"><label class="form-label">Passcode</label><input class="form-input" id="f-meetingpasscode" placeholder="123456" value="${escAttr(r?r.meetingPasscode:'')}"></div></div>
+        <div class="form-group"><label class="form-label">Dial-in details</label><input class="form-input" id="f-dialin" placeholder="+1 xxx xxx xxxx, code xxx" value="${escAttr(r?r.dialIn:'')}"></div>
+      </div>
+      <div id="f-inperson-group" style="display:${format==='In-Person'?'':'none'};">
+        <div class="form-row"><div class="form-group"><label class="form-label">Venue name</label><input class="form-input" id="f-venuename" placeholder="Venue" value="${escAttr(r?r.venueName:'')}"></div>
+        <div class="form-group"><label class="form-label">Capacity</label><input class="form-input" type="number" id="f-capacity" placeholder="100" value="${r&&r.capacity!=null?r.capacity:''}"></div></div>
+        <div class="form-group"><label class="form-label">Address</label><input class="form-input" id="f-address" placeholder="Street, City" value="${escAttr(r?r.address:'')}"></div>
+        <div class="form-group"><label class="form-label">Map link / coordinates</label><input class="form-input" id="f-mapurl" placeholder="maps.google.com/... or lat,lng" value="${escAttr(r?r.mapUrl:'')}"></div>
+      </div>`;
   } else {
     return `<div class="form-row"><div class="form-group"><label class="form-label">Fund size</label><input class="form-input" id="f-fundsize" placeholder="$80M" value="${escAttr(r?r.fundSize:'')}"></div>
       <div class="form-group"><label class="form-label">Target raise ($)</label><input class="form-input" type="number" id="f-value" placeholder="500000" value="${r&&r.value?r.value:''}"></div></div>
@@ -1653,15 +1833,17 @@ function renderModalForm(p,r,stage){
   const stages=r?(state.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline]):activeStages();
   const curStage=r?r.stage:stage;
   const stageOpts=stages.map(s=>`<option ${s===curStage?'selected':''}>${s}</option>`).join('');
-  const stageSourceRow = p==='customers'
-    ? `<div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>`
+  const stageSourceRow = (p==='customers'||p==='events')
+    ? `<div class="form-group"><label class="form-label">${p==='events'?'Status':'Stage'}</label><select class="form-input" id="f-stage">${stageOpts}</select></div>`
     : `<div class="form-row"><div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>
     <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="f-source" placeholder="LinkedIn" value="${escAttr(r?r.source:'')}"></div></div>`;
   const importRow = r?'':`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
       <span style="font-size:12px;color:var(--gray-500);">Adding several at once?</span>
-      <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="closeModal();document.getElementById('import-file').click();">Import ${{partners:'partners',customers:'customers',investors:'investors'}[p]} from CSV/Excel</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="closeModal();document.getElementById('import-file').click();">Import ${{partners:'partners',customers:'customers',investors:'investors',events:'events'}[p]} from CSV/Excel</button>
     </div>`;
-  const companyContactRows = `<div class="form-group"><label class="form-label">${p==='partners'?'Organisation':'Company / Brand'} *</label><input class="form-input" id="f-company" placeholder="Company" value="${escAttr(r?r.company:'')}"></div>`
+  const companyContactRows = p==='events'
+    ? `<div class="form-group"><label class="form-label">Event Title *</label><input class="form-input" id="f-company" placeholder="Event title" value="${escAttr(r?r.company:'')}"></div>`
+    : `<div class="form-group"><label class="form-label">${p==='partners'?'Organisation':'Company / Brand'} *</label><input class="form-input" id="f-company" placeholder="Company" value="${escAttr(r?r.company:'')}"></div>`
     + (r?'':`<div class="form-row"><div class="form-group"><label class="form-label">Contact name</label><input class="form-input" id="f-name" placeholder="Person (optional — becomes the first member)"></div>
     <div class="form-group"><label class="form-label">Role</label><input class="form-input" id="f-role" placeholder="Title"></div></div>
     <div class="form-row"><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f-email" placeholder="name@company.com"></div>
@@ -1677,7 +1859,7 @@ function renderModalForm(p,r,stage){
 function openModal(stage){
   editId=null;
   const p=state.pipeline;
-  document.getElementById('modal-title').textContent={partners:'Add partner',customers:'Add customer',investors:'Add investor'}[p];
+  document.getElementById('modal-title').textContent={partners:'Add partner',customers:'Add customer',investors:'Add investor',events:'Add event'}[p];
   const btn=document.getElementById('modal-submit-btn');
   btn.textContent='Add'; btn.onclick=addRecord;
   renderModalForm(p,null,stage);
@@ -1694,8 +1876,8 @@ function openEditModal(){
 function closeModal(){document.getElementById('modal').classList.remove('open');editId=null;}
 function val(id){const el=document.getElementById(id);return el?el.value.trim():'';}
 async function addRecord(){
-  const company=val('f-company'); if(!company){showToast('Organisation name is required');return;}
-  const p=state.pipeline;
+  const company=val('f-company'); const p=state.pipeline;
+  if(!company){showToast((p==='events'?'Event title':'Organisation name')+' is required');return;}
   const contactName=val('f-name'),contactRole=val('f-role'),contactEmail=val('f-email'),contactPhone=val('f-phone');
   const hasContact=contactName||contactRole||contactEmail||contactPhone;
   const members=hasContact?[{name:contactName||company,title:contactRole,email:contactEmail,phone:contactPhone,linkedin:''}]:[];
@@ -1706,6 +1888,15 @@ async function addRecord(){
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
     r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
   }
+  else if(p==='events'){
+    r.eventType=val('f-eventtype')||eventTypeOptions[0]||'';r.description=val('f-description');
+    r.startAt=fromDatetimeLocal(val('f-start'));r.endAt=fromDatetimeLocal(val('f-end'));r.timezone=val('f-timezone')||'UTC';
+    r.format=val('f-format')||'Virtual';
+    r.meetingUrl=r.format==='Virtual'?val('f-meetingurl'):'';r.meetingPasscode=r.format==='Virtual'?val('f-meetingpasscode'):'';r.dialIn=r.format==='Virtual'?val('f-dialin'):'';
+    r.venueName=r.format==='In-Person'?val('f-venuename'):'';r.address=r.format==='In-Person'?val('f-address'):'';r.mapUrl=r.format==='In-Person'?val('f-mapurl'):'';
+    r.capacity=r.format==='In-Person'?(Number(val('f-capacity'))||null):null;
+    delete r.value; delete r.source;
+  }
   else {r.fundSize=val('f-fundsize');r.thesis=val('f-thesis');r.website=val('f-website');}
   await createRecord(r);
   records.push(r); closeModal();
@@ -1714,14 +1905,23 @@ async function addRecord(){
 }
 function saveEditedRecord(){
   const r=records.find(x=>x.id===editId); if(!r)return;
-  const company=val('f-company'); if(!company){showToast('Organisation name is required');return;}
-  const p=r.pipeline;
-  r.company=company; r.name=company; r.stage=val('f-stage'); r.notes=val('f-notes'); r.value=Number(val('f-value'))||0;
+  const company=val('f-company'); const p=r.pipeline;
+  if(!company){showToast((p==='events'?'Event title':'Organisation name')+' is required');return;}
+  r.company=company; r.name=company; r.stage=val('f-stage'); r.notes=val('f-notes');
+  if(p!=='events') r.value=Number(val('f-value'))||0;
   if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); }
   else if(p==='customers'){
     r.sector=val('f-sector')||'General'; r.website=val('f-website'); r.leadSource=val('f-leadsource')||r.leadSource; r.segment=val('f-segment')||'Enterprise'; r.nextStep=val('f-nextstep')||r.nextStep;
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
     r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
+  }
+  else if(p==='events'){
+    r.eventType=val('f-eventtype')||r.eventType;r.description=val('f-description');
+    r.startAt=fromDatetimeLocal(val('f-start'));r.endAt=fromDatetimeLocal(val('f-end'));r.timezone=val('f-timezone')||r.timezone;
+    r.format=val('f-format')||r.format;
+    r.meetingUrl=r.format==='Virtual'?val('f-meetingurl'):'';r.meetingPasscode=r.format==='Virtual'?val('f-meetingpasscode'):'';r.dialIn=r.format==='Virtual'?val('f-dialin'):'';
+    r.venueName=r.format==='In-Person'?val('f-venuename'):'';r.address=r.format==='In-Person'?val('f-address'):'';r.mapUrl=r.format==='In-Person'?val('f-mapurl'):'';
+    r.capacity=r.format==='In-Person'?(Number(val('f-capacity'))||null):null;
   }
   else { r.source=val('f-source')||r.source; r.fundSize=val('f-fundsize'); r.thesis=val('f-thesis'); r.website=val('f-website'); }
   r.activity=(r.activity||[]).concat([{t:'Details updated',d:'Today'}]);
@@ -1811,16 +2011,17 @@ const SUGGESTIONS=[
   'Move Steps to Educational Collaboration',
   'How many founders have we reached in Portfolio 2?',
   'Score an agency: mixed clients, SEO + content, 25 clients, named SEO team',
-  'Which customers were referred by Room 11?'
+  'Which customers were referred by Room 11?',
+  'Which events are still in Draft?'
 ];
 const TOOLS=[
   {type:'function',function:{name:'move_stage',description:'Move a record to a different stage in its pipeline.',parameters:{type:'object',properties:{record:{type:'string',description:'Company or contact name'},stage:{type:'string',description:'Target stage name'}},required:['record','stage']}}},
   {type:'function',function:{name:'update_record',description:'Update fields on a record (value, notes, model, tier, aiScore, package, nextStep, etc.).',parameters:{type:'object',properties:{record:{type:'string'},field:{type:'string',description:'field name e.g. value, notes, model, aiScore, package, region, nextStep'},value:{type:'string'}},required:['record','field','value']}}},
-  {type:'function',function:{name:'add_record',description:'Add a new record to a pipeline. Records are company-based — pass contactName/contactEmail/etc. to also add that person as the company\'s first member.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors']},company:{type:'string'},stage:{type:'string'},category:{type:'string'},portfolio:{type:'number'},value:{type:'number'},sector:{type:'string'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only — SaaS or Enterprise'},subscriptionPeriod:{type:'string',description:'Customers only, Enterprise segment — free text subscription period'},subscriptionDate:{type:'string',description:'Customers only, SaaS segment — subscription date'},contactName:{type:'string',description:'Optional — name of a contact person at this company, becomes its first member'},contactTitle:{type:'string'},contactEmail:{type:'string'},contactPhone:{type:'string'}},required:['pipeline','company']}}},
+  {type:'function',function:{name:'add_record',description:'Add a new record to a pipeline. Partners/customers/investors are company-based — pass contactName/contactEmail/etc. to also add that person as the company\'s first member. Events are not company-based — "company" is used as the event title.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors','events']},company:{type:'string',description:'Company name, or (for events) the event title'},stage:{type:'string',description:'Stage, or (for events) the status'},category:{type:'string'},portfolio:{type:'number'},value:{type:'number'},sector:{type:'string'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only — SaaS or Enterprise'},subscriptionPeriod:{type:'string',description:'Customers only, Enterprise segment — free text subscription period'},subscriptionDate:{type:'string',description:'Customers only, SaaS segment — subscription date'},contactName:{type:'string',description:'Optional — name of a contact person at this company, becomes its first member'},contactTitle:{type:'string'},contactEmail:{type:'string'},contactPhone:{type:'string'},eventType:{type:'string',description:'Events only — e.g. Webinar, Conference'},description:{type:'string',description:'Events only'},startAt:{type:'string',description:'Events only — ISO 8601 start timestamp'},endAt:{type:'string',description:'Events only — ISO 8601 end timestamp'},timezone:{type:'string',description:'Events only — IANA timezone e.g. Asia/Riyadh'},format:{type:'string',enum:['Virtual','In-Person'],description:'Events only'},meetingUrl:{type:'string',description:'Events only, Virtual format'},meetingPasscode:{type:'string',description:'Events only, Virtual format'},dialIn:{type:'string',description:'Events only, Virtual format'},venueName:{type:'string',description:'Events only, In-Person format'},address:{type:'string',description:'Events only, In-Person format'},mapUrl:{type:'string',description:'Events only, In-Person format'},capacity:{type:'number',description:'Events only, In-Person format'}},required:['pipeline','company']}}},
   {type:'function',function:{name:'delete_record',description:'Delete a record from the CRM.',parameters:{type:'object',properties:{record:{type:'string'}},required:['record']}}},
   {type:'function',function:{name:'log_activity',description:'Log an activity note on a record.',parameters:{type:'object',properties:{record:{type:'string'},text:{type:'string'}},required:['record','text']}}},
   {type:'function',function:{name:'score_agency',description:'Run the agency qualification scoring rubric and return score + tier.',parameters:{type:'object',properties:{clientType:{type:'string',enum:['b2c','mixed','b2b']},services:{type:'array',items:{type:'string',enum:['seo','content','ads','brand']}},rosterSize:{type:'number'},namedSeoTeam:{type:'boolean'},listsGeo:{type:'boolean'},offlineOnly:{type:'boolean'},leadgenOnly:{type:'boolean'}},required:['clientType']}}},
-  {type:'function',function:{name:'switch_pipeline',description:'Switch the visible pipeline / portfolio.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors']},portfolio:{type:'number',enum:[1,2]}},required:['pipeline']}}}
+  {type:'function',function:{name:'switch_pipeline',description:'Switch the visible pipeline / portfolio.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors','events']},portfolio:{type:'number',enum:[1,2]}},required:['pipeline']}}}
 ];
 // update_record's `field` comes straight from the LLM's tool call with no other validation —
 // without an allow-list it could set structural/identity fields (id, pipeline, members, ...)
@@ -1830,7 +2031,8 @@ const UPDATE_FIELD_ALLOWLIST={
   common:['value','notes','source','date'],
   partners:['category','model','tier','score','website','region','clients','workshops','founders'],
   customers:['sector','website','package','aiScore','leadSource','referredBy','segment','nextStep','subscriptionPeriod','subscriptionDate'],
-  investors:['fundSize','thesis','website']
+  investors:['fundSize','thesis','website'],
+  events:['eventType','description','startAt','endAt','timezone','format','meetingUrl','meetingPasscode','dialIn','venueName','address','mapUrl','capacity']
 };
 function snapshot(){
   return records.map(r=>{
@@ -1843,17 +2045,24 @@ function snapshot(){
       else if(r.segment==='SaaS')o.subscriptionDate=r.subscriptionDate;
       if(r.referredBy){const p=records.find(x=>x.id===r.referredBy);o.referredBy=p?p.company:null;}
     }
+    else if(r.pipeline==='events'){
+      o.title=r.company;o.eventType=r.eventType;o.description=r.description;o.startAt=r.startAt;o.endAt=r.endAt;o.timezone=r.timezone;o.format=r.format;
+      if(r.format==='Virtual'){o.meetingUrl=r.meetingUrl;o.dialIn=r.dialIn;}
+      else {o.venueName=r.venueName;o.address=r.address;o.capacity=r.capacity;}
+      delete o.members;
+    }
     else {o.fundSize=r.fundSize;o.thesis=r.thesis;o.targetRaise=r.value;o.website=r.website;}
     return o;});
 }
 function buildSystem(){
   return `You are the assistant inside Zaher.AI's CRM. Zaher.AI is an Arabic GEO (Generative Engine Optimization / AI Visibility) company that helps Arabic brands get cited in AI search (ChatGPT, Gemini, Perplexity).
 
-The CRM has THREE pipelines:
-All three pipelines are company-based: the company/organisation is each record's identity, and any contacts at that company live in a \`members\` list (name, title, email, phone, linkedin) rather than as hardcoded top-level fields.
+The CRM has FOUR pipelines:
+Partners/customers/investors are company-based: the company/organisation is each record's identity, and any contacts at that company live in a \`members\` list (name, title, email, phone, linkedin) rather than as hardcoded top-level fields. Events are NOT company-based — "company"/"name" holds the event title instead, and there are no members/contacts.
 - partners: partner organisations. Two portfolios. Portfolio 1 (Revenue) stages: ${STAGES.partners1.join(' → ')}. Categories: Marketing Agencies, SaaS & E-commerce Platforms, Operational Touchpoint. Portfolio 2 (Ecosystem, measured on workshops/founders not revenue) stages: ${STAGES.partners2.join(' → ')}. Categories: Startup Development Orgs, Government & National Dev.
 - customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Each is tagged SaaS or Enterprise (segment). Some are referred by partners. Enterprise customers track a subscriptionPeriod (free text); SaaS customers track a subscriptionDate.
 - investors: fundraising firms. Stages: ${STAGES.investors.join(' → ')}.
+- events: webinars, trade shows, demos, meetings, conferences, etc. Status (used as its stage): ${STAGES.events.join(' → ')}. Each has an eventType (extensible list), description, startAt/endAt (ISO timestamps), timezone, and format (Virtual or In-Person) — Virtual events track meetingUrl/meetingPasscode/dialIn, In-Person events track venueName/address/mapUrl/capacity. No monetary value.
 
 Agency scoring rubric (use score_agency): hard-skip if lists GEO/AEO, offline-only, or lead-gen-only. Pure B2B => auto Tier 2. Otherwise points: B2C +20 / mixed +10; SEO +20; Content +15; Ads +10; Brand +10; roster 20+ +20 / 10-19 +10; named SEO team +15. Tiers: 50+ = Tier 1, 25-49 = Tier 2, under 25 = Tier 3.
 
@@ -1871,7 +2080,7 @@ async function execTool(name,input){
   try{
     if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;r.activity.push({t:`Stage: ${old} → ${match}`,d:'Today'});const ok=await saveRecord(r);refreshView();return `Moved ${r.company} to ${match}${syncNote(ok)}`;}
     if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:'Today'});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
-    if(name==='add_record'){const pipeline=['partners','customers','investors'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors.`;const portfolio=input.portfolio||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=input.segment||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else{r.fundSize='';r.thesis='';}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
+    if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=input.portfolio||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=input.segment||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'?(input.capacity||null):null;delete r.value;delete r.source;}else{r.fundSize='';r.thesis='';}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
     if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);records=records.filter(x=>x.id!==r.id);const ok=await deleteRecordRemote(r.id,r.pipeline);refreshView();return `Deleted ${r.company}${syncNote(ok)}`;}
     if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);r.activity.push({t:input.text,d:'Today'});const ok=await saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}"${syncNote(ok)}`;}
     if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}
@@ -1933,9 +2142,10 @@ async function startApp(){
   document.getElementById('logout-btn').style.display=sb?'':'none';
   await loadRecords();
   await loadNextStepOptions();
+  await loadEventTypeOptions();
   setPipeline('partners');
   renderSuggest();
-  addBubble('bot','Hi — I can update or answer questions about the CRM. Try one of the suggestions below, or ask me anything about your partners, customers, or investors.');
+  addBubble('bot','Hi — I can update or answer questions about the CRM. Try one of the suggestions below, or ask me anything about your partners, customers, investors, or events.');
 }
 async function handleSession(session){
   const gate=document.getElementById('auth-gate');
