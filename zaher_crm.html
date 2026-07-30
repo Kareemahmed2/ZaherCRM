@@ -909,7 +909,7 @@ function renderDashboard(){
   document.getElementById('dash-table-title').textContent='Recent '+{partners:'partners',customers:'customers',investors:'investors'}[state.pipeline];
   const valCol=isP2()?'Founders':(state.pipeline==='investors'?'Target':'Value');
   const isCustDash=state.pipeline==='customers';
-  document.getElementById('dash-thead').innerHTML=`<tr><th>Name</th><th>${state.pipeline==='partners'?'Category':isCustDash?'Sector':'Firm'}</th>${isCustDash?'<th>Website</th>':''}<th>${valCol}</th><th>Stage</th></tr>`;
+  document.getElementById('dash-thead').innerHTML=`<tr><th>Name</th><th>${state.pipeline==='partners'?'Category':isCustDash?'Sector':'Firm'}</th><th>Website</th><th>${valCol}</th><th>Stage</th></tr>`;
   document.getElementById('recent-body').innerHTML=recs.slice(0,7).map(r=>{
     const pm=primaryMember(r);
     const primary=escHtml(r.company);
@@ -918,7 +918,7 @@ function renderDashboard(){
     <tr onclick="openDetail(${r.id})">
       <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${primary}</div><div class="lc">${secondary}</div></div></div></td>
       <td>${state.pipeline==='partners'?catChip(r.category):`<span class="lc">${escHtml(r.sector||r.thesis||'—')}</span>`}</td>
-      ${isCustDash?`<td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>`:''}
+      <td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>
       <td style="font-weight:500;">${isP2()?(r.founders||0):fv(r.value)}</td>
       <td>${stagePill(r.stage)}</td>
     </tr>`;}).join('');
