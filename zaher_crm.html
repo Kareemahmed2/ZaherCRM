@@ -1104,11 +1104,11 @@ function renderDirectory(){
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else {
-    head=`<tr><th>Firm</th><th>Primary contact</th><th>Fund</th><th>Thesis</th><th>Stage</th><th>Target</th><th>Added</th><th>Updated</th></tr>`;
+    head=`<tr><th>Firm</th><th>Primary contact</th><th>Fund</th><th>Thesis</th><th>Website</th><th>Stage</th><th>Target</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>{ const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td><td style="font-size:12px;">${escHtml(r.fundSize||'—')}</td>
-      <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.thesis||'—')}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.thesis||'—')}</td><td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }}
   document.getElementById('dir-thead').innerHTML=head;
@@ -1134,7 +1134,7 @@ const IMPORT_FIELD_MAP_EXTRA={
     leadSource:['lead source','leadsource'], referredBy:['referred by','referredby'],
     segment:['segment','customer type'], nextStep:['next step','nextstep'],
     subscriptionPeriod:['subscription period','subscriptionperiod'], subscriptionDate:['subscription date','subscriptiondate']},
-  investors:{fundSize:['fund size','fundsize'], thesis:['thesis']}
+  investors:{fundSize:['fund size','fundsize'], thesis:['thesis'], website:['website']}
 };
 function mapHeaders(headerRow,pipeline){
   const norm=h=>(h==null?'':h.toString()).trim().toLowerCase();
@@ -1192,7 +1192,7 @@ function importUndoSnapshot(pipeline,rec){
   const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes};
   if(pipeline==='partners') Object.assign(snap,{category:rec.category,model:rec.model,tier:rec.tier,score:rec.score,website:rec.website,region:rec.region,clients:rec.clients,workshops:rec.workshops,founders:rec.founders});
   else if(pipeline==='customers') Object.assign(snap,{sector:rec.sector,website:rec.website,package:rec.package,aiScore:rec.aiScore,leadSource:rec.leadSource,segment:rec.segment,nextStep:rec.nextStep,subscriptionPeriod:rec.subscriptionPeriod,subscriptionDate:rec.subscriptionDate});
-  else Object.assign(snap,{fundSize:rec.fundSize,thesis:rec.thesis});
+  else Object.assign(snap,{fundSize:rec.fundSize,thesis:rec.thesis,website:rec.website});
   return snap;
 }
 function showImportUndoBar(summary){
@@ -1328,6 +1328,7 @@ async function handleImportFile(ev){
         } else {
           fieldsFilled=fillStr('fundSize',get('fundSize'))||fieldsFilled;
           fieldsFilled=fillStr('thesis',get('thesis'))||fieldsFilled;
+          fieldsFilled=fillStr('website',get('website'))||fieldsFilled;
         }
         if(fieldsFilled)changes.push('filled in missing fields');
 
@@ -1364,7 +1365,7 @@ async function handleImportFile(ev){
         r.subscriptionDate=r.segment==='SaaS'?(get('subscriptionDate')||'').toString():'';
         delete r.source;
       } else {
-        r.fundSize=(get('fundSize')||'').toString();r.thesis=(get('thesis')||'').toString();
+        r.fundSize=(get('fundSize')||'').toString();r.thesis=(get('thesis')||'').toString();r.website=(get('website')||'').toString();
       }
       newRecords.push(r);
     }
@@ -1553,6 +1554,7 @@ function renderDetail(){
     else if(r.segment==='SaaS')fields.push(['Subscription date',r.subscriptionDate||'—',false]);
   } else {
     fields.push(['Fund size',r.fundSize||'—',false],['Thesis',r.thesis||'—',false],['Target raise',ff(r.value),false]);
+    if(r.website)fields.push(['Website',r.website,true]);
   }
   fields.push(['Date entered',fmtTs(r.created_at),false],['Last modified',fmtTs(r.updated_at),false]);
   document.getElementById('det-fields').innerHTML=fields.map(([k,v,link])=>`<div class="field-item"><div class="field-key">${k}</div><div class="field-val${link?' link':''}">${(link?linkHtml(v):escHtml(v))||'—'}</div></div>`).join('');
@@ -1643,7 +1645,8 @@ function extraFieldsHtml(p,r){
   } else {
     return `<div class="form-row"><div class="form-group"><label class="form-label">Fund size</label><input class="form-input" id="f-fundsize" placeholder="$80M" value="${escAttr(r?r.fundSize:'')}"></div>
       <div class="form-group"><label class="form-label">Target raise ($)</label><input class="form-input" type="number" id="f-value" placeholder="500000" value="${r&&r.value?r.value:''}"></div></div>
-      <div class="form-group"><label class="form-label">Thesis</label><input class="form-input" id="f-thesis" placeholder="MENA SaaS" value="${escAttr(r?r.thesis:'')}"></div>`;
+      <div class="form-row"><div class="form-group"><label class="form-label">Thesis</label><input class="form-input" id="f-thesis" placeholder="MENA SaaS" value="${escAttr(r?r.thesis:'')}"></div>
+      <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="f-website" placeholder="company.com" value="${escAttr(r?r.website:'')}"></div></div>`;
   }
 }
 function renderModalForm(p,r,stage){
@@ -1703,7 +1706,7 @@ async function addRecord(){
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
     r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
   }
-  else {r.fundSize=val('f-fundsize');r.thesis=val('f-thesis');}
+  else {r.fundSize=val('f-fundsize');r.thesis=val('f-thesis');r.website=val('f-website');}
   await createRecord(r);
   records.push(r); closeModal();
   if(p==='partners')state.portfolio=r.portfolio;
@@ -1720,7 +1723,7 @@ function saveEditedRecord(){
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
     r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
   }
-  else { r.source=val('f-source')||r.source; r.fundSize=val('f-fundsize'); r.thesis=val('f-thesis'); }
+  else { r.source=val('f-source')||r.source; r.fundSize=val('f-fundsize'); r.thesis=val('f-thesis'); r.website=val('f-website'); }
   r.activity=(r.activity||[]).concat([{t:'Details updated',d:'Today'}]);
   closeModal(); saveRecord(r);
   if(p==='partners'&&r.portfolio)state.portfolio=r.portfolio;
@@ -1827,7 +1830,7 @@ const UPDATE_FIELD_ALLOWLIST={
   common:['value','notes','source','date'],
   partners:['category','model','tier','score','website','region','clients','workshops','founders'],
   customers:['sector','website','package','aiScore','leadSource','referredBy','segment','nextStep','subscriptionPeriod','subscriptionDate'],
-  investors:['fundSize','thesis']
+  investors:['fundSize','thesis','website']
 };
 function snapshot(){
   return records.map(r=>{
@@ -1840,7 +1843,7 @@ function snapshot(){
       else if(r.segment==='SaaS')o.subscriptionDate=r.subscriptionDate;
       if(r.referredBy){const p=records.find(x=>x.id===r.referredBy);o.referredBy=p?p.company:null;}
     }
-    else {o.fundSize=r.fundSize;o.thesis=r.thesis;o.targetRaise=r.value;}
+    else {o.fundSize=r.fundSize;o.thesis=r.thesis;o.targetRaise=r.value;o.website=r.website;}
     return o;});
 }
 function buildSystem(){
