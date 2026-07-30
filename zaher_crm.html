@@ -1082,21 +1082,23 @@ function renderDirectory(){
   list=applyFilters(list);
   let head,rowFn;
   if(state.pipeline==='partners'){
-    head=`<tr><th>Organisation</th><th>Primary contact</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th><th>Added</th><th>Updated</th></tr>`;
+    head=`<tr><th>Organisation</th><th>Primary contact</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Website</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>{ const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div><div class="lc">${escHtml(r.region||'')}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td>
       <td>${catChip(r.category)}</td><td style="font-size:12px;color:var(--gray-700);">${escHtml(r.model||'—')}</td>
       <td>${r.tier?tierPill(r.tier)+' '+(r.score!=null?`<span style="font-size:11px;color:var(--gray-500);">${r.score}</span>`:''):'<span class="lc">—</span>'}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else if(state.pipeline==='customers'){
-    head=`<tr><th>Company</th><th>Primary contact</th><th>Sector</th><th>Segment</th><th>AI Score</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th><th>Added</th><th>Updated</th></tr>`;
+    head=`<tr><th>Company</th><th>Primary contact</th><th>Sector</th><th>Segment</th><th>AI Score</th><th>Website</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th><th>Added</th><th>Updated</th></tr>`;
     rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null; const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span></td>
       <td><span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment||'—')}</span></td>
       <td>${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">${r.aiScore}</span>`:'<span class="lc">—</span>'}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>
       <td style="font-size:12px;color:var(--gray-700);">${escHtml(r.nextStep||'—')}</td>
       <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.leadSource)}${ref?` · ${escHtml(ref.company)}`:''}</td>
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
