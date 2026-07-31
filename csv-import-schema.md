@@ -4,7 +4,7 @@ Source: `zaher_crm.html` — `IMPORT_FIELD_MAP_COMMON`, `IMPORT_FIELD_MAP_EXTRA`
 
 ## 1. How import targets a pipeline
 
-There is **no pipeline column in the file**. Import always applies to whichever pipeline tab — **Partners**, **Customers**, or **Investors** — is currently active in the UI (`state.pipeline`) at the moment the user clicks Import. One file = one pipeline. If you have data for multiple pipelines, prepare separate files and import each while that pipeline's tab is open.
+There is **no pipeline column in the file**. Import always applies to whichever pipeline tab — **Partners**, **Customers**, **Investors**, or **Events** — is currently active in the UI (`state.pipeline`) at the moment the user clicks Import. One file = one pipeline. If you have data for multiple pipelines, prepare separate files and import each while that pipeline's tab is open.
 
 For **Partners** specifically, there's a further sub-split: Partners has two portfolios with different stage lists (`partners1` = the standard partner-progression stages, `partners2` = the "Ecosystem" stages). A `Portfolio` column (`1` or `2`) in the sheet picks the portfolio per-row; if omitted, new rows fall back to whichever portfolio tab is currently active in the UI.
 
@@ -24,15 +24,15 @@ From `mapHeaders()`:
 
 | Field | Accepted header aliases | What it maps to |
 |---|---|---|
-| `company` | `company`, `brand`, `organisation`, `organization` | The record's identity (the company/org). Required unless `name` is given instead. |
+| `company` | `company`, `brand`, `organisation`, `organization`, `event title` | The record's identity (the company/org, or for Events the event title — Events reuses the `company` field as its title/name). Required unless `name` is given instead. |
 | `name` | `name`, `contact`, `contact name` | If different from the company name, becomes the row's contact person — the first/only entry in `members[]`. If it equals the company name (or is blank), no member is created from it alone. |
 | `role` | `role`, `title` | Contact's job title → `member.title`. |
 | `email` | `email` | Contact's email → `member.email`. Also used to match contacts across import batches (see §4). |
 | `phone` | `phone` | Contact's phone → `member.phone`. |
 | `linkedin` | `linkedin`, `linkedin url`, `linkedin profile` | Contact's LinkedIn URL → `member.linkedin`. |
-| `stage` | `stage` | **New rows only** — fuzzy-matched (`matchInList`) against that pipeline's stage list; unmatched/blank defaults to the first stage. Never applied to existing companies (see §4d). |
-| `value` | `value`, `mrr`, `arr`, `target`, `mrr/yr`, `mrr per year`, `potential arr`, `target raise` | Deal/record value (number). **New rows only** — never backfilled on an existing company. |
-| `source` | `source` | Where the lead came from. Stored as `source` for Partners/Investors; for Customers it's folded into `leadSource` instead and the plain `source` field is deleted. New rows only. |
+| `stage` | `stage` | **New rows only** — fuzzy-matched (`matchInList`) against that pipeline's stage list; unmatched/blank defaults to the first stage. Never applied to existing companies (see §4d). For Events, the stage list is `Draft`, `Scheduled`, `In Progress`, `Completed`, `Canceled`. |
+| `value` | `value`, `mrr`, `arr`, `target`, `mrr/yr`, `mrr per year`, `potential arr`, `target raise` | Deal/record value (number). **New rows only** — never backfilled on an existing company. **Not used for Events** — the field is deleted from new Events records regardless of what's in this column. |
+| `source` | `source` | Where the lead came from. Stored as `source` for Partners/Investors; for Customers it's folded into `leadSource` instead and the plain `source` field is deleted. New rows only. **Not used for Events** — deleted from new Events records. |
 | `date` | `date` | Free-text date label. New rows only; defaults to `"Today"`. |
 | `notes` | `notes` | Free text. The **only** company-level field that's backfilled on an existing record if it's currently blank — otherwise new-row only. |
 
@@ -74,6 +74,29 @@ A row only produces a contact/member if there's something to put in it: `hasCont
 |---|---|---|
 | `fundSize` | `fund size`, `fundsize` | Free text. |
 | `thesis` | `thesis` | Free text (investment thesis). |
+| `website` | `website` | Free text URL. |
+
+### Events-only (`IMPORT_FIELD_MAP_EXTRA.events`)
+
+Events reuses the common `company`/`name` field as the **event title** (`Event Title` is a recognized alias for the `Company` column) and the common `name`/`email`/`phone`/`role`/`linkedin` columns for an organizer/contact person, exactly like the other pipelines. `value` and `source` are not used — both are deleted from new Events records even if those columns are present.
+
+| Field | Accepted header aliases | What it maps to |
+|---|---|---|
+| `eventType` | `event type`, `eventtype`, `type` | Fuzzy-matched against the configured event-type options (default: `Webinar`, `Trade Show`, `Product Demo`, `1-on-1 Meeting`, `Conference`); defaults to the first option if unmatched/blank. |
+| `description` | `description` | Free text. |
+| `startAt` | `start`, `start date`, `start time`, `startat` | Parsed via `new Date(...)`; stored as an ISO timestamp. Unparseable or blank → `null`. |
+| `endAt` | `end`, `end date`, `end time`, `endat` | Same parsing as `startAt`. |
+| `timezone` | `timezone`, `time zone` | Free text; defaults to `"UTC"` on new rows. |
+| `format` | `format` | Fuzzy-matched against `Virtual` / `In-Person`; defaults to `Virtual` if unmatched/blank. Gates which of the fields below are actually stored. |
+| `meetingUrl` | `meeting url`, `meetingurl`, `meeting link`, `url` | Free text URL — **only stored when `format === 'Virtual'`**; otherwise stored as `''`. |
+| `meetingPasscode` | `meeting passcode`, `passcode` | Free text — Virtual-only, same gating as `meetingUrl`. |
+| `dialIn` | `dial in`, `dial-in`, `dialin` | Free text — Virtual-only, same gating as `meetingUrl`. |
+| `venueName` | `venue`, `venue name`, `venuename` | Free text — **only stored when `format === 'In-Person'`**; otherwise stored as `''`. |
+| `address` | `address` | Free text — In-Person-only, same gating as `venueName`. |
+| `mapUrl` | `map url`, `map link`, `mapurl`, `coordinates` | Free text — In-Person-only, same gating as `venueName`. |
+| `capacity` | `capacity` | Number — In-Person-only; `null` if not In-Person or blank/non-numeric. |
+
+**Note:** There's no `Location`/region-style free-text field for Virtual events — only `meetingUrl`/`meetingPasscode`/`dialIn` are captured (and only when `format === 'Virtual'`). A source column like `Location` containing values such as `"Online / Egypt"` or `"Online (MENA)"` won't match any recognized alias and will be silently ignored on import; if that region info matters, fold it into `meetingUrl` (e.g. as a query param or label) or `description` before importing.
 
 ## 4. What happens when a row's company already exists
 
@@ -90,7 +113,8 @@ A row's contact is matched to an existing member if `email` matches (case-insens
 - All pipelines: `notes`
 - Partners: `category`, `model`, `tier`, `score`, `website`, `region`, `clients`, `workshops`, `founders`
 - Customers: `sector`, `website`, `package`, `aiScore`, `leadSource`, `segment`, `nextStep`, `subscriptionPeriod`, `subscriptionDate`
-- Investors: `fundSize`, `thesis`
+- Investors: `fundSize`, `thesis`, `website`
+- Events: `eventType`, `description`, `startAt`, `endAt`, `timezone`, `format`, `meetingUrl`, `meetingPasscode`, `dialIn`, `venueName`, `address`, `mapUrl`, `capacity` — all via the same string/number "fill only if blank" rule. Two quirks specific to Events merges: `startAt`/`endAt` are filled as **raw strings**, not re-parsed/validated dates like on a new row; and the Virtual/In-Person gating (§3 Events table) is **not** re-applied on a merge — e.g. `venueName` can still get backfilled onto an existing Virtual event if that field happened to be blank.
 
 Note that `name`, `role`, `email`, `phone`, `value`, `source`, `date`, and (for Customers) `referredBy` are **not** in these backfill lists — they only ever apply to brand-new rows, never to a merge.
 
