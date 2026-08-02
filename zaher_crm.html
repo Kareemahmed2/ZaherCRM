@@ -194,6 +194,7 @@
   .tl-item:last-child .tl-line{display:none;}
   .tl-text{font-size:12px;color:var(--gray-700);line-height:1.5;margin-bottom:1px;}
   .tl-date{font-size:11px;color:var(--gray-500);font-family:var(--font-mono);}
+  .tl-note{font-size:12px;color:var(--gray-700);line-height:1.5;margin-top:6px;padding:8px 10px;background:var(--gray-50);border-radius:var(--r-sm);white-space:pre-wrap;}
   .score-breakdown{padding:8px 20px 16px;}
   .score-line{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px dashed var(--border);}
   .score-line:last-child{border-bottom:none;}
@@ -534,6 +535,22 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeMemberModal()">Cancel</button>
       <button class="btn btn-primary" id="member-modal-submit-btn" onclick="saveMemberModal()">Add member</button>
+    </div>
+  </div>
+</div>
+
+<!-- STAGE CHANGE MODAL -->
+<div class="modal-overlay" id="stage-note-modal">
+  <div class="modal" style="width:400px;">
+    <div class="modal-header"><span class="modal-title" id="stage-note-title">Move stage</span>
+      <button class="modal-close" onclick="cancelStageChange()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Note (optional)</label><textarea class="form-input" id="stage-note-text" rows="3" placeholder="What changed?"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cancelStageChange()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmStageChange()">Move</button>
     </div>
   </div>
 </div>
@@ -1073,17 +1090,42 @@ function dragStart(e,id){
     document.getElementById('drag-clone').style.opacity='0';
     document.getElementById('kcard-'+id)?.classList.remove('dragging');
     document.querySelectorAll('.kanban-col').forEach(c=>c.classList.remove('drag-over'));
-    if(drag.active&&drag.overStage&&drag.overStage!==drag.fromStage)applyStage(id,drag.overStage,true);
+    if(drag.active&&drag.overStage&&drag.overStage!==drag.fromStage)requestStageChange(id,drag.overStage,true);
     drag.active=false;
   };
   document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);
 }
-function applyStage(id,newStage,toast){
+// Every stage move is routed through this note prompt first — applyStage() itself is only
+// ever called after the user confirms (or explicitly skips) leaving a note, so the note ends
+// up attached to the same activity entry as the stage change and shows as a breadcrumb in
+// the detail timeline (see renderDetail's tl-note rendering).
+let pendingStage=null;
+function requestStageChange(id,newStage,toast){
+  const r=records.find(x=>x.id===id); if(!r||r.stage===newStage)return;
+  pendingStage={id,newStage,toast};
+  document.getElementById('stage-note-title').textContent=`${r.stage} → ${newStage}`;
+  document.getElementById('stage-note-text').value='';
+  document.getElementById('stage-note-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('stage-note-text').focus(),0);
+}
+function cancelStageChange(){ pendingStage=null; document.getElementById('stage-note-modal').classList.remove('open'); }
+function confirmStageChange(){
+  if(!pendingStage)return;
+  const note=document.getElementById('stage-note-text').value.trim();
+  const {id,newStage,toast}=pendingStage;
+  document.getElementById('stage-note-modal').classList.remove('open');
+  pendingStage=null;
+  applyStage(id,newStage,toast,note);
+}
+function applyStage(id,newStage,toast,note){
   const r=records.find(x=>x.id===id); if(!r||r.stage===newStage)return;
   const old=r.stage; r.stage=newStage;
-  r.activity.push({t:`Stage: ${old} → ${newStage}`,d:'Today'});
+  const entry={t:`Stage: ${old} → ${newStage}`,d:'Today'};
+  if(note)entry.note=note;
+  r.activity.push(entry);
   saveRecord(r);
   renderPipeline(); updateBadge();
+  if(currentId===id&&document.getElementById('page-detail').classList.contains('active'))renderDetail();
   if(toast)showToast(`${r.company} → ${newStage}`);
 }
 // ══════════════ FILTERS ══════════════
@@ -1759,17 +1801,17 @@ function renderDetail(){
   const si=stages.indexOf(r.stage);
   document.getElementById('det-stages').innerHTML=`<div class="stages-list">${stages.map((s,i)=>{
     const cls=i<si?'done':i===si?'current':'';const lc=i<si?'done':'';
-    return `<div><div class="stage-step"><div class="stage-node ${cls}" onclick="applyStage(${r.id},'${s}');renderDetail();">${i<si?'✓':i+1}</div><div class="stage-step-name ${cls}">${s}</div></div>${i<stages.length-1?`<div class="stage-line ${lc}"></div>`:''}</div>`;
+    return `<div><div class="stage-step"><div class="stage-node ${cls}" onclick="requestStageChange(${r.id},'${s}');">${i<si?'✓':i+1}</div><div class="stage-step-name ${cls}">${s}</div></div>${i<stages.length-1?`<div class="stage-line ${lc}"></div>`:''}</div>`;
   }).join('')}</div>`;
   let btns='';
-  if(stages[si+1])btns+=`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;flex:1;" onclick="applyStage(${r.id},'${stages[si+1]}',true);renderDetail();">→ ${stages[si+1]}</button>`;
-  if(stages[si-1])btns+=`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="applyStage(${r.id},'${stages[si-1]}',true);renderDetail();">← Back</button>`;
+  if(stages[si+1])btns+=`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;flex:1;" onclick="requestStageChange(${r.id},'${stages[si+1]}',true);">→ ${stages[si+1]}</button>`;
+  if(stages[si-1])btns+=`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="requestStageChange(${r.id},'${stages[si-1]}',true);">← Back</button>`;
   document.getElementById('det-stage-actions').innerHTML=btns;
 
   const acts=r.activity.slice().reverse();
   document.getElementById('det-timeline').innerHTML=acts.map((a,i)=>`
     <div class="tl-item"><div class="tl-dot-col"><div class="tl-dot"></div>${i<acts.length-1?'<div class="tl-line"></div>':''}</div>
-    <div style="flex:1;"><div class="tl-text">${escHtml(a.t)}</div><div class="tl-date">${escHtml(a.d)}</div></div></div>`).join('');
+    <div style="flex:1;"><div class="tl-text">${escHtml(a.t)}</div><div class="tl-date">${escHtml(a.d)}</div>${a.note?`<div class="tl-note">${escHtml(a.note)}</div>`:''}</div></div>`).join('');
 }
 
 // ══════════════ MODALS ══════════════
@@ -2015,7 +2057,7 @@ const SUGGESTIONS=[
   'Which events are still in Draft?'
 ];
 const TOOLS=[
-  {type:'function',function:{name:'move_stage',description:'Move a record to a different stage in its pipeline.',parameters:{type:'object',properties:{record:{type:'string',description:'Company or contact name'},stage:{type:'string',description:'Target stage name'}},required:['record','stage']}}},
+  {type:'function',function:{name:'move_stage',description:'Move a record to a different stage in its pipeline.',parameters:{type:'object',properties:{record:{type:'string',description:'Company or contact name'},stage:{type:'string',description:'Target stage name'},note:{type:'string',description:'Optional note explaining the move, shown as a breadcrumb on the stage-change timeline'}},required:['record','stage']}}},
   {type:'function',function:{name:'update_record',description:'Update fields on a record (value, notes, model, tier, aiScore, package, nextStep, etc.).',parameters:{type:'object',properties:{record:{type:'string'},field:{type:'string',description:'field name e.g. value, notes, model, aiScore, package, region, nextStep'},value:{type:'string'}},required:['record','field','value']}}},
   {type:'function',function:{name:'add_record',description:'Add a new record to a pipeline. Partners/customers/investors are company-based — pass contactName/contactEmail/etc. to also add that person as the company\'s first member. Events are not company-based — "company" is used as the event title.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors','events']},company:{type:'string',description:'Company name, or (for events) the event title'},stage:{type:'string',description:'Stage, or (for events) the status'},category:{type:'string'},portfolio:{type:'number'},value:{type:'number'},sector:{type:'string'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only — SaaS or Enterprise'},subscriptionPeriod:{type:'string',description:'Customers only, Enterprise segment — free text subscription period'},subscriptionDate:{type:'string',description:'Customers only, SaaS segment — subscription date'},contactName:{type:'string',description:'Optional — name of a contact person at this company, becomes its first member'},contactTitle:{type:'string'},contactEmail:{type:'string'},contactPhone:{type:'string'},eventType:{type:'string',description:'Events only — e.g. Webinar, Conference'},description:{type:'string',description:'Events only'},startAt:{type:'string',description:'Events only — ISO 8601 start timestamp'},endAt:{type:'string',description:'Events only — ISO 8601 end timestamp'},timezone:{type:'string',description:'Events only — IANA timezone e.g. Asia/Riyadh'},format:{type:'string',enum:['Virtual','In-Person'],description:'Events only'},meetingUrl:{type:'string',description:'Events only, Virtual format'},meetingPasscode:{type:'string',description:'Events only, Virtual format'},dialIn:{type:'string',description:'Events only, Virtual format'},venueName:{type:'string',description:'Events only, In-Person format'},address:{type:'string',description:'Events only, In-Person format'},mapUrl:{type:'string',description:'Events only, In-Person format'},capacity:{type:'number',description:'Events only, In-Person format'}},required:['pipeline','company']}}},
   {type:'function',function:{name:'delete_record',description:'Delete a record from the CRM.',parameters:{type:'object',properties:{record:{type:'string'}},required:['record']}}},
@@ -2078,7 +2120,7 @@ function buildSystemMessage(){ return {role:'system',content:buildSystem()}; }
 function syncNote(ok){ return ok?'.':' (locally only — it failed to sync to Supabase, so the change may not persist).'; }
 async function execTool(name,input){
   try{
-    if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;r.activity.push({t:`Stage: ${old} → ${match}`,d:'Today'});const ok=await saveRecord(r);refreshView();return `Moved ${r.company} to ${match}${syncNote(ok)}`;}
+    if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;const entry={t:`Stage: ${old} → ${match}`,d:'Today'};if(input.note)entry.note=(''+input.note).trim();r.activity.push(entry);const ok=await saveRecord(r);refreshView();return `Moved ${r.company} to ${match}${syncNote(ok)}`;}
     if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:'Today'});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
     if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=input.portfolio||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=input.segment||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'?(input.capacity||null):null;delete r.value;delete r.source;}else{r.fundSize='';r.thesis='';}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
     if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);records=records.filter(x=>x.id!==r.id);const ok=await deleteRecordRemote(r.id,r.pipeline);refreshView();return `Deleted ${r.company}${syncNote(ok)}`;}
@@ -2197,7 +2239,7 @@ async function signOutUser(){
 }
 
 // ══════════════ INIT ══════════════
-window.addEventListener('click',e=>{if(e.target.classList&&e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');if(e.target.classList&&e.target.classList.contains('confirm-overlay'))e.target.classList.remove('open');});
+window.addEventListener('click',e=>{if(e.target.id==='stage-note-modal'){cancelStageChange();return;}if(e.target.classList&&e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');if(e.target.classList&&e.target.classList.contains('confirm-overlay'))e.target.classList.remove('open');});
 (async function init(){
   if(!sb){ await startApp(); return; }
   const {data:{session}}=await sb.auth.getSession();
