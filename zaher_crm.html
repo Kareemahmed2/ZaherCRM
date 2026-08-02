@@ -455,7 +455,6 @@
         </div>
         <div class="notes-card">
           <div class="card-header"><span class="card-title">Notes</span></div>
-          <div class="notes-body" id="det-notes"></div>
           <div class="timeline" id="det-note-trail"></div>
         </div>
       </div>
@@ -1493,12 +1492,14 @@ async function handleImportFile(ev){
       const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];
       const stage=matchInList(stageList,get('stage'))||stageList[0];
       const importTs=new Date().toISOString();
+      const importNotes=(get('notes')||'').toString();
+      const importedEntry={t:'Imported',d:'Today'}; if(importNotes)importedEntry.note=importNotes;
       const r={pipeline,name:company,company,
         role:'',email:'',phone:'',members:newMember?[newMember]:[],
         stage, value:Number(get('value'))||0, source:(get('source')||'Import').toString(),
-        date:(get('date')||'Today').toString(), notes:(get('notes')||'').toString(),
+        date:(get('date')||'Today').toString(), notes:importNotes,
         created_at:importTs, updated_at:importTs,
-        activity:[{t:'Imported',d:'Today'}]};
+        activity:[importedEntry]};
       if(pipeline==='partners'){
         const cats=Object.keys(CAT_META);
         r.portfolio=portfolio;r.category=matchInList(cats,get('category'))||cats[0];
@@ -1720,13 +1721,23 @@ function renderDetail(){
   else if(state.pipeline==='customers'&&r.sector){ tags=`<span class="tag">${escHtml(r.sector)}</span>`+tags; }
   else if(state.pipeline==='events'&&r.eventType){ tags=`<span class="tag">${escHtml(r.eventType)}</span>`+tags; }
   document.getElementById('det-tags').innerHTML=tags;
-  document.getElementById('det-notes').textContent=r.notes||'—';
-  // Breadcrumb of every note left on a stage change, most recent first — same
-  // vertical-trace styling as the Activity timeline, scoped to just the notes.
-  const noteEntries=(r.activity||[]).filter(a=>a.note).slice().reverse();
-  document.getElementById('det-note-trail').innerHTML=noteEntries.length?(`<div style="font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.08em;padding:14px 20px 4px;">Stage history</div>`+noteEntries.map((a,i)=>`
+  // Breadcrumb of every note on the record, most recent first — same vertical-trace
+  // styling as the Activity timeline. Every explicit a.note (stage moves, and any
+  // record created/imported after this feature shipped) is included as-is; records
+  // from before that only have a flat r.notes string get that folded in here too,
+  // labeled by how the record entered the CRM, so no note is left stranded outside
+  // the breadcrumb.
+  const chron=r.activity||[];
+  let noteEntries=chron.filter(a=>a.note).map(a=>({label:a.t,date:a.d,note:a.note}));
+  if(r.notes && !noteEntries.some(n=>n.note===r.notes)){
+    const origin=chron[0];
+    const label=origin&&/import/i.test(origin.t)?'Imported':'Created';
+    noteEntries.unshift({label,date:origin?origin.d:(r.date||''),note:r.notes});
+  }
+  noteEntries=noteEntries.reverse();
+  document.getElementById('det-note-trail').innerHTML=noteEntries.length?noteEntries.map((a,i)=>`
     <div class="tl-item"><div class="tl-dot-col"><div class="tl-dot"></div>${i<noteEntries.length-1?'<div class="tl-line"></div>':''}</div>
-    <div style="flex:1;"><div class="tl-note" style="margin-top:0;">${escHtml(a.note)}</div><div class="tl-date" style="margin-top:4px;">${escHtml(a.t)} · ${escHtml(a.d)}</div></div></div>`).join('')):'';
+    <div style="flex:1;"><div class="tl-note" style="margin-top:0;">${escHtml(a.note)}</div><div class="tl-date" style="margin-top:4px;">${escHtml(a.label)} · ${escHtml(a.date)}</div></div></div>`).join(''):`<div class="notes-body">No notes yet.</div>`;
   document.getElementById('det-contact-btn').onclick=()=>showToast('✉ Opening email to '+((pmDetail&&pmDetail.email)||'—'));
 
   // fields per pipeline
@@ -1930,7 +1941,9 @@ async function addRecord(){
   const contactName=val('f-name'),contactRole=val('f-role'),contactEmail=val('f-email'),contactPhone=val('f-phone');
   const hasContact=contactName||contactRole||contactEmail||contactPhone;
   const members=hasContact?[{name:contactName||company,title:contactRole,email:contactEmail,phone:contactPhone,linkedin:''}]:[];
-  const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:val('f-notes'),value:Number(val('f-value'))||0,activity:[{t:'Added to CRM',d:'Today'}]};
+  const notesVal=val('f-notes');
+  const addedEntry={t:'Added to CRM',d:'Today'}; if(notesVal)addedEntry.note=notesVal;
+  const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:notesVal,value:Number(val('f-value'))||0,activity:[addedEntry]};
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){
     r.sector=val('f-sector')||'General';r.website=val('f-website');r.leadSource=val('f-leadsource')||'Manual';r.segment=val('f-segment')||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;
