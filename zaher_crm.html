@@ -456,6 +456,7 @@
         <div class="notes-card">
           <div class="card-header"><span class="card-title">Notes</span></div>
           <div class="notes-body" id="det-notes"></div>
+          <div class="timeline" id="det-note-trail"></div>
         </div>
       </div>
       <div>
@@ -1720,6 +1721,12 @@ function renderDetail(){
   else if(state.pipeline==='events'&&r.eventType){ tags=`<span class="tag">${escHtml(r.eventType)}</span>`+tags; }
   document.getElementById('det-tags').innerHTML=tags;
   document.getElementById('det-notes').textContent=r.notes||'—';
+  // Breadcrumb of every note left on a stage change, most recent first — same
+  // vertical-trace styling as the Activity timeline, scoped to just the notes.
+  const noteEntries=(r.activity||[]).filter(a=>a.note).slice().reverse();
+  document.getElementById('det-note-trail').innerHTML=noteEntries.length?(`<div style="font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.08em;padding:14px 20px 4px;">Stage history</div>`+noteEntries.map((a,i)=>`
+    <div class="tl-item"><div class="tl-dot-col"><div class="tl-dot"></div>${i<noteEntries.length-1?'<div class="tl-line"></div>':''}</div>
+    <div style="flex:1;"><div class="tl-note" style="margin-top:0;">${escHtml(a.note)}</div><div class="tl-date" style="margin-top:4px;">${escHtml(a.t)} · ${escHtml(a.d)}</div></div></div>`).join('')):'';
   document.getElementById('det-contact-btn').onclick=()=>showToast('✉ Opening email to '+((pmDetail&&pmDetail.email)||'—'));
 
   // fields per pipeline
