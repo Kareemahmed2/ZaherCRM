@@ -520,3 +520,17 @@ drop policy if exists "zaher team update tasks" on tasks;
 create policy "zaher team update tasks" on tasks for update using (is_zaher_team()) with check (is_zaher_team());
 drop policy if exists "zaher team delete tasks" on tasks;
 create policy "zaher team delete tasks" on tasks for delete using (is_zaher_team());
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Reachout tag (added 2026-08-04)
+-- Free-text like `stage` (no check constraint, so a third value can be added
+-- later without a migration) — the app itself only ever writes 'Reachout
+-- Priority' or 'Reachout Done'. Set only from the Pipeline tab's kanban
+-- cards; used there to sort a tagged record to the top (Priority) or bottom
+-- (Done) of its stage column. All four entity tables get it, including events.
+-- ═══════════════════════════════════════════════════════════════════════
+
+alter table partners add column if not exists tag text;
+alter table customers add column if not exists tag text;
+alter table investors add column if not exists tag text;
+alter table events add column if not exists tag text;

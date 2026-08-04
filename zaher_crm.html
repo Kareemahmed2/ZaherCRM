@@ -692,6 +692,8 @@ const STAGE_COLOR = {
   'Prospecting':'#378ADD','First Meeting':'#7F77DD','Due Diligence':'#EF9F27','Term Sheet':'#D97706','Closed':'#639922',
   'Draft':'#888780','Scheduled':'#378ADD','In Progress':'#EF9F27','Completed':'#639922','Canceled':'#E24B4A'
 };
+const TAG_VALUES=['Reachout Priority','Reachout Done'];
+const TAG_COLOR={'Reachout Priority':'#E24B4A','Reachout Done':'#639922'};
 const EVENT_TYPES=['Webinar','Trade Show','Product Demo','1-on-1 Meeting','Conference'];
 const TIMEZONES=['UTC','Asia/Riyadh','Asia/Dubai','Asia/Qatar','Asia/Kuwait','Africa/Cairo','Asia/Amman','Asia/Beirut','Europe/London','Europe/Paris','America/New_York','America/Los_Angeles','Asia/Kolkata'];
 const CAT_META = {
@@ -718,7 +720,7 @@ const ADMIN_EMAIL = 'ka.mahrous@zaher.ai';
 // ══════════════ SEED DATA (fallback until Supabase is configured / seeded) ══════════════
 const SEED_RECORDS = [
   // ── PARTNERS · Portfolio 1 · Marketing Agencies ──
-  {id:1,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Bytes Future',company:'Bytes Future',role:'',email:'',phone:'',members:[{name:'Fahad Khan',title:'Managing Partner',email:'fahad@bytesfuture.com',phone:'+966 50 111 2201',linkedin:''}],stage:'Trust',model:'Reseller',tier:1,score:90,website:'bytesfuture.com',region:'GCC',clients:'Strong multi-market B2C base (Clutch-verified)',value:38000,source:'LinkedIn',date:'Apr 6',notes:'Top-scoring Tier 1 agency. Strong reseller candidate — wants to add AI Visibility Audits to retainer.',activity:[{t:'Qualified — score 90, Tier 1',d:'Apr 4'},{t:'Intro call completed',d:'Apr 6'}]},
+  {id:1,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Bytes Future',company:'Bytes Future',role:'',email:'',phone:'',members:[{name:'Fahad Khan',title:'Managing Partner',email:'fahad@bytesfuture.com',phone:'+966 50 111 2201',linkedin:''}],stage:'Trust',tag:'Reachout Done',model:'Reseller',tier:1,score:90,website:'bytesfuture.com',region:'GCC',clients:'Strong multi-market B2C base (Clutch-verified)',value:38000,source:'LinkedIn',date:'Apr 6',notes:'Top-scoring Tier 1 agency. Strong reseller candidate — wants to add AI Visibility Audits to retainer.',activity:[{t:'Qualified — score 90, Tier 1',d:'Apr 4'},{t:'Intro call completed',d:'Apr 6'}]},
   {id:2,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Room 11',company:'Room 11',role:'',email:'',phone:'',members:[{name:'Reem Khalid',title:'Founder',email:'reem@room11.sa',phone:'+966 50 111 2202',linkedin:''}],stage:'Educational Collaboration',model:'Reseller',tier:1,score:85,website:'room11.sa',region:'KSA',clients:'S Caffe, Reem Al Bawadi, Chicos, Flavers +35',value:32000,source:'Referral',date:'Apr 9',notes:'Strong F&B / retail roster. Joint webinar proposed as educational collaboration.',activity:[{t:'Qualified — score 85, Tier 1',d:'Apr 5'},{t:'Co-webinar topic agreed',d:'Apr 9'}]},
   {id:3,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Chain Reaction',company:'Chain Reaction',role:'',email:'',phone:'',members:[{name:'Omar Nabil',title:'Head of Growth',email:'omar@chainreaction.sa',phone:'+966 50 111 2203',linkedin:''}],stage:'Pilot Partnership',model:'Reseller',tier:1,score:85,website:'chainreaction.sa',region:'KSA',clients:'Samsung KSA, KFC, Pizza Hut, LG, Lenovo',value:40000,source:'Cold Outreach',date:'Mar 24',notes:'Enterprise client base. Running a paid pilot on 3 client brands.',activity:[{t:'Qualified — score 85, Tier 1',d:'Mar 20'},{t:'Pilot on 3 brands started',d:'Mar 24'}]},
   {id:4,pipeline:'partners',portfolio:1,category:'Marketing Agencies',name:'Steps / Steps Grow',company:'Steps / Steps Grow',role:'',email:'',phone:'',members:[{name:'Sara Otaibi',title:'BD Director',email:'sara@steps.com.sa',phone:'+966 50 111 2204',linkedin:''}],stage:'Awareness',model:'Reseller',tier:1,score:85,website:'steps.com.sa',region:'KSA',clients:'SEO-first agency, GCC e-commerce base',value:30000,source:'LinkedIn',date:'Apr 15',notes:'SEO-first — natural fit for GEO as a service extension. First outreach sent.',activity:[{t:'Qualified — score 85, Tier 1',d:'Apr 14'},{t:'Intro message sent',d:'Apr 15'}]},
@@ -737,7 +739,7 @@ const SEED_RECORDS = [
   {id:15,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'Aramex',company:'Aramex',role:'',email:'',phone:'',members:[{name:'Lina Fares',title:'Partnerships',email:'lina.fares@aramex.com',phone:'+971 50 111 4015',linkedin:''}],stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'aramex.com',region:'UAE',clients:'Regional logistics enterprise',value:60000,source:'LinkedIn',date:'Apr 14',notes:'Enterprise — expect a slow cycle. Needs its own tailored research before outreach.',activity:[{t:'Account researched',d:'Apr 14'}]},
   {id:16,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'SMSA Express',company:'SMSA Express',role:'',email:'',phone:'',members:[{name:'Turki Saud',title:'Business Development',email:'turki@smsaexpress.com',phone:'+966 50 111 4016',linkedin:''}],stage:'Educational Collaboration',model:'Merchant Benefit',tier:null,score:null,website:'smsaexpress.com',region:'KSA',clients:'Saudi last-mile leader',value:50000,source:'Referral',date:'Apr 3',notes:'Interested in a co-branded merchant visibility report.',activity:[{t:'Report concept shared',d:'Apr 3'}]},
   {id:17,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'iMile',company:'iMile',role:'',email:'',phone:'',members:[{name:'Hassan Ali',title:'Growth',email:'hassan@imile.com',phone:'+971 50 111 4017',linkedin:''}],stage:'Awareness',model:'Merchant Benefit',tier:null,score:null,website:'imile.com',region:'UAE',clients:'Last-mile delivery, GCC',value:30000,source:'LinkedIn',date:'Apr 15',notes:'Early research stage.',activity:[{t:'Added to pipeline',d:'Apr 15'}]},
-  {id:18,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'ShipBlu',company:'ShipBlu',role:'',email:'',phone:'',members:[{name:'Ali Kamal',title:'Co-Founder',email:'ali@shipblu.com',phone:'+20 100 111 4018',linkedin:''}],stage:'Trust',model:'Merchant Benefit',tier:null,score:null,website:'shipblu.com',region:'Egypt',clients:'Egypt e-commerce fulfilment',value:25000,source:'Referral',date:'Mar 29',notes:'Founder-to-founder trust already established. Warmest logistics conversation.',activity:[{t:'Founder intro',d:'Mar 25'},{t:'Merchant perk discussed',d:'Mar 29'}]},
+  {id:18,pipeline:'partners',portfolio:1,category:'Operational Touchpoint',name:'ShipBlu',company:'ShipBlu',role:'',email:'',phone:'',members:[{name:'Ali Kamal',title:'Co-Founder',email:'ali@shipblu.com',phone:'+20 100 111 4018',linkedin:''}],stage:'Trust',tag:'Reachout Priority',model:'Merchant Benefit',tier:null,score:null,website:'shipblu.com',region:'Egypt',clients:'Egypt e-commerce fulfilment',value:25000,source:'Referral',date:'Mar 29',notes:'Founder-to-founder trust already established. Warmest logistics conversation.',activity:[{t:'Founder intro',d:'Mar 25'},{t:'Merchant perk discussed',d:'Mar 29'}]},
   // ── PARTNERS · Portfolio 2 · Startup Development Orgs ──
   {id:19,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'Flat6Labs Cairo',company:'Flat6Labs Cairo',role:'',email:'',phone:'',members:[{name:'Programs Team',title:'Program Manager',email:'programs@flat6labs.com',phone:'+20 100 111 5019',linkedin:''}],stage:'Workshop Delivered',model:'Workshop / Perk',tier:null,score:null,website:'flat6labs.com',region:'Egypt',clients:'2 cohorts/yr · 8–10 startups each',value:0,workshops:2,founders:18,source:'Referral',date:'Apr 5',notes:'Egypt\'s largest accelerator. Ran the "Is your startup visible to AI search?" workshop for one cohort.',activity:[{t:'Workshop slot confirmed',d:'Mar 30'},{t:'Workshop delivered — 18 founders',d:'Apr 5'}]},
   {id:20,pipeline:'partners',portfolio:2,category:'Startup Development Orgs',name:'AUC Venture Lab',company:'AUC Venture Lab',role:'',email:'',phone:'',members:[{name:'V-Lab Team',title:'Program Lead',email:'vlab@aucegypt.edu',phone:'+20 100 111 5020',linkedin:''}],stage:'Recurring Relationship',model:'Workshop / Perk',tier:null,score:null,website:'aucegypt.edu',region:'Egypt',clients:'1,000+ entrepreneurs · $356M raised by alumni',value:0,workshops:3,founders:24,source:'Founder network (AUC)',date:'Mar 15',notes:'Abdalla\'s alma mater — warmest door. Now invited back each cycle. Standing perk.',activity:[{t:'First workshop delivered',d:'Feb 20'},{t:'Invited back for Spring cohort',d:'Mar 15'}]},
@@ -1193,6 +1195,22 @@ function renderDashboard(){
 }
 
 // ══════════════ KANBAN ══════════════
+// Reachout tag: sorted to the top (Priority) or bottom (Done) of its kanban column — see
+// the sort in renderPipeline(). Set from the card itself since that's the only place this
+// tag is editable (not the add/edit modal, not the detail page).
+function tagRank(r){ return r.tag==='Reachout Priority'?0:r.tag==='Reachout Done'?2:1; }
+function tagSelectHtml(r){
+  const cur=r.tag||'';
+  const opts=[''].concat(TAG_VALUES).map(v=>`<option value="${v}" ${v===cur?'selected':''}>${v||'No tag'}</option>`).join('');
+  return `<select class="form-input" style="font-size:10px;padding:3px 6px;margin-bottom:8px;${cur?`color:${TAG_COLOR[cur]};font-weight:600;`:''}" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" onchange="event.stopPropagation();changeRecordTag(${r.id},this.value)">${opts}</select>`;
+}
+function changeRecordTag(id,value){
+  const r=records.find(x=>x.id===id); if(!r)return;
+  r.tag=value||null;
+  saveRecord(r);
+  renderPipeline();
+  if(currentId===id&&document.getElementById('page-detail').classList.contains('active'))renderDetail();
+}
 function buildCard(r){
   let extra='';
   if(state.pipeline==='partners'&&!isP2()) extra=`<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap;">${catChip(r.category)}${tierPill(r.tier)}</div>`;
@@ -1211,6 +1229,7 @@ function buildCard(r){
       <div class="av ${avc(r.id)}" style="width:28px;height:28px;font-size:9px;">${ini(r.company)}</div>
       <div class="k-card-info"><div class="kn">${cardPrimary}</div><div class="kc">${cardSecondary}</div></div>
     </div>
+    ${tagSelectHtml(r)}
     ${extra}${bottom}
     <div class="k-card-footer"><span class="k-card-source">${escHtml(state.pipeline==='events'?(r.timezone||''):(r.model||r.source))}</span><span class="k-card-date">${escHtml(r.date)}</span></div>
   </div>`;
@@ -1356,7 +1375,7 @@ function renderPipeline(){
     ||(r.members||[]).some(m=>(m.name||'').toLowerCase().includes(q))):recs;
   list=applyFilters(list);
   document.getElementById('kanban-board').innerHTML=stages.map(stage=>{
-    const cards=list.filter(r=>r.stage===stage);
+    const cards=list.filter(r=>r.stage===stage).sort((a,b)=>tagRank(a)-tagRank(b));
     const tot=cards.reduce((s,r)=>s+(r.value||0),0);
     return `<div class="kanban-col" data-stage="${stage}">
       <div class="col-header"><div><div class="col-name">${stage}</div>${(!isP2()&&state.pipeline!=='events'&&tot)?`<div class="col-total">${fv(tot)}</div>`:''}</div><span class="col-count">${cards.length}</span></div>
@@ -1461,12 +1480,21 @@ const IMPORT_FIELD_MAP_COMMON={
   linkedin:['linkedin','linkedin url','linkedin profile'],
   stage:['stage'],
   value:['value','mrr','arr','target','mrr/yr','mrr per year','potential arr','target raise'],
-  source:['source'], date:['date'], notes:['notes']
+  source:['source'], date:['date'], notes:['notes'],
+  tag:['reachout priority']
 };
+// Exact match only (case-insensitive) — unlike stage/category, which fuzzy-match — since
+// there are only two valid values and either is saved as-is when it matches.
+function matchTagValue(raw){
+  const s=(raw==null?'':raw.toString()).trim().toLowerCase();
+  if(s==='reachout priority') return 'Reachout Priority';
+  if(s==='reachout done') return 'Reachout Done';
+  return '';
+}
 const IMPORT_FIELD_MAP_EXTRA={
   partners:{portfolio:['portfolio'], category:['category'], model:['model'], tier:['tier'], score:['score'],
     website:['website'], region:['region'], clients:['clients'], workshops:['workshops'], founders:['founders']},
-  customers:{sector:['sector'], website:['website'], package:['package'], aiScore:['ai score','aiscore'],
+  customers:{sector:['sector','industry','field','field of work','vertical','business type','business sector'], website:['website'], package:['package'], aiScore:['ai score','aiscore'],
     leadSource:['lead source','leadsource'], referredBy:['referred by','referredby'],
     segment:['segment','customer type'], nextStep:['next step','nextstep'],
     subscriptionPeriod:['subscription period','subscriptionperiod'], subscriptionDate:['subscription date','subscriptiondate']},
@@ -1530,7 +1558,7 @@ function hideImportLoading(){
 // plus its members list and current activity-log length — enough for undoLastImport() to
 // restore it precisely, including cases where the import only ever fills blanks.
 function importUndoSnapshot(pipeline,rec){
-  const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes};
+  const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes, tag:rec.tag};
   if(pipeline==='partners') Object.assign(snap,{category:rec.category,model:rec.model,tier:rec.tier,score:rec.score,website:rec.website,region:rec.region,clients:rec.clients,workshops:rec.workshops,founders:rec.founders});
   else if(pipeline==='customers') Object.assign(snap,{sector:rec.sector,website:rec.website,package:rec.package,aiScore:rec.aiScore,leadSource:rec.leadSource,segment:rec.segment,nextStep:rec.nextStep,subscriptionPeriod:rec.subscriptionPeriod,subscriptionDate:rec.subscriptionDate});
   else if(pipeline==='events') Object.assign(snap,{eventType:rec.eventType,description:rec.description,startAt:rec.startAt,endAt:rec.endAt,timezone:rec.timezone,format:rec.format,meetingUrl:rec.meetingUrl,meetingPasscode:rec.meetingPasscode,dialIn:rec.dialIn,venueName:rec.venueName,address:rec.address,mapUrl:rec.mapUrl,capacity:rec.capacity});
@@ -1647,6 +1675,7 @@ async function handleImportFile(ev){
         const fillNum=(field,raw)=>{ if(existing[field]==null&&raw!==undefined&&raw!==''&&!isNaN(Number(raw))){ existing[field]=Math.round(Number(raw)); return true; } return false; };
         let fieldsFilled=false;
         fieldsFilled=fillStr('notes',get('notes'))||fieldsFilled;
+        fieldsFilled=fillStr('tag',matchTagValue(get('tag')))||fieldsFilled;
         if(pipeline==='partners'){
           fieldsFilled=fillStr('category',get('category'))||fieldsFilled;
           fieldsFilled=fillStr('model',get('model'))||fieldsFilled;
@@ -1658,12 +1687,27 @@ async function handleImportFile(ev){
           fieldsFilled=fillNum('workshops',get('workshops'))||fieldsFilled;
           fieldsFilled=fillNum('founders',get('founders'))||fieldsFilled;
         } else if(pipeline==='customers'){
-          fieldsFilled=fillStr('sector',get('sector'))||fieldsFilled;
+          // sector/segment get one extra "fixable" case beyond genuinely blank: a prior
+          // import bug let raw Segment text flow through unvalidated (instead of being
+          // matched against SaaS/Enterprise) while an unrecognized Sector column silently
+          // defaulted new rows to "General". So here, an existing sector of exactly
+          // "General" is treated as fixable too, and an existing segment that isn't
+          // "SaaS"/"Enterprise" is treated as fixable — but only ever replaced by a value
+          // that itself validates (a fuzzy-matched Sector value doesn't need validation
+          // since sector is free text; segment must resolve to SaaS or Enterprise), so a
+          // re-import can never introduce new garbage while repairing old garbage.
+          const rawSector=get('sector');
+          if((existing.sector==null||existing.sector===''||existing.sector==='General')&&rawSector!==undefined&&(''+rawSector).trim()!==''){
+            existing.sector=(''+rawSector).toString(); fieldsFilled=true;
+          }
+          const matchedSegment=matchInList(['SaaS','Enterprise'],get('segment'));
+          if(matchedSegment&&existing.segment!=='SaaS'&&existing.segment!=='Enterprise'){
+            existing.segment=matchedSegment; fieldsFilled=true;
+          }
           fieldsFilled=fillStr('website',get('website'))||fieldsFilled;
           fieldsFilled=fillStr('package',get('package'))||fieldsFilled;
           fieldsFilled=fillNum('aiScore',get('aiScore'))||fieldsFilled;
           fieldsFilled=fillStr('leadSource',get('leadSource'))||fieldsFilled;
-          fieldsFilled=fillStr('segment',get('segment'))||fieldsFilled;
           fieldsFilled=fillStr('nextStep',get('nextStep'))||fieldsFilled;
           fieldsFilled=fillStr('subscriptionPeriod',get('subscriptionPeriod'))||fieldsFilled;
           fieldsFilled=fillStr('subscriptionDate',get('subscriptionDate'))||fieldsFilled;
@@ -1706,6 +1750,7 @@ async function handleImportFile(ev){
         role:'',email:'',phone:'',members:newMember?[newMember]:[],
         stage, value:Number(get('value'))||0, source:(get('source')||'Import').toString(),
         date:(get('date')||'Today').toString(), notes:importNotes,
+        tag:matchTagValue(get('tag'))||null,
         created_at:importTs, updated_at:importTs,
         activity:[importedEntry]};
       if(pipeline==='partners'){
@@ -1717,7 +1762,7 @@ async function handleImportFile(ev){
       } else if(pipeline==='customers'){
         r.sector=(get('sector')||'General').toString();r.website=(get('website')||'').toString();r.package=(get('package')||'—').toString();
         r.aiScore=Math.round(Number(get('aiScore')))||null;r.leadSource=(get('leadSource')||get('source')||'Import').toString();
-        r.referredBy=Math.round(Number(get('referredBy')))||null;r.segment=(get('segment')||'Enterprise').toString();
+        r.referredBy=Math.round(Number(get('referredBy')))||null;r.segment=matchInList(['SaaS','Enterprise'],get('segment'))||'Enterprise';
         r.nextStep=(get('nextStep')||nextStepOptions[0]||'').toString();
         r.subscriptionPeriod=r.segment==='Enterprise'?(get('subscriptionPeriod')||'').toString():'';
         r.subscriptionDate=r.segment==='SaaS'?(get('subscriptionDate')||'').toString():'';
@@ -1790,6 +1835,7 @@ function exportRecords(fmt){
     eventType:r.eventType||'', description:r.description||'', startAt:r.startAt||'', endAt:r.endAt||'', timezone:r.timezone||'', format:r.format||'',
     meetingUrl:r.meetingUrl||'', meetingPasscode:r.meetingPasscode||'', dialIn:r.dialIn||'',
     venueName:r.venueName||'', address:r.address||'', mapUrl:r.mapUrl||'', capacity:r.capacity!=null?r.capacity:'',
+    'Reachout Priority':r.tag||'',
     date_entered:fmtTs(r.created_at), date_modified:fmtTs(r.updated_at)
   }));
   const ws=XLSX.utils.json_to_sheet(rows);
