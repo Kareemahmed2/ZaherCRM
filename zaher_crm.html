@@ -193,6 +193,13 @@
   .cal-unscheduled{margin-top:16px;}
   .cal-tooltip{display:none;position:absolute;top:100%;left:0;z-index:80;margin-top:4px;min-width:220px;max-width:300px;background:var(--white);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-md);padding:10px 12px;font-size:11px;color:var(--gray-700);line-height:1.6;pointer-events:none;}
   .cal-tooltip.tooltip-right{left:auto;right:0;}
+  /* Unscheduled rows stack with no gap between them, so a downward tooltip from one row
+     covers the row(s) below it — since the tooltip itself is pointer-events:none, the mouse
+     ends up hit-testing straight through to that covered row, whose own hover then fires and
+     hides the first tooltip, which un-covers the row, which un-hovers it again... a rapid
+     open/close flicker. Opening upward instead means it covers space above the list (or the
+     "Unscheduled" header) rather than another hoverable row, so nothing to flicker against. */
+  .cal-tooltip.tooltip-up{top:auto;bottom:100%;margin-top:0;margin-bottom:4px;}
   .cal-bar-wrap:hover .cal-tooltip,.cal-event-wrap:hover .cal-tooltip{display:block;}
   .cal-tooltip .ctt-title{font-size:12px;font-weight:600;color:var(--gray-900);margin-bottom:4px;}
   .cal-tooltip .ctt-row{display:flex;gap:6px;}
@@ -1537,7 +1544,7 @@ function renderCalendar(list){
     </div>
     <div class="calendar-weekdays">${weekdayLabels.map(w=>`<div class="cal-weekday">${w}</div>`).join('')}</div>
     ${weekBlocks.join('')}
-    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event-wrap"><div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span>${escHtml(r.company)}</div><div class="cal-tooltip">${eventTooltipHtml(r)}</div></div>`).join('')}</div>`:''}
+    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event-wrap"><div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span>${escHtml(r.company)}</div><div class="cal-tooltip tooltip-up">${eventTooltipHtml(r)}</div></div>`).join('')}</div>`:''}
   `;
 }
 
