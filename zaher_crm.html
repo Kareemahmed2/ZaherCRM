@@ -677,14 +677,15 @@
 <script>
 // ══════════════ CONFIG ══════════════
 const STAGES = {
-  partners1: ['Awareness','Educational Collaboration','Trust','Pilot Partnership','Revenue Partnership','Strategic Alliance'],
-  partners2: ['Awareness','Conversation','Workshop Delivered','Recurring Relationship','Ecosystem Status'],
-  customers: ['Audit Requested','Audit Delivered','Discovery Call','Proposal','Pilot','Active Client'],
-  investors: ['Prospecting','First Meeting','Due Diligence','Term Sheet','Closed'],
+  partners1: ['Researched','Emailed','Awareness','Educational Collaboration','Trust','Pilot Partnership','Revenue Partnership','Strategic Alliance'],
+  partners2: ['Researched','Emailed','Awareness','Conversation','Workshop Delivered','Recurring Relationship','Ecosystem Status'],
+  customers: ['Researched','Emailed','Audit Requested','Audit Delivered','Discovery Call','Proposal','Pilot','Active Client'],
+  investors: ['Researched','Emailed','Prospecting','First Meeting','Due Diligence','Term Sheet','Closed'],
   events: ['Draft','Scheduled','In Progress','Completed','Canceled']
 };
 const TERMINAL = new Set(['Revenue Partnership','Strategic Alliance','Recurring Relationship','Ecosystem Status','Active Client','Closed','Completed','Canceled']);
 const STAGE_COLOR = {
+  'Researched':'#888780','Emailed':'#534AB7',
   'Awareness':'#378ADD','Educational Collaboration':'#7F77DD','Trust':'#EF9F27','Pilot Partnership':'#D97706','Revenue Partnership':'#639922','Strategic Alliance':'#3B6D11',
   'Conversation':'#7F77DD','Workshop Delivered':'#EF9F27','Recurring Relationship':'#0E7474','Ecosystem Status':'#639922',
   'Audit Requested':'#378ADD','Audit Delivered':'#7F77DD','Discovery Call':'#EF9F27','Proposal':'#D97706','Pilot':'#0E7474','Active Client':'#639922',

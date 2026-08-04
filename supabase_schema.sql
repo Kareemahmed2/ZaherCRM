@@ -457,8 +457,6 @@ create policy "zaher team update events" on events for update using (is_zaher_te
 drop policy if exists "zaher team delete events" on events;
 create policy "zaher team delete events" on events for delete using (is_zaher_team());
 
-select setval(pg_get_serial_sequence('events','id'), coalesce((select max(id) from events),0)+1, false);
-
 -- Event type options (mirrors next_step_options above) — an extensible, team-editable
 -- list of event types, seeded with the suggestions from the original spec.
 create table if not exists event_type_options (
