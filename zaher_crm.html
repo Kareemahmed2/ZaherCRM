@@ -157,6 +157,27 @@
   .add-card-btn:hover{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
   #drag-clone{position:fixed;pointer-events:none;z-index:9999;opacity:0;transition:opacity .1s;transform-origin:top left;}
 
+  /* ── CALENDAR (Events "Schedule" tab) ── */
+  .calendar-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .calendar-title{font-size:16px;font-weight:600;color:var(--gray-900);}
+  .calendar-nav{display:flex;gap:6px;}
+  .calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;}
+  .cal-weekday{font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.04em;text-align:center;padding:4px 0;}
+  .cal-week{margin-bottom:6px;}
+  .cal-week-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:3px 0;}
+  .cal-bar{padding:2px 8px;margin:0 2px 3px;border-radius:4px;font-size:10px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+  .cal-week-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+  .cal-day{background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px;min-height:64px;}
+  .cal-day.other-month{background:var(--gray-50);}
+  .cal-day.today{border-color:var(--accent);}
+  .cal-day-num{font-size:11px;color:var(--gray-500);margin-bottom:4px;}
+  .cal-day.other-month .cal-day-num{color:var(--gray-300);}
+  .cal-day.today .cal-day-num{color:var(--accent);font-weight:700;}
+  .cal-event{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-700);padding:2px 0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cal-event:hover{color:var(--accent);}
+  .cal-event-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .cal-unscheduled{margin-top:16px;}
+
   /* ── DETAIL ── */
   .detail-back{display:flex;align-items:center;gap:6px;color:var(--gray-500);font-size:12px;cursor:pointer;margin-bottom:16px;width:fit-content;}
   .detail-back:hover{color:var(--accent);} .detail-back svg{width:14px;height:14px;}
@@ -392,6 +413,7 @@
     </div>
     <div class="filter-panel" id="pipeline-filter-panel"></div>
     <div class="kanban-board" id="kanban-board"></div>
+    <div class="calendar-view" id="calendar-view" style="display:none;"></div>
   </div>
 
   <!-- DIRECTORY -->
@@ -787,7 +809,7 @@ let nextTaskId=1000;
 let lastImportUndo=null;
 
 // ══════════════ STATE ══════════════
-let state={pipeline:'partners',portfolio:1,filters:{}};
+let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1)};
 let currentId=null,prevPage='pipeline';
 let drag={active:false};
 
@@ -1374,6 +1396,10 @@ function renderPipeline(){
   let list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)
     ||(r.members||[]).some(m=>(m.name||'').toLowerCase().includes(q))):recs;
   list=applyFilters(list);
+  const isEventsCal=state.pipeline==='events';
+  document.getElementById('kanban-board').style.display=isEventsCal?'none':'';
+  document.getElementById('calendar-view').style.display=isEventsCal?'':'none';
+  if(isEventsCal){ renderCalendar(list); return; }
   document.getElementById('kanban-board').innerHTML=stages.map(stage=>{
     const cards=list.filter(r=>r.stage===stage).sort((a,b)=>tagRank(a)-tagRank(b));
     const tot=cards.reduce((s,r)=>s+(r.value||0),0);
@@ -1383,6 +1409,72 @@ function renderPipeline(){
       <button class="add-card-btn" onclick="openModal('${stage}')">+ Add</button>
     </div>`;
   }).join('');
+}
+
+// ══════════════ CALENDAR (Events "Schedule" tab) ══════════════
+function calPrevMonth(){ state.calMonth=new Date(state.calMonth.getFullYear(),state.calMonth.getMonth()-1,1); renderPipeline(); }
+function calNextMonth(){ state.calMonth=new Date(state.calMonth.getFullYear(),state.calMonth.getMonth()+1,1); renderPipeline(); }
+function calToday(){ const n=new Date(); state.calMonth=new Date(n.getFullYear(),n.getMonth(),1); renderPipeline(); }
+function calDayKey(d){ return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+// `list` is the same searched+filtered array renderPipeline() already builds for the kanban
+// board — search/filters narrow the calendar exactly the same way. Events with no startAt
+// (a Draft with no date set yet) can't be placed on the grid, so they get an "Unscheduled"
+// list underneath instead of silently disappearing (the old kanban's Draft column could hold
+// them with no date at all).
+function renderCalendar(list){
+  const month=state.calMonth;
+  const year=month.getFullYear(), mo=month.getMonth();
+  const first=new Date(year,mo,1), last=new Date(year,mo+1,0);
+  const gridStart=new Date(first); gridStart.setDate(first.getDate()-first.getDay());
+  const gridEnd=new Date(last); gridEnd.setDate(last.getDate()+(6-last.getDay()));
+  const today=new Date(); today.setHours(0,0,0,0);
+
+  const byDay={}, multiDay=[], unscheduled=[];
+  list.forEach(r=>{
+    if(!r.startAt){ unscheduled.push(r); return; }
+    const s=new Date(r.startAt); s.setHours(0,0,0,0);
+    const e=r.endAt?new Date(r.endAt):new Date(s); e.setHours(0,0,0,0);
+    if(e.getTime()>s.getTime()) multiDay.push({r,start:s,end:e});
+    else (byDay[calDayKey(s)]=byDay[calDayKey(s)]||[]).push(r);
+  });
+
+  const weekBlocks=[];
+  for(let wStart=new Date(gridStart); wStart<=gridEnd; wStart.setDate(wStart.getDate()+7)){
+    const days=[]; for(let i=0;i<7;i++){ const d=new Date(wStart); d.setDate(wStart.getDate()+i); days.push(d); }
+    const weekEnd=days[6];
+    // Multi-day events touching this week get a bar spanning their overlap with it, one
+    // "lane" (grid row) per bar so simultaneous multi-day events don't overlap visually.
+    const bars=multiDay.filter(m=>m.start<=weekEnd&&m.end>=wStart);
+    const barsHtml=bars.map((m,lane)=>{
+      const c0=Math.max(0,Math.round((Math.max(m.start,wStart)-wStart)/86400000));
+      const c1=Math.min(6,Math.round((Math.min(m.end,weekEnd)-wStart)/86400000));
+      const color=STAGE_COLOR[m.r.stage]||'#888780';
+      return `<div class="cal-bar" style="grid-column:${c0+1}/${c1+2};grid-row:${lane+1};background:${color};" onclick="openDetail(${m.r.id})" title="${escAttr(m.r.company)}">${escHtml(m.r.company)}</div>`;
+    }).join('');
+    const daysHtml=days.map(d=>{
+      const inMonth=d.getMonth()===mo, isToday=d.getTime()===today.getTime();
+      const evs=byDay[calDayKey(d)]||[];
+      const evHtml=evs.map(r=>`<div class="cal-event" onclick="openDetail(${r.id})" title="${escAttr(r.company)}"><span class="cal-event-dot" style="background:${STAGE_COLOR[r.stage]||'#888780'};"></span>${escHtml(r.company)}</div>`).join('');
+      return `<div class="cal-day${inMonth?'':' other-month'}${isToday?' today':''}"><div class="cal-day-num">${d.getDate()}</div>${evHtml}</div>`;
+    }).join('');
+    weekBlocks.push(`<div class="cal-week">${barsHtml?`<div class="cal-week-bars">${barsHtml}</div>`:''}<div class="cal-week-days">${daysHtml}</div></div>`);
+  }
+
+  const monthLabel=month.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const weekdayLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  document.getElementById('calendar-view').innerHTML=`
+    <div class="calendar-header">
+      <div class="calendar-title">${monthLabel}</div>
+      <div class="calendar-nav">
+        <button class="btn btn-ghost" onclick="calPrevMonth()">‹</button>
+        <button class="btn btn-ghost" onclick="calToday()">Today</button>
+        <button class="btn btn-ghost" onclick="calNextMonth()">›</button>
+      </div>
+    </div>
+    <div class="calendar-weekdays">${weekdayLabels.map(w=>`<div class="cal-weekday">${w}</div>`).join('')}</div>
+    ${weekBlocks.join('')}
+    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${STAGE_COLOR[r.stage]||'#888780'};"></span>${escHtml(r.company)}</div>`).join('')}</div>`:''}
+  `;
 }
 
 // ══════════════ TASKS TAB ══════════════
