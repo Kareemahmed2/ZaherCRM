@@ -178,13 +178,27 @@
   .cal-day.other-month .cal-day-num{color:var(--gray-300);}
   .cal-day.today .cal-day-num{color:var(--accent);font-weight:700;}
   .cal-bars-overlay{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,1fr);gap:6px;pointer-events:none;}
-  .cal-bar{pointer-events:auto;height:16px;line-height:16px;padding:0 6px;font-size:10px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+  /* The hover tooltip is a SIBLING of `.cal-bar`/`.cal-event`, not a child — `.cal-bar` itself
+     has overflow:hidden for its own text ellipsis, which would clip a nested tooltip. Wrapping
+     both in a `position:relative` parent and showing the tooltip via `:hover` on the wrapper
+     keeps it unclipped and lets it escape the bar's own bounds. */
+  .cal-bar-wrap{position:relative;pointer-events:auto;}
+  .cal-bar{display:block;height:16px;line-height:16px;padding:0 6px;font-size:10px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
   .cal-bar.bar-start{border-top-left-radius:4px;border-bottom-left-radius:4px;}
   .cal-bar.bar-end{border-top-right-radius:4px;border-bottom-right-radius:4px;}
+  .cal-event-wrap{position:relative;}
   .cal-event{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-700);padding:2px 0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .cal-event:hover{color:var(--accent);}
   .cal-event-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
   .cal-unscheduled{margin-top:16px;}
+  .cal-tooltip{display:none;position:absolute;top:100%;left:0;z-index:80;margin-top:4px;min-width:220px;max-width:300px;background:var(--white);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-md);padding:10px 12px;font-size:11px;color:var(--gray-700);line-height:1.6;pointer-events:none;}
+  .cal-tooltip.tooltip-right{left:auto;right:0;}
+  .cal-bar-wrap:hover .cal-tooltip,.cal-event-wrap:hover .cal-tooltip{display:block;}
+  .cal-tooltip .ctt-title{font-size:12px;font-weight:600;color:var(--gray-900);margin-bottom:4px;}
+  .cal-tooltip .ctt-row{display:flex;gap:6px;}
+  .cal-tooltip .ctt-row+.ctt-row{margin-top:2px;}
+  .cal-tooltip .ctt-label{color:var(--gray-500);flex-shrink:0;min-width:52px;}
+  .cal-tooltip .ctt-notes{margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);white-space:pre-wrap;}
 
   /* ── DETAIL ── */
   .detail-back{display:flex;align-items:center;gap:6px;color:var(--gray-500);font-size:12px;cursor:pointer;margin-bottom:16px;width:fit-content;}
@@ -1444,6 +1458,21 @@ function calToday(){ const n=new Date(); state.calMonth=new Date(n.getFullYear()
 // across week boundaries), so a multi-day event crossing into a new week can in principle
 // land in a different lane there — a minor cosmetic simplification, not a functional one.
 const CAL_HEADER_H=18, CAL_LANE_H=18, CAL_BASE_MIN=64;
+// Hover-detail card for a calendar event: name, status, format, and whichever of
+// venue/address (In-Person) or meeting link (Virtual) applies, plus notes if any.
+function eventTooltipHtml(r){
+  const rows=[['Status',r.stage||'—']];
+  if(r.format) rows.push(['Format',r.format]);
+  if(r.format==='In-Person'){
+    if(r.venueName) rows.push(['Venue',r.venueName]);
+    if(r.address) rows.push(['Address',r.address]);
+  } else if(r.format==='Virtual' && r.meetingUrl){
+    rows.push(['Link',r.meetingUrl]);
+  }
+  const rowsHtml=rows.map(([label,val])=>`<div class="ctt-row"><span class="ctt-label">${escHtml(label)}</span><span>${escHtml(val)}</span></div>`).join('');
+  const notesHtml=r.notes?`<div class="ctt-notes">${escHtml(r.notes)}</div>`:'';
+  return `<div class="ctt-title">${escHtml(r.company)}</div>${rowsHtml}${notesHtml}`;
+}
 function renderCalendar(list){
   const month=state.calMonth;
   const year=month.getFullYear(), mo=month.getMonth();
@@ -1483,7 +1512,11 @@ function renderCalendar(list){
     const barsHtml=placed.map(({sp,c0,c1,lane})=>{
       const isStart=sp.start.getTime()>=wStart.getTime(), isEnd=sp.end.getTime()<=weekEnd.getTime();
       const cls='cal-bar'+(isStart?' bar-start':'')+(isEnd?' bar-end':'');
-      return `<div class="${cls}" style="grid-column:${c0+1}/${c1+2};grid-row:${lane+2};background:${avcHex(sp.r.id)};" onclick="openDetail(${sp.r.id})" title="${escAttr(sp.r.company)}">${escHtml(sp.r.company)}</div>`;
+      const tooltipCls='cal-tooltip'+(c1>=5?' tooltip-right':'');
+      return `<div class="cal-bar-wrap" style="grid-column:${c0+1}/${c1+2};grid-row:${lane+2};">
+        <div class="${cls}" style="background:${avcHex(sp.r.id)};" onclick="openDetail(${sp.r.id})">${escHtml(sp.r.company)}</div>
+        <div class="${tooltipCls}">${eventTooltipHtml(sp.r)}</div>
+      </div>`;
     }).join('');
     weekBlocks.push(`<div class="cal-week">
       <div class="cal-week-days">${daysHtml}</div>
@@ -1504,7 +1537,7 @@ function renderCalendar(list){
     </div>
     <div class="calendar-weekdays">${weekdayLabels.map(w=>`<div class="cal-weekday">${w}</div>`).join('')}</div>
     ${weekBlocks.join('')}
-    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span>${escHtml(r.company)}</div>`).join('')}</div>`:''}
+    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event-wrap"><div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span>${escHtml(r.company)}</div><div class="cal-tooltip">${eventTooltipHtml(r)}</div></div>`).join('')}</div>`:''}
   `;
 }
 
