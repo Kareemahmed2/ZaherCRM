@@ -114,6 +114,7 @@
   .stage-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:3px 10px;border-radius:99px;white-space:nowrap;}
   .tier-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;}
   .t1{background:var(--green-50);color:var(--green-600);} .t2{background:var(--amber-50);color:var(--amber-600);} .t3{background:var(--gray-100);color:var(--gray-500);}
+  .prio-High{background:var(--red-50);color:var(--red-400);} .prio-Medium{background:var(--amber-50);color:var(--amber-600);} .prio-Low{background:var(--gray-100);color:var(--gray-700);}
   .chip{font-size:9px;font-weight:600;padding:2px 7px;border-radius:99px;white-space:nowrap;}
   .funnel{padding:16px 20px;} .funnel-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
   .funnel-row:last-child{margin-bottom:0;} .funnel-label{font-size:11px;color:var(--gray-700);width:120px;flex-shrink:0;}
@@ -322,6 +323,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 11a4 4 0 0 0 4 4v2"/></svg>
       <span id="nav-directory-label">Directory</span>
     </div>
+    <div class="nav-item" id="nav-tasks" onclick="showPage('tasks')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span>Tasks</span><span class="nav-badge" id="nav-tasks-badge">0</span>
+    </div>
     <div class="nav-item" id="nav-analytics" onclick="showPage('analytics')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Analytics
     </div>
@@ -366,6 +371,7 @@
       <div>
         <div class="card" style="margin-bottom:14px;"><div class="card-header"><span class="card-title" id="funnel-title">Funnel</span></div><div class="funnel" id="funnel-chart"></div></div>
         <div class="card" style="margin-bottom:14px;"><div class="card-header"><span class="card-title">Recent notes</span></div><div class="act-feed" id="notes-feed"></div></div>
+        <div class="card" style="margin-bottom:14px;"><div class="card-header"><span class="card-title">To-do</span></div><div class="act-feed" id="todo-feed"></div></div>
         <div class="card"><div class="card-header"><span class="card-title">Recent activity</span></div><div class="act-feed" id="activity-feed"></div></div>
       </div>
     </div>
@@ -405,6 +411,17 @@
     </div>
     <div class="filter-panel" id="dir-filter-panel"></div>
     <div class="card"><table class="leads-table"><thead id="dir-thead"></thead><tbody id="dir-body"></tbody></table></div>
+  </div>
+
+  <!-- TASKS -->
+  <div class="page" id="page-tasks">
+    <div class="pipeline-controls">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search company or task..." id="task-search" oninput="renderTasks()">
+      </div>
+    </div>
+    <div class="kanban-board" id="tasks-board"></div>
   </div>
 
   <!-- ANALYTICS -->
@@ -464,6 +481,9 @@
           <div class="stage-tracker" id="det-stages"></div><div class="stage-actions" id="det-stage-actions"></div>
         </div>
         <div class="card"><div class="card-header"><span class="card-title">Activity</span></div><div class="timeline" id="det-timeline"></div></div>
+        <div class="card" style="margin-top:14px;"><div class="card-header"><span class="card-title">Tasks</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openAddTask()">+ Add task</button></div>
+          <div id="det-tasks-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -536,6 +556,28 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeMemberModal()">Cancel</button>
       <button class="btn btn-primary" id="member-modal-submit-btn" onclick="saveMemberModal()">Add member</button>
+    </div>
+  </div>
+</div>
+
+<!-- TASK MODAL -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal" style="width:420px;">
+    <div class="modal-header"><span class="modal-title" id="task-modal-title">Add task</span>
+      <button class="modal-close" onclick="closeTaskModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Title *</label><input class="form-input" id="task-title" placeholder="Send updated proposal"></div>
+      <div class="form-group"><label class="form-label">Description</label><textarea class="form-input" id="task-desc" rows="3" placeholder="What needs to happen?"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Deadline</label><input class="form-input" type="date" id="task-deadline"></div>
+        <div class="form-group"><label class="form-label">Priority</label><select class="form-input" id="task-priority"><option>High</option><option selected>Medium</option><option>Low</option></select></div>
+      </div>
+      <div class="form-group" id="task-status-group" style="display:none;"><label class="form-label">Status</label><select class="form-input" id="task-status"><option>Needs to be Done</option><option>Pending</option><option>Done</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeTaskModal()">Cancel</button>
+      <button class="btn btn-primary" id="task-modal-submit-btn" onclick="saveTaskModal()">Add task</button>
     </div>
   </div>
 </div>
@@ -726,8 +768,19 @@ const SEED_RECORDS = [
   {id:81,pipeline:'events',name:'MENA Growth Summit — Zaher AI Booth',company:'MENA Growth Summit — Zaher AI Booth',role:'',email:'',phone:'',members:[],stage:'Scheduled',eventType:'Trade Show',description:'Booth presence at the MENA Growth Summit to demo AI Visibility Audits to attending brands and agencies.',startAt:'2026-09-14T06:00:00.000Z',endAt:'2026-09-15T16:00:00.000Z',timezone:'Asia/Dubai',format:'In-Person',venueName:'Dubai World Trade Centre',address:'Sheikh Zayed Rd, Dubai, UAE',mapUrl:'https://maps.google.com/?q=Dubai+World+Trade+Centre',capacity:200,date:'Jul 22',notes:'Booth confirmed, badge count due Aug 1.',activity:[{t:'Booth secured',d:'Jul 22'}]},
   {id:82,pipeline:'events',name:'Zaher AI Visibility Demo — Talabat',company:'Zaher AI Visibility Demo — Talabat',role:'',email:'',phone:'',members:[],stage:'Completed',eventType:'Product Demo',description:'Walkthrough of the AI Visibility Score and content recommendations for Talabat\'s marketing team.',startAt:'2026-07-11T09:00:00.000Z',endAt:'2026-07-11T09:45:00.000Z',timezone:'Africa/Cairo',format:'Virtual',meetingUrl:'https://meet.google.com/abc-defg-hij',meetingPasscode:'',dialIn:'',date:'Jul 11',notes:'Well received — following up with a proposal.',activity:[{t:'Demo delivered',d:'Jul 11'}]}
 ];
+
+const SEED_TASKS = [
+  {id:1,pipeline:'partners',record_id:1,title:'Send updated reseller agreement',description:'Redline the retainer clause and send back to Fahad for signature.',status:'Needs to be Done',deadline:'2026-08-06',priority:'High'},
+  {id:2,pipeline:'partners',record_id:19,title:'Confirm Fall cohort workshop slot',description:'Lock the date with the Flat6Labs programs team before their cohort calendar fills up.',status:'Pending',deadline:'2026-08-20',priority:'Medium'},
+  {id:3,pipeline:'customers',record_id:40,title:'Prep pilot results deck',description:'Summarize the 20-category pilot results for the renewal call.',status:'Needs to be Done',deadline:'2026-08-05',priority:'High'},
+  {id:4,pipeline:'customers',record_id:42,title:'Follow up on audit findings',description:'Check whether Talabat has questions on the low-visibility findings.',status:'Done',deadline:'2026-07-25',priority:'Low'},
+  {id:5,pipeline:'investors',record_id:60,title:'Send MRR trajectory + retention cohorts',description:'Algebra Ventures asked for this after the pitch deck.',status:'Pending',deadline:'2026-08-08',priority:'Medium'},
+  {id:6,pipeline:'events',record_id:80,title:'Finalize webinar deck',description:'Lock slides before promo emails go out.',status:'Needs to be Done',deadline:'2026-08-09',priority:'High'}
+];
 let records = [];
+let tasks = [];
 let nextId=100;
+let nextTaskId=1000;
 let lastImportUndo=null;
 
 // ══════════════ STATE ══════════════
@@ -771,6 +824,28 @@ function describeAmbiguous(r,q){ return `"${q}" matches a contact at multiple co
 function matchInList(list,needle){ if(!needle)return null; const n=(''+needle).toLowerCase(); return list.find(s=>s.toLowerCase()===n) || list.find(s=>s.toLowerCase().includes(n)) || null; }
 function primaryMember(r){ return (r&&r.members&&r.members[0]) || null; }
 
+// ══════════════ TASKS ══════════════
+const TASK_STATUSES=['Needs to be Done','Pending','Done'];
+const TASK_PRIORITIES=['High','Medium','Low'];
+function priorityChip(p){ if(!p) return ''; return `<span class="tier-pill prio-${p}">${p}</span>`; }
+function priorityDotColor(p){ return {High:'var(--red-400)',Medium:'var(--amber-400)',Low:'var(--green-400)'}[p]||'var(--gray-500)'; }
+function fmtDeadline(d){ if(!d) return '—'; const dt=new Date(d+'T00:00:00'); return isNaN(dt)?'—':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
+function tasksFor(pipeline,recordId){ return tasks.filter(t=>t.pipeline===pipeline && t.record_id===recordId); }
+function activeTasks(){ const ids=new Set(activeRecords().map(r=>r.id)); return tasks.filter(t=>t.pipeline===state.pipeline && ids.has(t.record_id)); }
+function taskCompany(t){ return records.find(r=>r.pipeline===t.pipeline && r.id===t.record_id); }
+// Blends priority and deadline proximity into a single sort key for the dashboard to-do
+// list: overdue/due-today tasks get max urgency (5), tapering linearly to 0 by five days
+// out (and 0 for no deadline at all), then priority (High=3/Medium=2/Low=1) is added on
+// top so a high-priority task with a slightly further deadline can still outrank a
+// low-priority task that's due sooner.
+function taskUrgencyScore(t){
+  const prioW={High:3,Medium:2,Low:1}[t.priority]||0;
+  if(!t.deadline) return prioW;
+  const days=(new Date(t.deadline+'T00:00:00')-new Date(new Date().toDateString()))/86400000;
+  const urgency=days<=0?5:Math.max(0,5-Math.min(days,5));
+  return prioW+urgency;
+}
+
 // ══════════════ SUPABASE PERSISTENCE ══════════════
 const TABLE_BY_PIPELINE = {partners:'partners', customers:'customers', investors:'investors', events:'events'};
 async function loadRecords(){
@@ -793,6 +868,13 @@ async function loadRecords(){
   ];
   records = merged.length ? merged : SEED_RECORDS.slice();
   nextId = Math.max(100, ...records.map(r=>r.id||0));
+}
+async function loadTasks(){
+  if(!sb){ tasks = SEED_TASKS.slice(); nextTaskId = Math.max(1000, ...tasks.map(t=>t.id||0)); return; }
+  const {data, error} = await sb.from('tasks').select('*').order('id');
+  if(error) console.error(error);
+  tasks = (data && data.length) ? data : SEED_TASKS.slice();
+  nextTaskId = Math.max(1000, ...tasks.map(t=>t.id||0));
 }
 // Returns true once the write is confirmed synced (or there's no Supabase configured, which
 // isn't a failure — just local-only mode), false if Supabase rejected it. Direct UI call sites
@@ -831,6 +913,37 @@ async function deleteRecordRemote(id, pipeline){
   if(!sb) return true;
   const {error} = await sb.from(TABLE_BY_PIPELINE[pipeline]).delete().eq('id', id);
   if(error){ console.error(error); showToast('Sync failed — delete kept locally only'); return false; }
+  return true;
+}
+async function saveTask(t){
+  t.updated_at = new Date().toISOString();
+  if(!sb) return true;
+  const {id, ...payload} = t;
+  const {error} = await sb.from('tasks').update(payload).eq('id', id);
+  if(error){ console.error(error); showToast('Sync failed — change kept locally only'); return false; }
+  return true;
+}
+async function createTask(t){
+  t.updated_at = new Date().toISOString();
+  t.created_at = t.updated_at;
+  if(!sb){ t.id = ++nextTaskId; return true; }
+  const {error, data} = await sb.from('tasks').insert(t).select().single();
+  if(error){ console.error(error); showToast('Sync failed — task kept locally only'); t.id = ++nextTaskId; return false; }
+  t.id = data.id;
+  return true;
+}
+async function deleteTaskRemote(id){
+  if(!sb) return true;
+  const {error} = await sb.from('tasks').delete().eq('id', id);
+  if(error){ console.error(error); showToast('Sync failed — delete kept locally only'); return false; }
+  return true;
+}
+// Tasks have no DB-level cascade delete (see supabase_schema.sql) since `record_id` isn't a
+// real foreign key — called from execDelete() so a deleted company's tasks don't linger.
+async function deleteTasksForRecordRemote(pipeline, recordId){
+  if(!sb) return true;
+  const {error} = await sb.from('tasks').delete().eq('pipeline', pipeline).eq('record_id', recordId);
+  if(error){ console.error(error); showToast('Sync failed — orphaned tasks kept locally only'); return false; }
   return true;
 }
 
@@ -961,19 +1074,23 @@ function setPortfolio(pf){
 // ══════════════ NAVIGATION ══════════════
 function showPage(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  ['dashboard','pipeline','directory','analytics'].forEach(n=>document.getElementById('nav-'+n).classList.toggle('active',n===page));
+  ['dashboard','pipeline','directory','tasks','analytics'].forEach(n=>document.getElementById('nav-'+n).classList.toggle('active',n===page));
   document.getElementById('page-'+page).classList.add('active');
   const rec=records.find(r=>r.id===currentId);
   const pipelineTitles={investors:'Deal Flow',events:'Schedule'};
-  const titles={dashboard:'Dashboard',pipeline:pipelineTitles[state.pipeline]||'Pipeline',directory:{partners:'Directory',customers:'Contacts',investors:'Investors',events:'Events'}[state.pipeline],analytics:'Analytics',detail:rec?rec.name:'Detail'};
+  const titles={dashboard:'Dashboard',pipeline:pipelineTitles[state.pipeline]||'Pipeline',directory:{partners:'Directory',customers:'Contacts',investors:'Investors',events:'Events'}[state.pipeline],tasks:'Tasks',analytics:'Analytics',detail:rec?rec.name:'Detail'};
   document.getElementById('topbar-title').textContent=titles[page]||page;
   if(page==='dashboard')renderDashboard();
   if(page==='pipeline')renderPipeline();
   if(page==='directory')renderDirectory();
+  if(page==='tasks')renderTasks();
   if(page==='analytics')renderAnalytics();
 }
 function goBack(){ showPage(prevPage); }
-function updateBadge(){ document.getElementById('nav-badge').textContent=activeRecords().filter(r=>!TERMINAL.has(r.stage)).length; }
+function updateBadge(){
+  document.getElementById('nav-badge').textContent=activeRecords().filter(r=>!TERMINAL.has(r.stage)).length;
+  document.getElementById('nav-tasks-badge').textContent=activeTasks().filter(t=>t.status!=='Done').length;
+}
 
 // ══════════════ DASHBOARD ══════════════
 function renderDashboard(){
@@ -1050,6 +1167,15 @@ function renderDashboard(){
     <div style="flex:1;"><div class="act-text" style="font-weight:600;color:var(--gray-900);">${escHtml(n.company)}</div>
     <div class="tl-note" style="margin-top:4px;">${escHtml(n.note)}</div>
     <div class="act-time" style="margin-top:4px;">${escHtml(n.time)}</div></div></div>`).join(''):`<div class="notes-body">No notes yet.</div>`;
+
+  const todo=activeTasks().filter(t=>t.status!=='Done').sort((a,b)=>taskUrgencyScore(b)-taskUrgencyScore(a));
+  document.getElementById('todo-feed').innerHTML=todo.length?todo.slice(0,6).map(t=>{
+    const c=taskCompany(t);
+    return `<div class="act-item" style="cursor:pointer;" onclick="openDetail(${c?c.id:'null'})">
+    <div class="act-dot-wrap"><div class="act-dot" style="background:${priorityDotColor(t.priority)}"></div></div>
+    <div style="flex:1;"><div class="act-text" style="font-weight:600;color:var(--gray-900);">${escHtml(t.title)}</div>
+    <div class="act-time" style="margin-top:2px;">${c?escHtml(c.company):'—'} · ${fmtDeadline(t.deadline)} · ${escHtml(t.priority||'—')}</div></div></div>`;
+  }).join(''):`<div class="notes-body">Nothing on the to-do list.</div>`;
 
   const acts=[];
   recs.forEach(r=>{
@@ -1235,6 +1361,37 @@ function renderPipeline(){
       <div class="col-header"><div><div class="col-name">${stage}</div>${(!isP2()&&state.pipeline!=='events'&&tot)?`<div class="col-total">${fv(tot)}</div>`:''}</div><span class="col-count">${cards.length}</span></div>
       <div class="col-cards">${cards.map(buildCard).join('')}</div>
       <button class="add-card-btn" onclick="openModal('${stage}')">+ Add</button>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════ TASKS TAB ══════════════
+function buildTaskCard(t){
+  const c=taskCompany(t);
+  return `<div class="k-card" style="cursor:pointer;" onclick="openDetail(${c?c.id:'null'})">
+    <div class="k-card-top">
+      <div class="av ${c?avc(c.id):''}" style="width:28px;height:28px;font-size:9px;">${c?ini(c.company):'?'}</div>
+      <div class="k-card-info"><div class="kn">${escHtml(t.title)}</div><div class="kc">${c?escHtml(c.company):'—'}</div></div>
+    </div>
+    <div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${fmtDeadline(t.deadline)}</span></div>
+    <select class="form-input" style="font-size:12px;padding:5px 8px;" onclick="event.stopPropagation()" onchange="event.stopPropagation();changeTaskStatus(${t.id},this.value)">
+      ${TASK_STATUSES.map(s=>`<option ${s===t.status?'selected':''}>${s}</option>`).join('')}
+    </select>
+  </div>`;
+}
+function renderTasks(){
+  updateBadge();
+  const q=(document.getElementById('task-search')||{value:''}).value.toLowerCase();
+  let list=activeTasks();
+  if(q) list=list.filter(t=>{
+    const c=taskCompany(t);
+    return t.title.toLowerCase().includes(q) || (c&&c.company.toLowerCase().includes(q));
+  });
+  document.getElementById('tasks-board').innerHTML=TASK_STATUSES.map(status=>{
+    const items=list.filter(t=>t.status===status);
+    return `<div class="kanban-col">
+      <div class="col-header"><div class="col-name">${status}</div><span class="col-count">${items.length}</span></div>
+      <div class="col-cards">${items.map(buildTaskCard).join('')}</div>
     </div>`;
   }).join('');
 }
@@ -1790,6 +1947,24 @@ function renderDetail(){
     <div style="flex:1;"><div class="tl-note" style="margin-top:0;">${escHtml(a.note)}</div><div class="tl-date" style="margin-top:4px;">${escHtml(a.label)} · ${escHtml(a.date)}</div></div></div>`).join(''):`<div class="notes-body">No notes yet.</div>`;
   document.getElementById('det-contact-btn').onclick=()=>showToast('✉ Opening email to '+((pmDetail&&pmDetail.email)||'—'));
 
+  // Open tasks first (sorted by urgency), done tasks trail at the bottom.
+  const recTasks=tasksFor(r.pipeline,r.id).slice().sort((a,b)=>{
+    const da=a.status==='Done'?1:0, db=b.status==='Done'?1:0;
+    if(da!==db) return da-db;
+    return taskUrgencyScore(b)-taskUrgencyScore(a);
+  });
+  document.getElementById('det-tasks-list').innerHTML=recTasks.length?recTasks.map(t=>`
+    <div class="field-item" style="border-right:none;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer;" onclick="editTask(${t.id})">
+        <div class="field-val" style="min-width:0;">${escHtml(t.title)}</div>
+        <button class="modal-close" style="flex-shrink:0;" onclick="event.stopPropagation();deleteTask(${t.id})" title="Delete task">✕</button>
+      </div>
+      <div style="font-size:11px;color:var(--gray-500);margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}<span>${fmtDeadline(t.deadline)}</span></div>
+      <select class="form-input" style="font-size:11px;padding:5px 8px;margin-top:8px;" onchange="changeTaskStatus(${t.id},this.value)">
+        ${TASK_STATUSES.map(s=>`<option ${s===t.status?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>`).join(''):`<div class="notes-body">No tasks yet.</div>`;
+
   // fields per pipeline
   let fields=[];
   if(state.pipeline==='partners'){
@@ -2044,7 +2219,7 @@ function saveEditedRecord(){
 let deleteId=null;
 function confirmDelete(){deleteId=currentId;const r=records.find(x=>x.id===currentId);document.getElementById('confirm-msg').textContent=`This removes ${r.company} from the CRM. This can't be undone.`;document.getElementById('confirm-overlay').classList.add('open');}
 function closeConfirm(){document.getElementById('confirm-overlay').classList.remove('open');}
-function execDelete(){const r=records.find(x=>x.id===deleteId);records=records.filter(x=>x.id!==deleteId);deleteRecordRemote(deleteId,r&&r.pipeline);closeConfirm();showToast(`${r?r.company:'Record'} deleted`);goBack();}
+function execDelete(){const r=records.find(x=>x.id===deleteId);records=records.filter(x=>x.id!==deleteId);deleteRecordRemote(deleteId,r&&r.pipeline);if(r){tasks=tasks.filter(t=>!(t.pipeline===r.pipeline&&t.record_id===deleteId));deleteTasksForRecordRemote(r.pipeline,deleteId);}closeConfirm();showToast(`${r?r.company:'Record'} deleted`);goBack();}
 
 // ══════════════ SCORER ══════════════
 function openScorer(){document.getElementById('scorer').classList.add('open');document.getElementById('sc-result').style.display='none';}
@@ -2114,6 +2289,65 @@ function deleteMember(i){
   r.members.splice(i,1);
   r.activity=(r.activity||[]).concat([{t:`Removed member: ${m.name}`,d:'Today'}]);
   saveRecord(r); renderDetail(); showToast(`${m.name} removed`);
+}
+
+// ══════════════ TASKS ══════════════
+// Creation/editing/deletion only ever happens from the company detail page (see
+// det-tasks-list above) — the Tasks tab and dashboard to-do widget only call
+// changeTaskStatus(), which is why that one function lives outside the modal flow below.
+let editTaskId=null;
+function openAddTask(){
+  editTaskId=null;
+  document.getElementById('task-title').value='';
+  document.getElementById('task-desc').value='';
+  document.getElementById('task-deadline').value='';
+  document.getElementById('task-priority').value='Medium';
+  document.getElementById('task-status-group').style.display='none';
+  document.getElementById('task-modal-title').textContent='Add task';
+  document.getElementById('task-modal-submit-btn').textContent='Add task';
+  document.getElementById('task-modal').classList.add('open');
+}
+function editTask(id){
+  const t=tasks.find(x=>x.id===id); if(!t)return;
+  editTaskId=id;
+  document.getElementById('task-title').value=t.title||'';
+  document.getElementById('task-desc').value=t.description||'';
+  document.getElementById('task-deadline').value=t.deadline||'';
+  document.getElementById('task-priority').value=t.priority||'Medium';
+  document.getElementById('task-status').value=t.status||'Needs to be Done';
+  document.getElementById('task-status-group').style.display='';
+  document.getElementById('task-modal-title').textContent='Edit task';
+  document.getElementById('task-modal-submit-btn').textContent='Save changes';
+  document.getElementById('task-modal').classList.add('open');
+}
+function closeTaskModal(){ document.getElementById('task-modal').classList.remove('open'); editTaskId=null; }
+async function saveTaskModal(){
+  const title=val('task-title'); if(!title){showToast('Task title is required');return;}
+  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const deadline=val('task-deadline')||null, priority=val('task-priority')||'Medium';
+  if(editTaskId==null){
+    const t={pipeline:r.pipeline,record_id:r.id,title,description:val('task-desc'),status:'Needs to be Done',deadline,priority};
+    await createTask(t);
+    tasks.push(t);
+  } else {
+    const t=tasks.find(x=>x.id===editTaskId); if(!t)return;
+    Object.assign(t,{title,description:val('task-desc'),deadline,priority,status:val('task-status')||t.status});
+    await saveTask(t);
+  }
+  closeTaskModal(); renderDetail(); updateBadge(); showToast('Task saved');
+}
+async function deleteTask(id){
+  const t=tasks.find(x=>x.id===id); if(!t)return;
+  if(!confirm(`Delete task "${t.title}"? This can't be undone.`))return;
+  await deleteTaskRemote(id);
+  tasks=tasks.filter(x=>x.id!==id);
+  renderDetail(); updateBadge(); showToast('Task deleted');
+}
+async function changeTaskStatus(id,status){
+  const t=tasks.find(x=>x.id===id); if(!t)return;
+  t.status=status;
+  await saveTask(t);
+  refreshView();
 }
 
 // ══════════════ CHATBOT ══════════════
@@ -2200,7 +2434,7 @@ async function execTool(name,input){
     return 'Unknown tool.';
   }catch(e){return 'Error: '+e.message;}
 }
-function refreshView(){const active=document.querySelector('.page.active');if(!active)return;const p=active.id.replace('page-','');if(p==='dashboard')renderDashboard();else if(p==='pipeline')renderPipeline();else if(p==='directory')renderDirectory();else if(p==='analytics')renderAnalytics();else if(p==='detail')renderDetail();updateBadge();}
+function refreshView(){const active=document.querySelector('.page.active');if(!active)return;const p=active.id.replace('page-','');if(p==='dashboard')renderDashboard();else if(p==='pipeline')renderPipeline();else if(p==='directory')renderDirectory();else if(p==='tasks')renderTasks();else if(p==='analytics')renderAnalytics();else if(p==='detail')renderDetail();updateBadge();}
 function toggleChat(){const p=document.getElementById('chat-panel');p.classList.toggle('open');if(p.classList.contains('open'))setTimeout(()=>document.getElementById('chat-input').focus(),200);}
 function autoGrow(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
 function chatKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}
@@ -2253,6 +2487,7 @@ let appStarted=false;
 async function startApp(){
   document.getElementById('logout-btn').style.display=sb?'':'none';
   await loadRecords();
+  await loadTasks();
   await loadNextStepOptions();
   await loadEventTypeOptions();
   setPipeline('partners');

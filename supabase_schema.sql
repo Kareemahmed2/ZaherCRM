@@ -481,3 +481,44 @@ drop policy if exists "zaher team read event_type_options" on event_type_options
 create policy "zaher team read event_type_options" on event_type_options for select using (is_zaher_team());
 drop policy if exists "zaher team insert event_type_options" on event_type_options;
 create policy "zaher team insert event_type_options" on event_type_options for insert with check (is_zaher_team());
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Tasks (added 2026-08-04)
+-- Discrete to-dos attached to a company record in any pipeline — distinct
+-- from the free-text `activity`/notes trail. `record_id` is deliberately not
+-- a foreign key: it points at whichever of partners/customers/investors/events
+-- `pipeline` names (the same polymorphic-reference pattern `referredBy`
+-- already uses), so there's no DB-level cascade delete — the app deletes a
+-- record's tasks itself before/when it deletes the record.
+-- ═══════════════════════════════════════════════════════════════════════
+
+create table if not exists tasks (
+  id           bigint generated always as identity primary key,
+  pipeline     text not null check (pipeline in ('partners','customers','investors','events')),
+  record_id    bigint not null,
+  title        text not null,
+  description  text,
+  status       text not null default 'Needs to be Done' check (status in ('Needs to be Done','Pending','Done')),
+  deadline     date,
+  priority     text check (priority in ('High','Medium','Low')),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists tasks_pipeline_record_idx on tasks(pipeline, record_id);
+
+drop trigger if exists tasks_set_updated_at on tasks;
+create trigger tasks_set_updated_at
+  before update on tasks
+  for each row execute function set_updated_at();
+
+alter table tasks enable row level security;
+
+drop policy if exists "zaher team read tasks" on tasks;
+create policy "zaher team read tasks" on tasks for select using (is_zaher_team());
+drop policy if exists "zaher team insert tasks" on tasks;
+create policy "zaher team insert tasks" on tasks for insert with check (is_zaher_team());
+drop policy if exists "zaher team update tasks" on tasks;
+create policy "zaher team update tasks" on tasks for update using (is_zaher_team()) with check (is_zaher_team());
+drop policy if exists "zaher team delete tasks" on tasks;
+create policy "zaher team delete tasks" on tasks for delete using (is_zaher_team());
