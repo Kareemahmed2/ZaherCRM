@@ -365,6 +365,7 @@
       </div>
       <div>
         <div class="card" style="margin-bottom:14px;"><div class="card-header"><span class="card-title" id="funnel-title">Funnel</span></div><div class="funnel" id="funnel-chart"></div></div>
+        <div class="card" style="margin-bottom:14px;"><div class="card-header"><span class="card-title">Recent notes</span></div><div class="act-feed" id="notes-feed"></div></div>
         <div class="card"><div class="card-header"><span class="card-title">Recent activity</span></div><div class="act-feed" id="activity-feed"></div></div>
       </div>
     </div>
@@ -454,7 +455,7 @@
           <div id="det-members-list"></div>
         </div>
         <div class="notes-card">
-          <div class="card-header"><span class="card-title">Notes</span></div>
+          <div class="card-header"><span class="card-title">Notes</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openAddNote()">+ Add note</button></div>
           <div class="timeline" id="det-note-trail"></div>
         </div>
       </div>
@@ -551,6 +552,22 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="cancelStageChange()">Cancel</button>
       <button class="btn btn-primary" onclick="confirmStageChange()">Move</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD NOTE MODAL -->
+<div class="modal-overlay" id="add-note-modal">
+  <div class="modal" style="width:400px;">
+    <div class="modal-header"><span class="modal-title">Add note</span>
+      <button class="modal-close" onclick="cancelAddNote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Note</label><textarea class="form-input" id="add-note-text" rows="3" placeholder="What's new?"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cancelAddNote()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAddNote()">Save</button>
     </div>
   </div>
 </div>
@@ -1021,6 +1038,19 @@ function renderDashboard(){
     <div class="funnel-bar-bg"><div class="funnel-bar" style="width:${(counts[s]/mx)*100}%;background:${STAGE_COLOR[s]};"></div></div>
     <div class="funnel-count">${counts[s]}</div></div>`).join('');
 
+  const noteItems=[];
+  recs.forEach(r=>{
+    const baseTs=r.updated_at?new Date(r.updated_at).getTime():(r.created_at?new Date(r.created_at).getTime():r.id*1000);
+    r.activity.forEach((a,i)=>{ if(a.note) noteItems.push({id:r.id,company:r.company,note:a.note,time:a.d,color:STAGE_COLOR[r.stage],order:baseTs-(r.activity.length-1-i)}); });
+  });
+  noteItems.sort((a,b)=>b.order-a.order);
+  document.getElementById('notes-feed').innerHTML=noteItems.length?noteItems.slice(0,6).map(n=>`
+    <div class="act-item" style="cursor:pointer;" onclick="openDetail(${n.id})">
+    <div class="act-dot-wrap"><div class="act-dot" style="background:${n.color}"></div></div>
+    <div style="flex:1;"><div class="act-text" style="font-weight:600;color:var(--gray-900);">${escHtml(n.company)}</div>
+    <div class="tl-note" style="margin-top:4px;">${escHtml(n.note)}</div>
+    <div class="act-time" style="margin-top:4px;">${escHtml(n.time)}</div></div></div>`).join(''):`<div class="notes-body">No notes yet.</div>`;
+
   const acts=[];
   recs.forEach(r=>{
     // Rank by the record's actual last-saved time (refreshed on every edit, including
@@ -1127,6 +1157,26 @@ function applyStage(id,newStage,toast,note){
   renderPipeline(); updateBadge();
   if(currentId===id&&document.getElementById('page-detail').classList.contains('active'))renderDetail();
   if(toast)showToast(`${r.company} → ${newStage}`);
+}
+// Standalone notes reuse the same activity/tl-note plumbing as stage-change notes so they
+// show up in the Notes breadcrumb and Activity timeline identically — the only difference is
+// there's no stage change riding along, so the entry's label is plain "Note" instead of a
+// "Stage: X → Y" transition.
+function openAddNote(){
+  const r=records.find(x=>x.id===currentId); if(!r)return;
+  document.getElementById('add-note-text').value='';
+  document.getElementById('add-note-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('add-note-text').focus(),0);
+}
+function cancelAddNote(){ document.getElementById('add-note-modal').classList.remove('open'); }
+function confirmAddNote(){
+  const note=document.getElementById('add-note-text').value.trim(); if(!note)return;
+  const r=records.find(x=>x.id===currentId); if(!r)return;
+  r.activity.push({t:'Note',d:'Today',note});
+  saveRecord(r);
+  document.getElementById('add-note-modal').classList.remove('open');
+  renderDetail();
+  showToast('Note added');
 }
 // ══════════════ FILTERS ══════════════
 function filterFieldsFor(p){
