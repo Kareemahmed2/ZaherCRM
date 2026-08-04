@@ -163,16 +163,24 @@
   .calendar-nav{display:flex;gap:6px;}
   .calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;}
   .cal-weekday{font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.04em;text-align:center;padding:4px 0;}
-  .cal-week{margin-bottom:6px;}
-  .cal-week-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:3px 0;}
-  .cal-bar{padding:2px 8px;margin:0 2px 3px;border-radius:4px;font-size:10px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+  /* Each week is one positioning context: `.cal-week-days` lays out the actual bordered day
+     boxes, and `.cal-bars-overlay` sits on top of it (same column grid, same gap) so an event
+     bar's `grid-column` span visually bridges the gap between included days — giving a
+     continuous bar that looks like it lives inside the boxes (Google Calendar-style) instead
+     of floating above them. Each box's own height is padded out (via inline min-height,
+     computed in JS from that week's lane count) so there's room for the bars sitting over it. */
+  .cal-week{position:relative;margin-bottom:6px;}
   .cal-week-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
-  .cal-day{background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px;min-height:64px;}
+  .cal-day{background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px;box-sizing:border-box;}
   .cal-day.other-month{background:var(--gray-50);}
   .cal-day.today{border-color:var(--accent);}
   .cal-day-num{font-size:11px;color:var(--gray-500);margin-bottom:4px;}
   .cal-day.other-month .cal-day-num{color:var(--gray-300);}
   .cal-day.today .cal-day-num{color:var(--accent);font-weight:700;}
+  .cal-bars-overlay{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,1fr);gap:6px;pointer-events:none;}
+  .cal-bar{pointer-events:auto;height:16px;line-height:16px;padding:0 6px;font-size:10px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+  .cal-bar.bar-start{border-top-left-radius:4px;border-bottom-left-radius:4px;}
+  .cal-bar.bar-end{border-top-right-radius:4px;border-bottom-right-radius:4px;}
   .cal-event{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-700);padding:2px 0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .cal-event:hover{color:var(--accent);}
   .cal-event-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
@@ -816,6 +824,11 @@ let drag={active:false};
 // ══════════════ HELPERS ══════════════
 const ini=n=>(n||'?').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
 const avc=id=>AV_COLORS[Math.abs(id)%AV_COLORS.length];
+// The same per-id color identity as the `.av-*` avatar circle (dashboard/directory/kanban),
+// just as a solid hex instead of the avatar's pale-background-plus-tinted-text pair — used for
+// calendar event bars so a given event reads as the same color everywhere in the app.
+const AVC_HEX={'av-blue':'#185FA5','av-green':'#3B6D11','av-amber':'#854F0B','av-purple':'#534AB7','av-red':'#E24B4A','av-teal':'#0E7474'};
+const avcHex=id=>AVC_HEX[avc(id)];
 const fv=v=>!v?'$0':v>=1000000?'$'+(v/1000000).toFixed(1)+'M':v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v;
 const ff=v=>!v?'$0':'$'+v.toLocaleString();
 function fmtTs(ts){ if(!ts) return '—'; const d=new Date(ts); return isNaN(d)?'—':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
@@ -1415,12 +1428,22 @@ function renderPipeline(){
 function calPrevMonth(){ state.calMonth=new Date(state.calMonth.getFullYear(),state.calMonth.getMonth()-1,1); renderPipeline(); }
 function calNextMonth(){ state.calMonth=new Date(state.calMonth.getFullYear(),state.calMonth.getMonth()+1,1); renderPipeline(); }
 function calToday(){ const n=new Date(); state.calMonth=new Date(n.getFullYear(),n.getMonth(),1); renderPipeline(); }
-function calDayKey(d){ return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
 // `list` is the same searched+filtered array renderPipeline() already builds for the kanban
 // board — search/filters narrow the calendar exactly the same way. Events with no startAt
 // (a Draft with no date set yet) can't be placed on the grid, so they get an "Unscheduled"
 // list underneath instead of silently disappearing (the old kanban's Draft column could hold
 // them with no date at all).
+//
+// Every event — single-day or multi-day — is treated as a date span and packed into the
+// same per-week "lanes" (a simple greedy first-fit interval packing, one lane per row of
+// bars) so they all render as colored bars sitting inside the day boxes, Google-Calendar
+// style, rather than a separate dot+text list. A bar is colored by the event's own avatar
+// identity (`avcHex`) — the same color as its `.av-*` circle everywhere else in the app —
+// not by status, so a given event reads as the same color on the calendar as it does on its
+// kanban card or in the directory. Lane assignment is independent per week (not carried
+// across week boundaries), so a multi-day event crossing into a new week can in principle
+// land in a different lane there — a minor cosmetic simplification, not a functional one.
+const CAL_HEADER_H=18, CAL_LANE_H=18, CAL_BASE_MIN=64;
 function renderCalendar(list){
   const month=state.calMonth;
   const year=month.getFullYear(), mo=month.getMonth();
@@ -1429,35 +1452,43 @@ function renderCalendar(list){
   const gridEnd=new Date(last); gridEnd.setDate(last.getDate()+(6-last.getDay()));
   const today=new Date(); today.setHours(0,0,0,0);
 
-  const byDay={}, multiDay=[], unscheduled=[];
+  const spans=[], unscheduled=[];
   list.forEach(r=>{
     if(!r.startAt){ unscheduled.push(r); return; }
     const s=new Date(r.startAt); s.setHours(0,0,0,0);
     const e=r.endAt?new Date(r.endAt):new Date(s); e.setHours(0,0,0,0);
-    if(e.getTime()>s.getTime()) multiDay.push({r,start:s,end:e});
-    else (byDay[calDayKey(s)]=byDay[calDayKey(s)]||[]).push(r);
+    spans.push({r,start:s,end:e.getTime()>=s.getTime()?e:s});
   });
 
   const weekBlocks=[];
   for(let wStart=new Date(gridStart); wStart<=gridEnd; wStart.setDate(wStart.getDate()+7)){
     const days=[]; for(let i=0;i<7;i++){ const d=new Date(wStart); d.setDate(wStart.getDate()+i); days.push(d); }
     const weekEnd=days[6];
-    // Multi-day events touching this week get a bar spanning their overlap with it, one
-    // "lane" (grid row) per bar so simultaneous multi-day events don't overlap visually.
-    const bars=multiDay.filter(m=>m.start<=weekEnd&&m.end>=wStart);
-    const barsHtml=bars.map((m,lane)=>{
-      const c0=Math.max(0,Math.round((Math.max(m.start,wStart)-wStart)/86400000));
-      const c1=Math.min(6,Math.round((Math.min(m.end,weekEnd)-wStart)/86400000));
-      const color=STAGE_COLOR[m.r.stage]||'#888780';
-      return `<div class="cal-bar" style="grid-column:${c0+1}/${c1+2};grid-row:${lane+1};background:${color};" onclick="openDetail(${m.r.id})" title="${escAttr(m.r.company)}">${escHtml(m.r.company)}</div>`;
-    }).join('');
+    const touching=spans.filter(sp=>sp.start<=weekEnd&&sp.end>=wStart)
+      .sort((a,b)=>a.start-b.start||(b.end-b.start)-(a.end-a.start));
+    const laneEnds=[];
+    const placed=touching.map(sp=>{
+      const c0=Math.max(0,Math.round((Math.max(sp.start,wStart)-wStart)/86400000));
+      const c1=Math.min(6,Math.round((Math.min(sp.end,weekEnd)-wStart)/86400000));
+      let lane=0; while(laneEnds[lane]!==undefined&&laneEnds[lane]>=c0) lane++;
+      laneEnds[lane]=c1;
+      return {sp,c0,c1,lane};
+    });
+    const laneCount=laneEnds.length;
+    const dayMinH=Math.max(CAL_BASE_MIN,CAL_HEADER_H+laneCount*CAL_LANE_H+8);
     const daysHtml=days.map(d=>{
       const inMonth=d.getMonth()===mo, isToday=d.getTime()===today.getTime();
-      const evs=byDay[calDayKey(d)]||[];
-      const evHtml=evs.map(r=>`<div class="cal-event" onclick="openDetail(${r.id})" title="${escAttr(r.company)}"><span class="cal-event-dot" style="background:${STAGE_COLOR[r.stage]||'#888780'};"></span>${escHtml(r.company)}</div>`).join('');
-      return `<div class="cal-day${inMonth?'':' other-month'}${isToday?' today':''}"><div class="cal-day-num">${d.getDate()}</div>${evHtml}</div>`;
+      return `<div class="cal-day${inMonth?'':' other-month'}${isToday?' today':''}" style="min-height:${dayMinH}px;"><div class="cal-day-num">${d.getDate()}</div></div>`;
     }).join('');
-    weekBlocks.push(`<div class="cal-week">${barsHtml?`<div class="cal-week-bars">${barsHtml}</div>`:''}<div class="cal-week-days">${daysHtml}</div></div>`);
+    const barsHtml=placed.map(({sp,c0,c1,lane})=>{
+      const isStart=sp.start.getTime()>=wStart.getTime(), isEnd=sp.end.getTime()<=weekEnd.getTime();
+      const cls='cal-bar'+(isStart?' bar-start':'')+(isEnd?' bar-end':'');
+      return `<div class="${cls}" style="grid-column:${c0+1}/${c1+2};grid-row:${lane+2};background:${avcHex(sp.r.id)};" onclick="openDetail(${sp.r.id})" title="${escAttr(sp.r.company)}">${escHtml(sp.r.company)}</div>`;
+    }).join('');
+    weekBlocks.push(`<div class="cal-week">
+      <div class="cal-week-days">${daysHtml}</div>
+      <div class="cal-bars-overlay" style="grid-template-rows:${CAL_HEADER_H}px repeat(${laneCount},${CAL_LANE_H}px);">${barsHtml}</div>
+    </div>`);
   }
 
   const monthLabel=month.toLocaleDateString('en-US',{month:'long',year:'numeric'});
@@ -1473,7 +1504,7 @@ function renderCalendar(list){
     </div>
     <div class="calendar-weekdays">${weekdayLabels.map(w=>`<div class="cal-weekday">${w}</div>`).join('')}</div>
     ${weekBlocks.join('')}
-    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${STAGE_COLOR[r.stage]||'#888780'};"></span>${escHtml(r.company)}</div>`).join('')}</div>`:''}
+    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span>${escHtml(r.company)}</div>`).join('')}</div>`:''}
   `;
 }
 
