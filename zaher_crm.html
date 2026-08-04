@@ -186,8 +186,10 @@
   .cal-bar{display:block;height:16px;line-height:16px;padding:0 6px;font-size:10px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
   .cal-bar.bar-start{border-top-left-radius:4px;border-bottom-left-radius:4px;}
   .cal-bar.bar-end{border-top-right-radius:4px;border-bottom-right-radius:4px;}
-  .cal-event-wrap{position:relative;}
-  .cal-event{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-700);padding:2px 0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* Wraps only the event name, not the dot or the row's padding — hover (and so the tooltip)
+     only fires over the text itself, not the whole line. */
+  .cal-event-wrap{position:relative;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cal-event{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-700);padding:2px 0;cursor:pointer;}
   .cal-event:hover{color:var(--accent);}
   .cal-event-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
   .cal-unscheduled{margin-top:16px;}
@@ -1544,7 +1546,7 @@ function renderCalendar(list){
     </div>
     <div class="calendar-weekdays">${weekdayLabels.map(w=>`<div class="cal-weekday">${w}</div>`).join('')}</div>
     ${weekBlocks.join('')}
-    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event-wrap"><div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span>${escHtml(r.company)}</div><div class="cal-tooltip tooltip-up">${eventTooltipHtml(r)}</div></div>`).join('')}</div>`:''}
+    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span><div class="cal-event-wrap">${escHtml(r.company)}<div class="cal-tooltip tooltip-up">${eventTooltipHtml(r)}</div></div></div>`).join('')}</div>`:''}
   `;
 }
 
