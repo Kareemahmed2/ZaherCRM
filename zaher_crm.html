@@ -643,6 +643,13 @@
       <button class="modal-close" onclick="cancelStageChange()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
+      <div class="form-group" id="stage-segment-group" style="display:none;"><label class="form-label">Segment</label>
+        <select class="form-input" id="stage-segment-select">
+          <option value="" selected disabled>Select SaaS or Enterprise…</option>
+          <option value="Enterprise">Enterprise</option>
+          <option value="SaaS">SaaS</option>
+        </select>
+      </div>
       <div class="form-group"><label class="form-label">Note (optional)</label><textarea class="form-input" id="stage-note-text" rows="3" placeholder="What changed?"></textarea></div>
     </div>
     <div class="modal-footer">
@@ -1340,28 +1347,43 @@ function dragStart(e,id){
 // up attached to the same activity entry as the stage change and shows as a breadcrumb in
 // the detail timeline (see renderDetail's tl-note rendering).
 let pendingStage=null;
+// Customers only track SaaS/Enterprise once the deal actually closes — the segment is
+// unknown before then (it's decided when terms are discussed), so it stays null through
+// every earlier stage. Active Client is the one stage move that also needs this decision,
+// so the stage-note modal grows an extra required field just for that transition.
+function stageNeedsSegment(r,newStage){ return r.pipeline==='customers'&&newStage==='Active Client'; }
 function requestStageChange(id,newStage,toast){
   const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r||r.stage===newStage)return;
   pendingStage={id,newStage,toast};
   document.getElementById('stage-note-title').textContent=`${r.stage} → ${newStage}`;
   document.getElementById('stage-note-text').value='';
+  const needsSegment=stageNeedsSegment(r,newStage);
+  document.getElementById('stage-segment-group').style.display=needsSegment?'':'none';
+  document.getElementById('stage-segment-select').value=needsSegment?(r.segment||''):'';
   document.getElementById('stage-note-modal').classList.add('open');
-  setTimeout(()=>document.getElementById('stage-note-text').focus(),0);
+  setTimeout(()=>document.getElementById(needsSegment?'stage-segment-select':'stage-note-text').focus(),0);
 }
 function cancelStageChange(){ pendingStage=null; document.getElementById('stage-note-modal').classList.remove('open'); }
 function confirmStageChange(){
   if(!pendingStage)return;
-  const note=document.getElementById('stage-note-text').value.trim();
   const {id,newStage,toast}=pendingStage;
+  const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r)return;
+  let segment=null;
+  if(stageNeedsSegment(r,newStage)){
+    segment=document.getElementById('stage-segment-select').value;
+    if(!segment){ showToast('Pick SaaS or Enterprise before moving to Active Client'); return; }
+  }
+  const note=document.getElementById('stage-note-text').value.trim();
   document.getElementById('stage-note-modal').classList.remove('open');
   pendingStage=null;
-  applyStage(id,newStage,toast,note);
+  applyStage(id,newStage,toast,note,segment);
 }
-function applyStage(id,newStage,toast,note){
+function applyStage(id,newStage,toast,note,segment){
   const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r||r.stage===newStage)return;
   const old=r.stage; r.stage=newStage;
   const entry={t:`Stage: ${old} → ${newStage}`,d:'Today'};
   if(note)entry.note=note;
+  if(segment){ r.segment=segment; entry.note=(entry.note?entry.note+' · ':'')+`Segment set to ${segment}`; }
   r.activity.push(entry);
   saveRecord(r);
   renderPipeline(); updateBadge();
@@ -1658,12 +1680,26 @@ function renderDirBulkBar(){
   const stages=activeStages();
   bar.innerHTML=`<span style="font-weight:600;color:var(--red-400);">${dirSelected.size} selected</span>
     <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="clearDirSelection()">Clear selection</button>
-    <select id="dir-bulk-stage-select" class="form-input" style="font-size:12px;padding:5px 8px;width:auto;margin-left:auto;">
+    <select id="dir-bulk-stage-select" class="form-input" style="font-size:12px;padding:5px 8px;width:auto;margin-left:auto;" onchange="toggleDirBulkSegment(this.value)">
       <option value="" selected disabled>Move to stage…</option>
       ${stages.map(s=>`<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('')}
     </select>
+    ${state.pipeline==='customers'?`<select id="dir-bulk-segment-select" class="form-input" style="font-size:12px;padding:5px 8px;width:auto;display:none;">
+      <option value="" selected disabled>Segment…</option>
+      <option value="Enterprise">Enterprise</option>
+      <option value="SaaS">SaaS</option>
+    </select>`:''}
     <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="bulkChangeStage()">Apply</button>
     <button class="btn btn-danger" style="font-size:12px;padding:5px 10px;" onclick="bulkDeleteSelected()">Delete selected</button>`;
+}
+// Same Active-Client-needs-a-segment rule as the single-record stage change (see
+// stageNeedsSegment) — shows the extra selector only when the batch's target stage is
+// Active Client on the Customers pipeline, and applies that one segment to every record
+// in the batch (a bulk move assumes the whole batch shares a segment; anything mixed
+// needs handling one at a time via the detail page instead).
+function toggleDirBulkSegment(newStage){
+  const segSel=document.getElementById('dir-bulk-segment-select'); if(!segSel)return;
+  segSel.style.display=(state.pipeline==='customers'&&newStage==='Active Client')?'':'none';
 }
 // Bulk stage move — unlike the single-record stage change (requestStageChange), this skips
 // the note-prompt modal entirely: with many records selected at once there's no single note
@@ -1672,12 +1708,20 @@ function renderDirBulkBar(){
 function bulkChangeStage(){
   const sel=document.getElementById('dir-bulk-stage-select'); if(!sel||!sel.value)return;
   const newStage=sel.value, pipeline=state.pipeline;
+  let segment=null;
+  if(pipeline==='customers'&&newStage==='Active Client'){
+    const segSel=document.getElementById('dir-bulk-segment-select');
+    segment=segSel?segSel.value:'';
+    if(!segment){ showToast('Pick SaaS or Enterprise for the selected records before moving them to Active Client'); return; }
+  }
   const ids=[...dirSelected];
   const recs=records.filter(x=>ids.includes(x.id)&&x.pipeline===pipeline&&x.stage!==newStage);
   if(!recs.length){ showToast('Selected records are already at that stage'); return; }
   recs.forEach(r=>{
     const old=r.stage; r.stage=newStage;
-    r.activity.push({t:`Stage: ${old} → ${newStage}`,d:'Today'});
+    const entry={t:`Stage: ${old} → ${newStage}`,d:'Today'};
+    if(segment){ r.segment=segment; entry.note=`Segment set to ${segment}`; }
+    r.activity.push(entry);
     saveRecord(r);
   });
   dirSelected.clear();
@@ -1936,7 +1980,10 @@ async function handleImportFile(ev){
           // "SaaS"/"Enterprise" is treated as fixable — but only ever replaced by a value
           // that itself validates (a fuzzy-matched Sector value doesn't need validation
           // since sector is free text; segment must resolve to SaaS or Enterprise), so a
-          // re-import can never introduce new garbage while repairing old garbage.
+          // re-import can never introduce new garbage while repairing old garbage. This
+          // same "not SaaS/Enterprise" check also covers segment's normal null state before
+          // a customer reaches Active Client (see stageNeedsSegment) — an import that
+          // explicitly provides a valid segment can still backfill it early if known.
           const rawSector=get('sector');
           if((existing.sector==null||existing.sector===''||existing.sector==='General')&&rawSector!==undefined&&(''+rawSector).trim()!==''){
             existing.sector=(''+rawSector).toString(); fieldsFilled=true;
@@ -2013,7 +2060,7 @@ async function handleImportFile(ev){
       } else if(pipeline==='customers'){
         r.sector=(get('sector')||'General').toString();r.website=(get('website')||'').toString();r.package=(get('package')||'—').toString();
         r.aiScore=Math.round(Number(get('aiScore')))||null;r.leadSource=(get('leadSource')||get('source')||'Import').toString();
-        r.referredBy=Math.round(Number(get('referredBy')))||null;r.segment=matchInList(['SaaS','Enterprise'],get('segment'))||'Enterprise';
+        r.referredBy=Math.round(Number(get('referredBy')))||null;r.segment=matchInList(['SaaS','Enterprise'],get('segment'))||null;
         r.nextStep=(get('nextStep')||nextStepOptions[0]||'').toString();
         r.subscriptionPeriod=r.segment==='Enterprise'?(get('subscriptionPeriod')||'').toString():'';
         r.subscriptionDate=r.segment==='SaaS'?(get('subscriptionDate')||'').toString():'';
@@ -2371,6 +2418,33 @@ function toggleSubscriptionFields(segment){
   document.getElementById('f-subperiod-group').style.display=segment==='Enterprise'?'':'none';
   document.getElementById('f-subdate-group').style.display=segment==='SaaS'?'':'none';
 }
+// Mirrors stageNeedsSegment for the Add/Edit form: if Stage is set directly to Active
+// Client here — e.g. backfilling an existing client instead of walking it through every
+// earlier stage first — Segment needs to become editable right in this form too, since it
+// won't get a second chance via the stage-change modal (that only fires on a stage
+// TRANSITION, not on initial creation or an edit that jumps straight to Active Client).
+// The select rendered by extraFieldsHtml because the record already has a real r.segment
+// is marked data-permanent — it stays editable no matter what Stage is picked here — so
+// only a select this function created itself gets reverted when Stage moves back off
+// Active Client before the form is submitted.
+function toggleAddFormSegment(newStage){
+  const el=document.getElementById('f-segment'); if(!el)return;
+  if(newStage==='Active Client'){
+    if(el.tagName!=='SELECT'){
+      const sel=document.createElement('select');
+      sel.className='form-input'; sel.id='f-segment';
+      sel.innerHTML='<option value="" selected disabled>Select SaaS or Enterprise…</option><option value="Enterprise">Enterprise</option><option value="SaaS">SaaS</option>';
+      sel.onchange=function(){ toggleSubscriptionFields(this.value); };
+      el.replaceWith(sel);
+    }
+  } else if(el.tagName==='SELECT'&&!el.dataset.permanent){
+    const inp=document.createElement('input');
+    inp.className='form-input'; inp.id='f-segment'; inp.value='— set at Active Client'; inp.disabled=true;
+    el.replaceWith(inp);
+    document.getElementById('f-subperiod-group').style.display='none';
+    document.getElementById('f-subdate-group').style.display='none';
+  }
+}
 function extraFieldsHtml(p,r){
   if(p==='partners'){
     const portfolio=r?r.portfolio:state.portfolio;
@@ -2380,11 +2454,19 @@ function extraFieldsHtml(p,r){
       <div class="form-row"><div class="form-group"><label class="form-label">Model</label><input class="form-input" id="f-model" placeholder="Referral / Reseller / ..." value="${escAttr(r?r.model:'')}"></div>
       <div class="form-group"><label class="form-label">Potential ARR ($)</label><input class="form-input" type="number" id="f-value" placeholder="20000" value="${r&&r.value?r.value:''}"></div></div>`;
   } else if(p==='customers'){
-    const seg=r?(r.segment||'Enterprise'):'Enterprise';
+    // Segment (SaaS/Enterprise) isn't known until the deal actually closes — it's decided
+    // when terms are discussed, not up front — so it stays null through every stage before
+    // Active Client, and is only ever set from the stage-change modal at that transition
+    // (see stageNeedsSegment). Here it's just a read-only indicator until then; once it's
+    // been set, it becomes editable again for corrections.
+    const seg=r?r.segment:null;
+    const segField=seg
+      ? `<select class="form-input" id="f-segment" data-permanent="1" onchange="toggleSubscriptionFields(this.value)"><option value="Enterprise" ${seg==='Enterprise'?'selected':''}>Enterprise</option><option value="SaaS" ${seg==='SaaS'?'selected':''}>SaaS</option></select>`
+      : `<input class="form-input" id="f-segment" value="— set at Active Client" disabled>`;
     return `<div class="form-row"><div class="form-group"><label class="form-label">Sector</label><input class="form-input" id="f-sector" placeholder="E-Commerce" value="${escAttr(r?r.sector:'')}"></div>
       <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="f-website" placeholder="company.com" value="${escAttr(r?r.website:'')}"></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" id="f-value" placeholder="12000" value="${r&&r.value?r.value:''}"></div>
-      <div class="form-group"><label class="form-label">Segment</label><select class="form-input" id="f-segment" onchange="toggleSubscriptionFields(this.value)"><option value="Enterprise" ${seg==='Enterprise'?'selected':''}>Enterprise</option><option value="SaaS" ${seg==='SaaS'?'selected':''}>SaaS</option></select></div></div>
+      <div class="form-group"><label class="form-label">Segment</label>${segField}</div></div>
       <div class="form-group"><label class="form-label">Lead source</label><input class="form-input" id="f-leadsource" placeholder="LinkedIn / Community / Partner" value="${escAttr(r?r.leadSource:'')}"></div>
       <div class="form-row">
         <div class="form-group" id="f-subperiod-group" style="display:${seg==='Enterprise'?'':'none'};"><label class="form-label">Subscription period</label><input class="form-input" id="f-subperiod" placeholder="Annual / Quarterly / ..." value="${escAttr(r?r.subscriptionPeriod:'')}"></div>
@@ -2423,7 +2505,7 @@ function renderModalForm(p,r,stage){
   const curStage=r?r.stage:stage;
   const stageOpts=stages.map(s=>`<option ${s===curStage?'selected':''}>${s}</option>`).join('');
   const stageSourceRow = (p==='customers'||p==='events')
-    ? `<div class="form-group"><label class="form-label">${p==='events'?'Status':'Stage'}</label><select class="form-input" id="f-stage">${stageOpts}</select></div>`
+    ? `<div class="form-group"><label class="form-label">${p==='events'?'Status':'Stage'}</label><select class="form-input" id="f-stage" onchange="toggleAddFormSegment(this.value)">${stageOpts}</select></div>`
     : `<div class="form-row"><div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>
     <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="f-source" placeholder="LinkedIn" value="${escAttr(r?r.source:'')}"></div></div>`;
   const importRow = r?'':`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
@@ -2443,6 +2525,7 @@ function renderModalForm(p,r,stage){
     ${extraFieldsHtml(p,r)}
     ${stageSourceRow}
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="f-notes" rows="2" placeholder="Context...">${r?escHtml(r.notes||''):''}</textarea></div>`;
+  if(p==='customers')toggleAddFormSegment(curStage);
   document.getElementById('modal').classList.add('open');
 }
 function openModal(stage){
@@ -2475,7 +2558,12 @@ async function addRecord(){
   const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:notesVal,value:Number(val('f-value'))||0,activity:[addedEntry]};
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){
-    r.sector=val('f-sector')||'General';r.website=val('f-website');r.leadSource=val('f-leadsource')||'Manual';r.segment=val('f-segment')||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;
+    const segEl=document.getElementById('f-segment');
+    if(segEl&&segEl.tagName==='SELECT'){
+      if(!segEl.value){showToast('Pick SaaS or Enterprise — required for an Active Client');return;}
+      r.segment=segEl.value;
+    } else r.segment=null;
+    r.sector=val('f-sector')||'General';r.website=val('f-website');r.leadSource=val('f-leadsource')||'Manual';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
     r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
   }
@@ -2498,13 +2586,24 @@ function saveEditedRecord(){
   const r=records.find(x=>x.id===editId&&x.pipeline===editPipeline); if(!r)return;
   const company=val('f-company'); const p=r.pipeline;
   if(!company){showToast((p==='events'?'Event title':'Organisation name')+' is required');return;}
+  // Validated (and read) before any mutation of the live record — bailing out after
+  // r.stage was already set to Active Client would leave the in-memory record stuck at a
+  // stage that implies a segment it doesn't have, with nothing persisted to back it up.
+  let segEl=null;
+  if(p==='customers'){
+    segEl=document.getElementById('f-segment');
+    if(segEl&&segEl.tagName==='SELECT'&&!segEl.value){showToast('Pick SaaS or Enterprise — required for an Active Client');return;}
+  }
   r.company=company; r.name=company; r.stage=val('f-stage'); r.notes=val('f-notes');
   if(p!=='events') r.value=Number(val('f-value'))||0;
   if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); }
   else if(p==='customers'){
-    r.sector=val('f-sector')||'General'; r.website=val('f-website'); r.leadSource=val('f-leadsource')||r.leadSource; r.segment=val('f-segment')||'Enterprise'; r.nextStep=val('f-nextstep')||r.nextStep;
-    r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
-    r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
+    if(segEl&&segEl.tagName==='SELECT'){
+      r.segment=segEl.value;
+      r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
+      r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
+    }
+    r.sector=val('f-sector')||'General'; r.website=val('f-website'); r.leadSource=val('f-leadsource')||r.leadSource; r.nextStep=val('f-nextstep')||r.nextStep;
   }
   else if(p==='events'){
     r.eventType=val('f-eventtype')||r.eventType;r.description=val('f-description');
@@ -2721,7 +2820,7 @@ function buildSystem(){
 The CRM has FOUR pipelines:
 Partners/customers/investors are company-based: the company/organisation is each record's identity, and any contacts at that company live in a \`members\` list (name, title, email, phone, linkedin) rather than as hardcoded top-level fields. Events are NOT company-based — "company"/"name" holds the event title instead, and there are no members/contacts.
 - partners: partner organisations. Two portfolios. Portfolio 1 (Revenue) stages: ${STAGES.partners1.join(' → ')}. Categories: Marketing Agencies, SaaS & E-commerce Platforms, Operational Touchpoint. Portfolio 2 (Ecosystem, measured on workshops/founders not revenue) stages: ${STAGES.partners2.join(' → ')}. Categories: Startup Development Orgs, Government & National Dev.
-- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Each is tagged SaaS or Enterprise (segment). Some are referred by partners. Enterprise customers track a subscriptionPeriod (free text); SaaS customers track a subscriptionDate.
+- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Segment (SaaS or Enterprise) is only decided once the deal closes, so it's null/unset for every stage before Active Client — don't guess it earlier. Some are referred by partners. Enterprise customers track a subscriptionPeriod (free text); SaaS customers track a subscriptionDate.
 - investors: fundraising firms. Stages: ${STAGES.investors.join(' → ')}.
 - events: webinars, trade shows, demos, meetings, conferences, etc. Status (used as its stage): ${STAGES.events.join(' → ')}. Each has an eventType (extensible list), description, startAt/endAt (ISO timestamps), timezone, and format (Virtual or In-Person) — Virtual events track meetingUrl/meetingPasscode/dialIn, In-Person events track venueName/address/mapUrl/capacity. No monetary value.
 
@@ -2741,7 +2840,7 @@ async function execTool(name,input){
   try{
     if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;const entry={t:`Stage: ${old} → ${match}`,d:'Today'};if(input.note)entry.note=(''+input.note).trim();r.activity.push(entry);const ok=await saveRecord(r);refreshView();return `Moved ${r.company} to ${match}${syncNote(ok)}`;}
     if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:'Today'});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
-    if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=input.portfolio||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=input.segment||'Enterprise';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'?(input.capacity||null):null;delete r.value;delete r.source;}else{r.fundSize='';r.thesis='';}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
+    if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=input.portfolio||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:input.value||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=matchInList(['SaaS','Enterprise'],input.segment)||null;r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'?(input.capacity||null):null;delete r.value;delete r.source;}else{r.fundSize='';r.thesis='';}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
     if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);records=records.filter(x=>x.id!==r.id);const ok=await deleteRecordRemote(r.id,r.pipeline);refreshView();return `Deleted ${r.company}${syncNote(ok)}`;}
     if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);r.activity.push({t:input.text,d:'Today'});const ok=await saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}"${syncNote(ok)}`;}
     if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}
