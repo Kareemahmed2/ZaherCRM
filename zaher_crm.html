@@ -644,12 +644,14 @@
     </div>
     <div class="modal-body">
       <div class="form-group" id="stage-segment-group" style="display:none;"><label class="form-label">Segment</label>
-        <select class="form-input" id="stage-segment-select">
+        <select class="form-input" id="stage-segment-select" onchange="toggleStageSubscriptionFields(this.value)">
           <option value="" selected disabled>Select SaaS or Enterprise…</option>
           <option value="Enterprise">Enterprise</option>
           <option value="SaaS">SaaS</option>
         </select>
       </div>
+      <div class="form-group" id="stage-subperiod-group" style="display:none;"><label class="form-label">Subscription period</label><input class="form-input" id="stage-subperiod-input" placeholder="Annual / Quarterly / ..."></div>
+      <div class="form-group" id="stage-subdate-group" style="display:none;"><label class="form-label">Subscription date</label><input class="form-input" id="stage-subdate-input" placeholder="e.g. 2026-01-01"></div>
       <div class="form-group"><label class="form-label">Note (optional)</label><textarea class="form-input" id="stage-note-text" rows="3" placeholder="What changed?"></textarea></div>
     </div>
     <div class="modal-footer">
@@ -1352,6 +1354,13 @@ let pendingStage=null;
 // every earlier stage. Active Client is the one stage move that also needs this decision,
 // so the stage-note modal grows an extra required field just for that transition.
 function stageNeedsSegment(r,newStage){ return r.pipeline==='customers'&&newStage==='Active Client'; }
+// Mirrors extraFieldsHtml's Enterprise→period / SaaS→date gating, just against the
+// stage-modal's own element ids (the Add/Edit form's toggleSubscriptionFields uses the
+// f-sub*-group ids, which this modal doesn't share).
+function toggleStageSubscriptionFields(segment){
+  document.getElementById('stage-subperiod-group').style.display=segment==='Enterprise'?'':'none';
+  document.getElementById('stage-subdate-group').style.display=segment==='SaaS'?'':'none';
+}
 function requestStageChange(id,newStage,toast){
   const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r||r.stage===newStage)return;
   pendingStage={id,newStage,toast};
@@ -1360,6 +1369,9 @@ function requestStageChange(id,newStage,toast){
   const needsSegment=stageNeedsSegment(r,newStage);
   document.getElementById('stage-segment-group').style.display=needsSegment?'':'none';
   document.getElementById('stage-segment-select').value=needsSegment?(r.segment||''):'';
+  document.getElementById('stage-subperiod-input').value=r.subscriptionPeriod||'';
+  document.getElementById('stage-subdate-input').value=r.subscriptionDate||'';
+  toggleStageSubscriptionFields(needsSegment?(r.segment||''):'');
   document.getElementById('stage-note-modal').classList.add('open');
   setTimeout(()=>document.getElementById(needsSegment?'stage-segment-select':'stage-note-text').focus(),0);
 }
@@ -1368,22 +1380,29 @@ function confirmStageChange(){
   if(!pendingStage)return;
   const {id,newStage,toast}=pendingStage;
   const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r)return;
-  let segment=null;
+  let segment=null,subscriptionPeriod='',subscriptionDate='';
   if(stageNeedsSegment(r,newStage)){
     segment=document.getElementById('stage-segment-select').value;
     if(!segment){ showToast('Pick SaaS or Enterprise before moving to Active Client'); return; }
+    if(segment==='Enterprise')subscriptionPeriod=document.getElementById('stage-subperiod-input').value.trim();
+    else subscriptionDate=document.getElementById('stage-subdate-input').value.trim();
   }
   const note=document.getElementById('stage-note-text').value.trim();
   document.getElementById('stage-note-modal').classList.remove('open');
   pendingStage=null;
-  applyStage(id,newStage,toast,note,segment);
+  applyStage(id,newStage,toast,note,segment,subscriptionPeriod,subscriptionDate);
 }
-function applyStage(id,newStage,toast,note,segment){
+function applyStage(id,newStage,toast,note,segment,subscriptionPeriod,subscriptionDate){
   const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r||r.stage===newStage)return;
   const old=r.stage; r.stage=newStage;
   const entry={t:`Stage: ${old} → ${newStage}`,d:'Today'};
   if(note)entry.note=note;
-  if(segment){ r.segment=segment; entry.note=(entry.note?entry.note+' · ':'')+`Segment set to ${segment}`; }
+  if(segment){
+    r.segment=segment;
+    r.subscriptionPeriod=segment==='Enterprise'?(subscriptionPeriod||''):'';
+    r.subscriptionDate=segment==='SaaS'?(subscriptionDate||''):'';
+    entry.note=(entry.note?entry.note+' · ':'')+`Segment set to ${segment}`;
+  }
   r.activity.push(entry);
   saveRecord(r);
   renderPipeline(); updateBadge();
@@ -1684,22 +1703,33 @@ function renderDirBulkBar(){
       <option value="" selected disabled>Move to stage…</option>
       ${stages.map(s=>`<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('')}
     </select>
-    ${state.pipeline==='customers'?`<select id="dir-bulk-segment-select" class="form-input" style="font-size:12px;padding:5px 8px;width:auto;display:none;">
+    ${state.pipeline==='customers'?`<select id="dir-bulk-segment-select" class="form-input" style="font-size:12px;padding:5px 8px;width:auto;display:none;" onchange="toggleDirBulkSubFields(this.value)">
       <option value="" selected disabled>Segment…</option>
       <option value="Enterprise">Enterprise</option>
       <option value="SaaS">SaaS</option>
-    </select>`:''}
+    </select>
+    <input id="dir-bulk-subperiod-input" class="form-input" style="font-size:12px;padding:5px 8px;width:120px;display:none;" placeholder="Sub. period">
+    <input id="dir-bulk-subdate-input" class="form-input" style="font-size:12px;padding:5px 8px;width:120px;display:none;" placeholder="Sub. date">`:''}
     <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="bulkChangeStage()">Apply</button>
     <button class="btn btn-danger" style="font-size:12px;padding:5px 10px;" onclick="bulkDeleteSelected()">Delete selected</button>`;
 }
 // Same Active-Client-needs-a-segment rule as the single-record stage change (see
 // stageNeedsSegment) — shows the extra selector only when the batch's target stage is
 // Active Client on the Customers pipeline, and applies that one segment to every record
-// in the batch (a bulk move assumes the whole batch shares a segment; anything mixed
-// needs handling one at a time via the detail page instead).
+// in the batch (a bulk move assumes the whole batch shares a segment — and, if filled in,
+// the same subscription period/date too; anything mixed needs handling one at a time via
+// the detail page instead).
 function toggleDirBulkSegment(newStage){
   const segSel=document.getElementById('dir-bulk-segment-select'); if(!segSel)return;
-  segSel.style.display=(state.pipeline==='customers'&&newStage==='Active Client')?'':'none';
+  const show=state.pipeline==='customers'&&newStage==='Active Client';
+  segSel.style.display=show?'':'none';
+  if(!show)toggleDirBulkSubFields('');
+}
+function toggleDirBulkSubFields(segment){
+  const p=document.getElementById('dir-bulk-subperiod-input'), d=document.getElementById('dir-bulk-subdate-input');
+  if(!p||!d)return;
+  p.style.display=segment==='Enterprise'?'':'none';
+  d.style.display=segment==='SaaS'?'':'none';
 }
 // Bulk stage move — unlike the single-record stage change (requestStageChange), this skips
 // the note-prompt modal entirely: with many records selected at once there's no single note
@@ -1708,11 +1738,13 @@ function toggleDirBulkSegment(newStage){
 function bulkChangeStage(){
   const sel=document.getElementById('dir-bulk-stage-select'); if(!sel||!sel.value)return;
   const newStage=sel.value, pipeline=state.pipeline;
-  let segment=null;
+  let segment=null,subscriptionPeriod='',subscriptionDate='';
   if(pipeline==='customers'&&newStage==='Active Client'){
     const segSel=document.getElementById('dir-bulk-segment-select');
     segment=segSel?segSel.value:'';
     if(!segment){ showToast('Pick SaaS or Enterprise for the selected records before moving them to Active Client'); return; }
+    if(segment==='Enterprise')subscriptionPeriod=document.getElementById('dir-bulk-subperiod-input').value.trim();
+    else subscriptionDate=document.getElementById('dir-bulk-subdate-input').value.trim();
   }
   const ids=[...dirSelected];
   const recs=records.filter(x=>ids.includes(x.id)&&x.pipeline===pipeline&&x.stage!==newStage);
@@ -1720,7 +1752,12 @@ function bulkChangeStage(){
   recs.forEach(r=>{
     const old=r.stage; r.stage=newStage;
     const entry={t:`Stage: ${old} → ${newStage}`,d:'Today'};
-    if(segment){ r.segment=segment; entry.note=`Segment set to ${segment}`; }
+    if(segment){
+      r.segment=segment;
+      r.subscriptionPeriod=segment==='Enterprise'?subscriptionPeriod:'';
+      r.subscriptionDate=segment==='SaaS'?subscriptionDate:'';
+      entry.note=`Segment set to ${segment}`;
+    }
     r.activity.push(entry);
     saveRecord(r);
   });
