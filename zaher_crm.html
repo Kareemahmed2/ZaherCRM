@@ -463,6 +463,7 @@
       </div>
     </div>
     <div class="filter-panel" id="dir-filter-panel"></div>
+    <div id="dir-bulk-bar" style="display:none;align-items:center;gap:12px;margin-bottom:10px;padding:8px 14px;background:var(--red-50);border:1px solid rgba(226,75,74,0.25);border-radius:var(--r-md,8px);"></div>
     <div class="card"><table class="leads-table"><thead id="dir-thead"></thead><tbody id="dir-body"></tbody></table></div>
   </div>
 
@@ -669,11 +670,11 @@
 
 <div class="confirm-overlay" id="confirm-overlay">
   <div class="confirm-box">
-    <div class="confirm-title">Delete this record?</div>
+    <div class="confirm-title" id="confirm-title">Delete this record?</div>
     <div class="confirm-msg" id="confirm-msg"></div>
     <div class="confirm-actions">
       <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
-      <button class="btn btn-danger" onclick="execDelete()">Delete</button>
+      <button class="btn btn-danger" id="confirm-delete-btn" onclick="execDelete()">Delete</button>
     </div>
   </div>
 </div>
@@ -841,7 +842,11 @@ let lastImportUndo=null;
 
 // ══════════════ STATE ══════════════
 let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1)};
-let currentId=null,prevPage='pipeline';
+let currentId=null,currentPipeline=null,prevPage='pipeline';
+// Directory bulk-select: ids of checked rows in the currently active pipeline's Directory
+// table. Scoped to state.pipeline (cleared on switch) — same reasoning as every other
+// id-only lookup in this file: ids are only unique within one pipeline's table.
+let dirSelected=new Set(), dirLastList=[];
 let drag={active:false};
 
 // ══════════════ HELPERS ══════════════
@@ -1041,7 +1046,7 @@ async function changeNextStep(id,sel){
     if(!label){ renderDetail(); return; }
     val=await addNextStepOption(label);
   }
-  const r=records.find(x=>x.id===id); if(!r)return;
+  const r=records.find(x=>x.id===id&&x.pipeline===currentPipeline); if(!r)return;
   r.nextStep=val; saveRecord(r); refreshView();
 }
 
@@ -1108,6 +1113,7 @@ function scoreAgency(inp){
 function setPipeline(p){
   state.pipeline=p; if(p==='partners'&&!state.portfolio) state.portfolio=1;
   state.filters={};
+  dirSelected.clear();
   document.body.className='pl-'+p;
   document.querySelectorAll('.pl-btn').forEach(b=>b.classList.toggle('active',b.dataset.pl===p));
   const isPartners=p==='partners';
@@ -1137,7 +1143,7 @@ function showPage(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   ['dashboard','pipeline','directory','tasks','analytics'].forEach(n=>document.getElementById('nav-'+n).classList.toggle('active',n===page));
   document.getElementById('page-'+page).classList.add('active');
-  const rec=records.find(r=>r.id===currentId);
+  const rec=records.find(r=>r.id===currentId&&r.pipeline===currentPipeline);
   const pipelineTitles={investors:'Deal Flow',events:'Schedule'};
   const titles={dashboard:'Dashboard',pipeline:pipelineTitles[state.pipeline]||'Pipeline',directory:{partners:'Directory',customers:'Contacts',investors:'Investors',events:'Events'}[state.pipeline],tasks:'Tasks',analytics:'Analytics',detail:rec?rec.name:'Detail'};
   document.getElementById('topbar-title').textContent=titles[page]||page;
@@ -1183,7 +1189,7 @@ function renderDashboard(){
   if(isEvents){
     document.getElementById('dash-thead').innerHTML=`<tr><th>Title</th><th>Type</th><th>Start</th><th>Format</th><th>Status</th></tr>`;
     document.getElementById('recent-body').innerHTML=recs.slice(0,7).map(r=>`
-    <tr onclick="openDetail(${r.id})">
+    <tr onclick="openDetail(${r.id},'${r.pipeline}')">
       <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td><span class="lc">${escHtml(r.eventType||'—')}</span></td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.startAt)}</td>
@@ -1199,7 +1205,7 @@ function renderDashboard(){
     const primary=escHtml(r.company);
     const secondary=pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—';
     return `
-    <tr onclick="openDetail(${r.id})">
+    <tr onclick="openDetail(${r.id},'${r.pipeline}')">
       <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${primary}</div><div class="lc">${secondary}</div></div></div></td>
       <td>${state.pipeline==='partners'?catChip(r.category):`<span class="lc">${escHtml(r.sector||r.thesis||'—')}</span>`}</td>
       <td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>
@@ -1219,11 +1225,11 @@ function renderDashboard(){
   const noteItems=[];
   recs.forEach(r=>{
     const baseTs=r.updated_at?new Date(r.updated_at).getTime():(r.created_at?new Date(r.created_at).getTime():r.id*1000);
-    r.activity.forEach((a,i)=>{ if(a.note) noteItems.push({id:r.id,company:r.company,note:a.note,time:a.d,color:STAGE_COLOR[r.stage],order:baseTs-(r.activity.length-1-i)}); });
+    r.activity.forEach((a,i)=>{ if(a.note) noteItems.push({id:r.id,pipeline:r.pipeline,company:r.company,note:a.note,time:a.d,color:STAGE_COLOR[r.stage],order:baseTs-(r.activity.length-1-i)}); });
   });
   noteItems.sort((a,b)=>b.order-a.order);
   document.getElementById('notes-feed').innerHTML=noteItems.length?noteItems.slice(0,6).map(n=>`
-    <div class="act-item" style="cursor:pointer;" onclick="openDetail(${n.id})">
+    <div class="act-item" style="cursor:pointer;" onclick="openDetail(${n.id},'${n.pipeline}')">
     <div class="act-dot-wrap"><div class="act-dot" style="background:${n.color}"></div></div>
     <div style="flex:1;"><div class="act-text" style="font-weight:600;color:var(--gray-900);">${escHtml(n.company)}</div>
     <div class="tl-note" style="margin-top:4px;">${escHtml(n.note)}</div>
@@ -1232,7 +1238,7 @@ function renderDashboard(){
   const todo=activeTasks().filter(t=>t.status!=='Done').sort((a,b)=>taskUrgencyScore(b)-taskUrgencyScore(a));
   document.getElementById('todo-feed').innerHTML=todo.length?todo.slice(0,6).map(t=>{
     const c=taskCompany(t);
-    return `<div class="act-item" style="cursor:pointer;" onclick="openDetail(${c?c.id:'null'})">
+    return `<div class="act-item" style="cursor:pointer;" onclick="openDetail(${c?c.id:'null'}${c?`,'${c.pipeline}'`:''})">
     <div class="act-dot-wrap"><div class="act-dot" style="background:${priorityDotColor(t.priority)}"></div></div>
     <div style="flex:1;"><div class="act-text" style="font-weight:600;color:var(--gray-900);">${escHtml(t.title)}</div>
     <div class="act-time" style="margin-top:2px;">${c?escHtml(c.company):'—'} · ${fmtDeadline(t.deadline)} · ${escHtml(t.priority||'—')}</div></div></div>`;
@@ -1263,11 +1269,11 @@ function tagSelectHtml(r){
   return `<select class="form-input" style="font-size:10px;padding:3px 6px;margin-bottom:8px;${cur?`color:${TAG_COLOR[cur]};font-weight:600;`:''}" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" onchange="event.stopPropagation();changeRecordTag(${r.id},this.value)">${opts}</select>`;
 }
 function changeRecordTag(id,value){
-  const r=records.find(x=>x.id===id); if(!r)return;
+  const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r)return;
   r.tag=value||null;
   saveRecord(r);
   renderPipeline();
-  if(currentId===id&&document.getElementById('page-detail').classList.contains('active'))renderDetail();
+  if(currentId===id&&currentPipeline===r.pipeline&&document.getElementById('page-detail').classList.contains('active'))renderDetail();
 }
 function buildCard(r){
   let extra='';
@@ -1282,7 +1288,7 @@ function buildCard(r){
   const cardSecondary=state.pipeline==='events'?(r.format==='In-Person'?escHtml(r.venueName||r.address||'In-Person'):'Virtual'):(pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—');
   return `<div class="k-card" id="kcard-${r.id}" data-id="${r.id}"
     onmousedown="dragStart(event,${r.id})"
-    onclick="if(!window._wasDrag)openDetail(${r.id});window._wasDrag=false;">
+    onclick="if(!window._wasDrag)openDetail(${r.id},'${r.pipeline}');window._wasDrag=false;">
     <div class="k-card-top">
       <div class="av ${avc(r.id)}" style="width:28px;height:28px;font-size:9px;">${ini(r.company)}</div>
       <div class="k-card-info"><div class="kn">${cardPrimary}</div><div class="kc">${cardSecondary}</div></div>
@@ -1296,14 +1302,14 @@ function dragStart(e,id){
   if(e.button!==0)return;
   const card=document.getElementById('kcard-'+id); if(!card)return;
   const rect=card.getBoundingClientRect();
-  drag={active:false,id,fromStage:records.find(r=>r.id===id)?.stage,startX:e.clientX,startY:e.clientY,offsetX:e.clientX-rect.left,offsetY:e.clientY-rect.top,overStage:null};
+  drag={active:false,id,fromStage:records.find(r=>r.id===id&&r.pipeline===state.pipeline)?.stage,startX:e.clientX,startY:e.clientY,offsetX:e.clientX-rect.left,offsetY:e.clientY-rect.top,overStage:null};
   window._wasDrag=false;
   const onMove=ev=>{
     const dx=ev.clientX-drag.startX,dy=ev.clientY-drag.startY;
     if(!drag.active&&Math.sqrt(dx*dx+dy*dy)>6){
       drag.active=true;window._wasDrag=true;
       const clone=document.getElementById('drag-clone');
-      clone.innerHTML=buildCard(records.find(r=>r.id===id));
+      clone.innerHTML=buildCard(records.find(r=>r.id===id&&r.pipeline===state.pipeline));
       clone.style.cssText=`position:fixed;pointer-events:none;z-index:9999;width:${rect.width}px;left:${rect.left}px;top:${rect.top}px;transform:rotate(2deg) scale(1.03);box-shadow:var(--shadow-drag);border-radius:var(--r-md);opacity:1;`;
       card.classList.add('dragging');
     }
@@ -1335,7 +1341,7 @@ function dragStart(e,id){
 // the detail timeline (see renderDetail's tl-note rendering).
 let pendingStage=null;
 function requestStageChange(id,newStage,toast){
-  const r=records.find(x=>x.id===id); if(!r||r.stage===newStage)return;
+  const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r||r.stage===newStage)return;
   pendingStage={id,newStage,toast};
   document.getElementById('stage-note-title').textContent=`${r.stage} → ${newStage}`;
   document.getElementById('stage-note-text').value='';
@@ -1352,14 +1358,14 @@ function confirmStageChange(){
   applyStage(id,newStage,toast,note);
 }
 function applyStage(id,newStage,toast,note){
-  const r=records.find(x=>x.id===id); if(!r||r.stage===newStage)return;
+  const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r||r.stage===newStage)return;
   const old=r.stage; r.stage=newStage;
   const entry={t:`Stage: ${old} → ${newStage}`,d:'Today'};
   if(note)entry.note=note;
   r.activity.push(entry);
   saveRecord(r);
   renderPipeline(); updateBadge();
-  if(currentId===id&&document.getElementById('page-detail').classList.contains('active'))renderDetail();
+  if(currentId===id&&currentPipeline===r.pipeline&&document.getElementById('page-detail').classList.contains('active'))renderDetail();
   if(toast)showToast(`${r.company} → ${newStage}`);
 }
 // Standalone notes reuse the same activity/tl-note plumbing as stage-change notes so they
@@ -1367,7 +1373,7 @@ function applyStage(id,newStage,toast,note){
 // there's no stage change riding along, so the entry's label is plain "Note" instead of a
 // "Stage: X → Y" transition.
 function openAddNote(){
-  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
   document.getElementById('add-note-text').value='';
   document.getElementById('add-note-modal').classList.add('open');
   setTimeout(()=>document.getElementById('add-note-text').focus(),0);
@@ -1375,7 +1381,7 @@ function openAddNote(){
 function cancelAddNote(){ document.getElementById('add-note-modal').classList.remove('open'); }
 function confirmAddNote(){
   const note=document.getElementById('add-note-text').value.trim(); if(!note)return;
-  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
   r.activity.push({t:'Note',d:'Today',note});
   saveRecord(r);
   document.getElementById('add-note-modal').classList.remove('open');
@@ -1523,7 +1529,7 @@ function renderCalendar(list){
       const cls='cal-bar'+(isStart?' bar-start':'')+(isEnd?' bar-end':'');
       const tooltipCls='cal-tooltip'+(c1>=5?' tooltip-right':'');
       return `<div class="cal-bar-wrap" style="grid-column:${c0+1}/${c1+2};grid-row:${lane+2};">
-        <div class="${cls}" style="background:${avcHex(sp.r.id)};" onclick="openDetail(${sp.r.id})">${escHtml(sp.r.company)}</div>
+        <div class="${cls}" style="background:${avcHex(sp.r.id)};" onclick="openDetail(${sp.r.id},'${sp.r.pipeline}')">${escHtml(sp.r.company)}</div>
         <div class="${tooltipCls}">${eventTooltipHtml(sp.r)}</div>
       </div>`;
     }).join('');
@@ -1546,14 +1552,14 @@ function renderCalendar(list){
     </div>
     <div class="calendar-weekdays">${weekdayLabels.map(w=>`<div class="cal-weekday">${w}</div>`).join('')}</div>
     ${weekBlocks.join('')}
-    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id})"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span><div class="cal-event-wrap">${escHtml(r.company)}<div class="cal-tooltip tooltip-up">${eventTooltipHtml(r)}</div></div></div>`).join('')}</div>`:''}
+    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id},'${r.pipeline}')"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span><div class="cal-event-wrap">${escHtml(r.company)}<div class="cal-tooltip tooltip-up">${eventTooltipHtml(r)}</div></div></div>`).join('')}</div>`:''}
   `;
 }
 
 // ══════════════ TASKS TAB ══════════════
 function buildTaskCard(t){
   const c=taskCompany(t);
-  return `<div class="k-card" style="cursor:pointer;" onclick="openDetail(${c?c.id:'null'})">
+  return `<div class="k-card" style="cursor:pointer;" onclick="openDetail(${c?c.id:'null'}${c?`,'${c.pipeline}'`:''})">
     <div class="k-card-top">
       <div class="av ${c?avc(c.id):''}" style="width:28px;height:28px;font-size:9px;">${c?ini(c.company):'?'}</div>
       <div class="k-card-info"><div class="kn">${escHtml(t.title)}</div><div class="kc">${c?escHtml(c.company):'—'}</div></div>
@@ -1602,7 +1608,7 @@ function renderDirectory(){
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else if(state.pipeline==='customers'){
     head=`<tr><th>Company</th><th>Primary contact</th><th>Sector</th><th>Segment</th><th>AI Score</th><th>Website</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th><th>Added</th><th>Updated</th></tr>`;
-    rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null; const pm=primaryMember(r);
+    rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy&&x.pipeline==='customers'):null; const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span></td>
       <td><span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment||'—')}</span></td>
@@ -1631,8 +1637,52 @@ function renderDirectory(){
       <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.thesis||'—')}</td><td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }}
-  document.getElementById('dir-thead').innerHTML=head;
-  document.getElementById('dir-body').innerHTML=list.map(r=>`<tr onclick="openDetail(${r.id})">${rowFn(r)}</tr>`).join('');
+  dirLastList=list;
+  const visibleSelected=list.filter(r=>dirSelected.has(r.id)).length;
+  const allChecked=list.length>0&&visibleSelected===list.length;
+  document.getElementById('dir-thead').innerHTML=head.replace('<tr>',`<tr><th style="width:32px;"><input type="checkbox" id="dir-select-all" ${allChecked?'checked':''} onclick="toggleSelectAllDir(this.checked)"></th>`);
+  document.getElementById('dir-body').innerHTML=list.map(r=>`<tr onclick="openDetail(${r.id},'${r.pipeline}')">
+    <td style="width:32px;" onclick="event.stopPropagation()"><input type="checkbox" ${dirSelected.has(r.id)?'checked':''} onclick="toggleDirSelect(${r.id},this.checked)"></td>
+    ${rowFn(r)}</tr>`).join('');
+  renderDirBulkBar();
+}
+// Directory bulk-select actions — lets a stray/mis-imported batch of records be reviewed
+// and removed several at a time instead of one detail-page delete at a time.
+function toggleDirSelect(id,checked){ if(checked)dirSelected.add(id); else dirSelected.delete(id); renderDirBulkBar(); document.getElementById('dir-select-all').checked=dirLastList.length>0&&dirLastList.every(r=>dirSelected.has(r.id)); }
+function toggleSelectAllDir(checked){ dirLastList.forEach(r=>{ if(checked)dirSelected.add(r.id); else dirSelected.delete(r.id); }); renderDirectory(); }
+function clearDirSelection(){ dirSelected.clear(); renderDirectory(); }
+function renderDirBulkBar(){
+  const bar=document.getElementById('dir-bulk-bar');
+  if(!dirSelected.size){ bar.style.display='none'; bar.innerHTML=''; return; }
+  bar.style.display='flex';
+  bar.innerHTML=`<span style="font-weight:600;color:var(--red-400);">${dirSelected.size} selected</span>
+    <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="clearDirSelection()">Clear selection</button>
+    <button class="btn btn-danger" style="font-size:12px;padding:5px 10px;margin-left:auto;" onclick="bulkDeleteSelected()">Delete selected</button>`;
+}
+function bulkDeleteSelected(){
+  const ids=[...dirSelected];
+  const recs=records.filter(x=>ids.includes(x.id)&&x.pipeline===state.pipeline);
+  if(!recs.length)return;
+  const names=recs.slice(0,5).map(r=>r.company).join(', ')+(recs.length>5?`, +${recs.length-5} more`:'');
+  document.getElementById('confirm-title').textContent=`Delete ${recs.length} record${recs.length===1?'':'s'}?`;
+  document.getElementById('confirm-msg').textContent=`This removes ${names} from the CRM. This can't be undone.`;
+  document.getElementById('confirm-delete-btn').onclick=execBulkDelete;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function execBulkDelete(){
+  const pipeline=state.pipeline;
+  const ids=[...dirSelected];
+  const recs=records.filter(x=>ids.includes(x.id)&&x.pipeline===pipeline);
+  records=records.filter(x=>!(x.pipeline===pipeline&&ids.includes(x.id)));
+  recs.forEach(r=>{
+    deleteRecordRemote(r.id,pipeline);
+    tasks=tasks.filter(t=>!(t.pipeline===pipeline&&t.record_id===r.id));
+    deleteTasksForRecordRemote(pipeline,r.id);
+  });
+  dirSelected.clear();
+  closeConfirm();
+  showToast(`${recs.length} record${recs.length===1?'':'s'} deleted`);
+  refreshView();
 }
 
 // ══════════════ CSV / EXCEL IMPORT & EXPORT ══════════════
@@ -2123,12 +2173,18 @@ function renderAnalytics(){
 }
 
 // ══════════════ DETAIL ══════════════
-function openDetail(id){
-  currentId=id;
+// `pipeline` disambiguates the lookup: each pipeline is a separate Supabase table with its
+// own identity sequence, so ids are only unique WITHIN a pipeline — id 12 in partners and id
+// 12 in customers are unrelated records. Every call site passes the record's own `.pipeline`
+// it already has in hand; the unscoped fallback below only exists for stray callers that don't.
+function openDetail(id,pipeline){
+  currentId=id; currentPipeline=pipeline||null;
   const active=document.querySelector('.page.active');
   prevPage=active?active.id.replace('page-',''):'pipeline';
   if(prevPage==='detail')prevPage='pipeline';
-  const r=records.find(x=>x.id===id); if(!r)return;
+  const r=pipeline?records.find(x=>x.id===id&&x.pipeline===pipeline):records.find(x=>x.id===id);
+  if(!r)return;
+  currentPipeline=r.pipeline;
   if(r.pipeline!==state.pipeline||(r.pipeline==='partners'&&r.portfolio!==state.portfolio)){ state.pipeline=r.pipeline; if(r.portfolio)state.portfolio=r.portfolio; setPipeline(r.pipeline); if(r.portfolio)setPortfolio(r.portfolio); currentId=id; }
   renderDetail();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -2137,7 +2193,7 @@ function openDetail(id){
   document.getElementById('topbar-title').textContent=r.name;
 }
 function renderDetail(){
-  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
   const stages=state.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];
   document.getElementById('detail-back-label').textContent='Back';
   document.getElementById('det-av').className='profile-av '+avc(r.id);
@@ -2196,7 +2252,7 @@ function renderDetail(){
     else fields.push(['Workshops',(r.workshops||0)+'',false],['Founders reached',(r.founders||0)+'',false]);
     if(r.website)fields.push(['Website',r.website,true]);
   } else if(state.pipeline==='customers'){
-    const ref=r.referredBy?records.find(x=>x.id===r.referredBy):null;
+    const ref=r.referredBy?records.find(x=>x.id===r.referredBy&&x.pipeline==='customers'):null;
     fields.push(['Sector',r.sector,false],['Segment',r.segment||'—',false],['Package',r.package||'—',false],['AI Visibility Score',r.aiScore!=null?r.aiScore+'/100':'—',false],['MRR / yr',ff(r.value),false],['Lead source',r.leadSource+(ref?' · '+ref.company:''),false]);
     if(r.website)fields.push(['Website',r.website,true]);
     if(r.segment==='Enterprise')fields.push(['Subscription period',r.subscriptionPeriod||'—',false]);
@@ -2285,7 +2341,7 @@ const escHtml=v=>(v==null?'':(''+v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').
 const escAttr=escHtml;
 const toUrl=v=>{ const s=(v==null?'':(''+v)).trim(); return s?(/^https?:\/\//i.test(s)?s:'https://'+s):''; };
 const linkHtml=v=>{ const s=(v==null?'':(''+v)).trim(); return s?`<a href="${escAttr(toUrl(s))}" target="_blank" style="color:var(--accent);" onclick="event.stopPropagation()">${escHtml(s)}</a>`:''; };
-let editId=null;
+let editId=null,editPipeline=null;
 function toggleSubscriptionFields(segment){
   document.getElementById('f-subperiod-group').style.display=segment==='Enterprise'?'':'none';
   document.getElementById('f-subdate-group').style.display=segment==='SaaS'?'':'none';
@@ -2365,7 +2421,7 @@ function renderModalForm(p,r,stage){
   document.getElementById('modal').classList.add('open');
 }
 function openModal(stage){
-  editId=null;
+  editId=null; editPipeline=null;
   const p=state.pipeline;
   document.getElementById('modal-title').textContent={partners:'Add partner',customers:'Add customer',investors:'Add investor',events:'Add event'}[p];
   const btn=document.getElementById('modal-submit-btn');
@@ -2373,15 +2429,15 @@ function openModal(stage){
   renderModalForm(p,null,stage);
 }
 function openEditModal(){
-  const r=records.find(x=>x.id===currentId); if(!r)return;
-  editId=r.id;
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
+  editId=r.id; editPipeline=r.pipeline;
   const p=r.pipeline;
   document.getElementById('modal-title').textContent=`Edit ${r.company}`;
   const btn=document.getElementById('modal-submit-btn');
   btn.textContent='Save changes'; btn.onclick=saveEditedRecord;
   renderModalForm(p,r);
 }
-function closeModal(){document.getElementById('modal').classList.remove('open');editId=null;}
+function closeModal(){document.getElementById('modal').classList.remove('open');editId=null;editPipeline=null;}
 function val(id){const el=document.getElementById(id);return el?el.value.trim():'';}
 async function addRecord(){
   const company=val('f-company'); const p=state.pipeline;
@@ -2414,7 +2470,7 @@ async function addRecord(){
   showPage('pipeline'); showToast(`${company} added`);
 }
 function saveEditedRecord(){
-  const r=records.find(x=>x.id===editId); if(!r)return;
+  const r=records.find(x=>x.id===editId&&x.pipeline===editPipeline); if(!r)return;
   const company=val('f-company'); const p=r.pipeline;
   if(!company){showToast((p==='events'?'Event title':'Organisation name')+' is required');return;}
   r.company=company; r.name=company; r.stage=val('f-stage'); r.notes=val('f-notes');
@@ -2439,10 +2495,21 @@ function saveEditedRecord(){
   if(p==='partners'&&r.portfolio)state.portfolio=r.portfolio;
   refreshView(); showToast(`${company} updated`);
 }
-let deleteId=null;
-function confirmDelete(){deleteId=currentId;const r=records.find(x=>x.id===currentId);document.getElementById('confirm-msg').textContent=`This removes ${r.company} from the CRM. This can't be undone.`;document.getElementById('confirm-overlay').classList.add('open');}
+let deleteId=null,deletePipeline=null;
+function confirmDelete(){
+  deleteId=currentId;deletePipeline=currentPipeline;
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline);
+  document.getElementById('confirm-title').textContent='Delete this record?';
+  document.getElementById('confirm-msg').textContent=`This removes ${r.company} from the CRM. This can't be undone.`;
+  document.getElementById('confirm-delete-btn').onclick=execDelete;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
 function closeConfirm(){document.getElementById('confirm-overlay').classList.remove('open');}
-function execDelete(){const r=records.find(x=>x.id===deleteId);records=records.filter(x=>x.id!==deleteId);deleteRecordRemote(deleteId,r&&r.pipeline);if(r){tasks=tasks.filter(t=>!(t.pipeline===r.pipeline&&t.record_id===deleteId));deleteTasksForRecordRemote(r.pipeline,deleteId);}closeConfirm();showToast(`${r?r.company:'Record'} deleted`);goBack();}
+// Filters by pipeline as well as id — ids are only unique within one pipeline's table, so
+// filtering by id alone here would also drop an unrelated same-id record from another
+// pipeline out of the in-memory `records` array (it'd reappear on next reload, since it was
+// never actually deleted server-side, but would wrongly vanish from the UI until then).
+function execDelete(){const r=records.find(x=>x.id===deleteId&&x.pipeline===deletePipeline);records=records.filter(x=>!(x.id===deleteId&&x.pipeline===deletePipeline));deleteRecordRemote(deleteId,deletePipeline);if(r){tasks=tasks.filter(t=>!(t.pipeline===deletePipeline&&t.record_id===deleteId));deleteTasksForRecordRemote(deletePipeline,deleteId);}closeConfirm();showToast(`${r?r.company:'Record'} deleted`);goBack();}
 
 // ══════════════ SCORER ══════════════
 function openScorer(){document.getElementById('scorer').classList.add('open');document.getElementById('sc-result').style.display='none';}
@@ -2478,7 +2545,7 @@ function openMemberModal(){
   document.getElementById('member-modal').classList.add('open');
 }
 function editMember(i){
-  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
   const m=(r.members||[])[i]; if(!m)return;
   editMemberIndex=i;
   document.getElementById('mem-name').value=m.name||'';
@@ -2492,7 +2559,7 @@ function editMember(i){
 }
 function closeMemberModal(){ document.getElementById('member-modal').classList.remove('open'); editMemberIndex=null; }
 function saveMemberModal(){
-  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
   const name=val('mem-name'); if(!name){showToast('Member name is required');return;}
   const member={name,title:val('mem-title'),email:val('mem-email'),phone:val('mem-phone'),linkedin:val('mem-linkedin')};
   r.members=r.members||[];
@@ -2506,7 +2573,7 @@ function saveMemberModal(){
   closeMemberModal(); saveRecord(r); renderDetail(); showToast(`${name} saved`);
 }
 function deleteMember(i){
-  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
   const m=(r.members||[])[i]; if(!m)return;
   if(!confirm(`Remove ${m.name} from ${r.company}'s members?`))return;
   r.members.splice(i,1);
@@ -2546,7 +2613,7 @@ function editTask(id){
 function closeTaskModal(){ document.getElementById('task-modal').classList.remove('open'); editTaskId=null; }
 async function saveTaskModal(){
   const title=val('task-title'); if(!title){showToast('Task title is required');return;}
-  const r=records.find(x=>x.id===currentId); if(!r)return;
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
   const deadline=val('task-deadline')||null, priority=val('task-priority')||'Medium';
   if(editTaskId==null){
     const t={pipeline:r.pipeline,record_id:r.id,title,description:val('task-desc'),status:'Needs to be Done',deadline,priority};
@@ -2612,7 +2679,7 @@ function snapshot(){
       o.sector=r.sector;o.segment=r.segment;o.aiScore=r.aiScore;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;
       if(r.segment==='Enterprise')o.subscriptionPeriod=r.subscriptionPeriod;
       else if(r.segment==='SaaS')o.subscriptionDate=r.subscriptionDate;
-      if(r.referredBy){const p=records.find(x=>x.id===r.referredBy);o.referredBy=p?p.company:null;}
+      if(r.referredBy){const p=records.find(x=>x.id===r.referredBy&&x.pipeline==='customers');o.referredBy=p?p.company:null;}
     }
     else if(r.pipeline==='events'){
       o.title=r.company;o.eventType=r.eventType;o.description=r.description;o.startAt=r.startAt;o.endAt=r.endAt;o.timezone=r.timezone;o.format=r.format;
