@@ -1723,7 +1723,7 @@ function hideImportLoading(){
 // plus its members list and current activity-log length — enough for undoLastImport() to
 // restore it precisely, including cases where the import only ever fills blanks.
 function importUndoSnapshot(pipeline,rec){
-  const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes, tag:rec.tag};
+  const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes, tag:rec.tag, stage:rec.stage};
   if(pipeline==='partners') Object.assign(snap,{category:rec.category,model:rec.model,tier:rec.tier,score:rec.score,website:rec.website,region:rec.region,clients:rec.clients,workshops:rec.workshops,founders:rec.founders});
   else if(pipeline==='customers') Object.assign(snap,{sector:rec.sector,website:rec.website,package:rec.package,aiScore:rec.aiScore,leadSource:rec.leadSource,segment:rec.segment,nextStep:rec.nextStep,subscriptionPeriod:rec.subscriptionPeriod,subscriptionDate:rec.subscriptionDate});
   else if(pipeline==='events') Object.assign(snap,{eventType:rec.eventType,description:rec.description,startAt:rec.startAt,endAt:rec.endAt,timezone:rec.timezone,format:rec.format,meetingUrl:rec.meetingUrl,meetingPasscode:rec.meetingPasscode,dialIn:rec.dialIn,venueName:rec.venueName,address:rec.address,mapUrl:rec.mapUrl,capacity:rec.capacity});
@@ -1794,6 +1794,8 @@ async function handleImportFile(ev){
       const newMember=hasContact
         ? {name:importName||company,title:(get('role')||'').toString(),email:(get('email')||'').toString(),phone:(get('phone')||'').toString(),linkedin:(get('linkedin')||'').toString()}
         : null;
+      let portfolio;
+      if(pipeline==='partners'){ const pf=Number(get('portfolio')); portfolio=(pf===1||pf===2)?pf:state.portfolio; }
 
       // If this company already exists in the pipeline — either already in the DB, or
       // created by an earlier row in this same import batch — don't create a duplicate
@@ -1833,9 +1835,8 @@ async function handleImportFile(ev){
 
         // Company-level fields: same "only fill what's still blank" rule, so a re-import
         // can complete a record's missing info without ever overwriting or rolling back
-        // data that's already there. `stage` is deliberately never touched here — it's
-        // never actually blank on an existing record, and CRM progress (a stage that's
-        // moved forward since the sheet was made) must never be rolled back by a re-import.
+        // data that's already there. `stage` is handled separately below — it's the one
+        // field a re-import is allowed to move in either direction, not just fill in.
         const fillStr=(field,raw)=>{ if((existing[field]==null||existing[field]==='')&&raw!==undefined&&(''+raw).trim()!==''){ existing[field]=(''+raw).toString(); return true; } return false; };
         const fillNum=(field,raw)=>{ if(existing[field]==null&&raw!==undefined&&raw!==''&&!isNaN(Number(raw))){ existing[field]=Math.round(Number(raw)); return true; } return false; };
         let fieldsFilled=false;
@@ -1897,6 +1898,18 @@ async function handleImportFile(ev){
         }
         if(fieldsFilled)changes.push('filled in missing fields');
 
+        // Stage: an explicit Stage column on an existing company's row is a deliberate
+        // correction from whoever prepared the sheet (e.g. a company logged too far ahead,
+        // or work reopened) — not stale data to ignore, so it's applied in either direction
+        // once it fuzzy-matches a real stage for this record's stage list and differs from
+        // its current stage. A blank/unmatched Stage cell still leaves the stage untouched.
+        const existingStageList=pipeline==='partners'?STAGES['partners'+(existing.portfolio||portfolio)]:STAGES[pipeline];
+        const matchedStage=matchInList(existingStageList,get('stage'));
+        if(matchedStage&&matchedStage!==existing.stage){
+          changes.push(`stage: ${existing.stage} → ${matchedStage}`);
+          existing.stage=matchedStage;
+        }
+
         if(!changes.length){ skippedCount++; continue; }
         existing.activity.push({t:`Import: ${changes.join(', ')}`,d:'Today'});
         if(alreadyPersisted) touchedExisting.add(existing);
@@ -1904,8 +1917,6 @@ async function handleImportFile(ev){
         continue;
       }
 
-      let portfolio;
-      if(pipeline==='partners'){ const pf=Number(get('portfolio')); portfolio=(pf===1||pf===2)?pf:state.portfolio; }
       const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];
       const stage=matchInList(stageList,get('stage'))||stageList[0];
       const importTs=new Date().toISOString();

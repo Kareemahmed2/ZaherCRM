@@ -30,7 +30,7 @@ From `mapHeaders()`:
 | `email` | `email` | Contact's email → `member.email`. Also used to match contacts across import batches (see §4). |
 | `phone` | `phone` | Contact's phone → `member.phone`. |
 | `linkedin` | `linkedin`, `linkedin url`, `linkedin profile` | Contact's LinkedIn URL → `member.linkedin`. |
-| `stage` | `stage` | **New rows only** — fuzzy-matched (`matchInList`) against that pipeline's stage list; unmatched/blank defaults to the first stage. Never applied to existing companies (see §4d). For Events, the stage list is `Draft`, `Scheduled`, `In Progress`, `Completed`, `Canceled`. |
+| `stage` | `stage` | Fuzzy-matched (`matchInList`) against that pipeline's stage list. On a **new row**, unmatched/blank defaults to the first stage. On an **existing company**, a matched value that differs from the current stage moves it — forward or backward (see §4d); unmatched/blank leaves it as-is. For Events, the stage list is `Draft`, `Scheduled`, `In Progress`, `Completed`, `Canceled`. |
 | `value` | `value`, `mrr`, `arr`, `target`, `mrr/yr`, `mrr per year`, `potential arr`, `target raise` | Deal/record value (number). **New rows only** — never backfilled on an existing company. **Not used for Events** — the field is deleted from new Events records regardless of what's in this column. |
 | `source` | `source` | Where the lead came from. Stored as `source` for Partners/Investors; for Customers it's folded into `leadSource` instead and the plain `source` field is deleted. New rows only. **Not used for Events** — deleted from new Events records. |
 | `date` | `date` | Free-text date label. New rows only; defaults to `"Today"`. |
@@ -123,7 +123,7 @@ A row's contact is matched to an existing member if `email` matches (case-insens
 
 Note that `name`, `role`, `email`, `phone`, `value`, `source`, `date`, and (for Customers) `referredBy` are **not** in these backfill lists — they only ever apply to brand-new rows, never to a merge.
 
-**(d) `stage` is never touched on an existing company**, under any circumstance — this is deliberate. It's assumed a company already in the pipeline effectively always has a stage set, and a re-import must never roll back CRM progress that has moved forward since the spreadsheet was created.
+**(d) `stage` is updated on an existing company if the row's `Stage` cell fuzzy-matches a real stage for that pipeline and differs from the record's current stage** — in either direction (forward or backward). A blank or unrecognized `Stage` cell leaves the existing stage untouched, same as any other omitted column. This is a deliberate correction mechanism, not just backfill: a re-import is trusted to reflect where a company actually stands now, including moving it backward (e.g. a company logged too far ahead, or reopened for more research) — it is on whoever prepares the sheet to make sure the `Stage` column reflects reality before importing, since this can move a company's stage backward from wherever it's progressed to in the CRM.
 
 If a matched row produces no member additions/fills and no field fills, it's counted as **skipped** (no new info) rather than merged.
 
@@ -149,9 +149,9 @@ A new record is created with sensible defaults for anything the sheet didn't sup
 2. **One row per contact, not per company** — if a company has multiple contacts, add multiple rows with the **same value in the Company column**; each row's `Name`/`Email`/`Phone`/`Role`/`LinkedIn` becomes a separate member on one merged record. This will not create duplicate companies.
 3. **Company-level columns only need to appear once** for a given company (e.g. on its first row) — they'll be filled in when that row is processed; repeating them on every contact row for the same company is harmless (later blanks are simply no-ops) but not necessary.
 4. **Leave cells blank** rather than guessing — blank cells are simply skipped, never coerce a wrong default.
-5. **Do not include a `Stage` column expecting it to update existing companies** — it only ever applies to brand-new rows.
+5. **A `Stage` column applies to existing companies too, in either direction** — a matching, different value moves the company's stage, forward or backward. Leave the cell blank for any row whose stage shouldn't change.
 6. **Pick the correct pipeline tab before importing** — there is no way to route rows to different pipelines from within a single file.
 7. **For Customers**, decide `Segment` per row (`Enterprise` vs `SaaS`) if you want `Subscription Period`/`Subscription Date` respected — only the matching one is stored.
 8. **For Partners**, include a `Portfolio` column (`1` or `2`) per row if your rows span both partner sub-pipelines; otherwise make sure the correct portfolio sub-tab is active before importing.
 9. Save as **.xlsx, .xls, or .csv** — all are read via `XLSX.read`, which auto-detects the format. **Every sheet in the workbook is scanned** (not just the first) — each sheet gets its own header row matched independently via `mapHeaders()`, so a workbook with one tab per vertical/category (no `Company`/`Name` header) is simply skipped for that tab, and companies repeated across sheets still merge into one record via the same cross-batch dedup as repeated rows within a single sheet.
-10. Re-imports are safe: they only add missing members/fields and never overwrite existing values or move `stage` backward, so the same file (or an updated superset of it) can be imported repeatedly to progressively enrich records.
+10. Re-imports are additive for every field except `stage`: they only add missing members/fields and never overwrite an existing value, so the same file (or an updated superset of it) can be imported repeatedly to progressively enrich records. `Stage` is the one exception — it's applied whenever the sheet's value differs from the record's current stage, in either direction, so double-check that column reflects where each company actually stands before importing.
