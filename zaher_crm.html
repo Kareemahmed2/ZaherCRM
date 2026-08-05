@@ -1655,9 +1655,34 @@ function renderDirBulkBar(){
   const bar=document.getElementById('dir-bulk-bar');
   if(!dirSelected.size){ bar.style.display='none'; bar.innerHTML=''; return; }
   bar.style.display='flex';
+  const stages=activeStages();
   bar.innerHTML=`<span style="font-weight:600;color:var(--red-400);">${dirSelected.size} selected</span>
     <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="clearDirSelection()">Clear selection</button>
-    <button class="btn btn-danger" style="font-size:12px;padding:5px 10px;margin-left:auto;" onclick="bulkDeleteSelected()">Delete selected</button>`;
+    <select id="dir-bulk-stage-select" class="form-input" style="font-size:12px;padding:5px 8px;width:auto;margin-left:auto;">
+      <option value="" selected disabled>Move to stage…</option>
+      ${stages.map(s=>`<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('')}
+    </select>
+    <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="bulkChangeStage()">Apply</button>
+    <button class="btn btn-danger" style="font-size:12px;padding:5px 10px;" onclick="bulkDeleteSelected()">Delete selected</button>`;
+}
+// Bulk stage move — unlike the single-record stage change (requestStageChange), this skips
+// the note-prompt modal entirely: with many records selected at once there's no single note
+// that would apply to all of them, so each just gets the default "Stage: X → Y" activity
+// entry, same as a single change made without adding a note.
+function bulkChangeStage(){
+  const sel=document.getElementById('dir-bulk-stage-select'); if(!sel||!sel.value)return;
+  const newStage=sel.value, pipeline=state.pipeline;
+  const ids=[...dirSelected];
+  const recs=records.filter(x=>ids.includes(x.id)&&x.pipeline===pipeline&&x.stage!==newStage);
+  if(!recs.length){ showToast('Selected records are already at that stage'); return; }
+  recs.forEach(r=>{
+    const old=r.stage; r.stage=newStage;
+    r.activity.push({t:`Stage: ${old} → ${newStage}`,d:'Today'});
+    saveRecord(r);
+  });
+  dirSelected.clear();
+  showToast(`${recs.length} record${recs.length===1?'':'s'} moved to ${newStage}`);
+  refreshView(); updateBadge();
 }
 function bulkDeleteSelected(){
   const ids=[...dirSelected];
