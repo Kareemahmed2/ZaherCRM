@@ -1622,7 +1622,7 @@ function renderTasks(){
     return t.title.toLowerCase().includes(q) || (c&&c.company.toLowerCase().includes(q));
   });
   document.getElementById('tasks-board').innerHTML=TASK_STATUSES.map(status=>{
-    const items=list.filter(t=>t.status===status);
+    const items=list.filter(t=>t.status===status).sort((a,b)=>taskUrgencyScore(b)-taskUrgencyScore(a));
     return `<div class="kanban-col" data-status="${status}">
       <div class="col-header"><div class="col-name">${status}</div><span class="col-count">${items.length}</span></div>
       <div class="col-cards">${items.map(buildTaskCard).join('')}</div>
