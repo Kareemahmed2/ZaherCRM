@@ -1600,13 +1600,15 @@ function renderCalendar(list){
 // ══════════════ TASKS TAB ══════════════
 function buildTaskCard(t){
   const c=taskCompany(t);
-  return `<div class="k-card" style="cursor:pointer;" onclick="openDetail(${c?c.id:'null'}${c?`,'${c.pipeline}'`:''})">
+  return `<div class="k-card" id="tkcard-${t.id}" data-id="${t.id}" style="cursor:pointer;"
+    onmousedown="taskDragStart(event,${t.id})"
+    onclick="if(!window._wasDrag)openDetail(${c?c.id:'null'}${c?`,'${c.pipeline}'`:''});window._wasDrag=false;">
     <div class="k-card-top">
       <div class="av ${c?avc(c.id):''}" style="width:28px;height:28px;font-size:9px;">${c?ini(c.company):'?'}</div>
       <div class="k-card-info"><div class="kn">${escHtml(t.title)}</div><div class="kc">${c?escHtml(c.company):'—'}</div></div>
     </div>
     <div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${fmtDeadline(t.deadline)}</span></div>
-    <select class="form-input" style="font-size:12px;padding:5px 8px;" onclick="event.stopPropagation()" onchange="event.stopPropagation();changeTaskStatus(${t.id},this.value)">
+    <select class="form-input" style="font-size:12px;padding:5px 8px;" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" onchange="event.stopPropagation();changeTaskStatus(${t.id},this.value)">
       ${TASK_STATUSES.map(s=>`<option ${s===t.status?'selected':''}>${s}</option>`).join('')}
     </select>
   </div>`;
@@ -1621,11 +1623,52 @@ function renderTasks(){
   });
   document.getElementById('tasks-board').innerHTML=TASK_STATUSES.map(status=>{
     const items=list.filter(t=>t.status===status);
-    return `<div class="kanban-col">
+    return `<div class="kanban-col" data-status="${status}">
       <div class="col-header"><div class="col-name">${status}</div><span class="col-count">${items.length}</span></div>
       <div class="col-cards">${items.map(buildTaskCard).join('')}</div>
     </div>`;
   }).join('');
+}
+let taskDrag={active:false};
+// Mirrors dragStart's mouse-tracking drag for the pipeline kanban, but targets the
+// tasks board's status columns and calls changeTaskStatus directly — task moves don't
+// go through the stage-note modal since tasks have no activity timeline to note on.
+function taskDragStart(e,id){
+  if(e.button!==0)return;
+  const card=document.getElementById('tkcard-'+id); if(!card)return;
+  const rect=card.getBoundingClientRect();
+  taskDrag={active:false,id,fromStatus:tasks.find(t=>t.id===id)?.status,startX:e.clientX,startY:e.clientY,offsetX:e.clientX-rect.left,offsetY:e.clientY-rect.top,overStatus:null};
+  window._wasDrag=false;
+  const onMove=ev=>{
+    const dx=ev.clientX-taskDrag.startX,dy=ev.clientY-taskDrag.startY;
+    if(!taskDrag.active&&Math.sqrt(dx*dx+dy*dy)>6){
+      taskDrag.active=true;window._wasDrag=true;
+      const clone=document.getElementById('drag-clone');
+      clone.innerHTML=buildTaskCard(tasks.find(t=>t.id===id));
+      clone.style.cssText=`position:fixed;pointer-events:none;z-index:9999;width:${rect.width}px;left:${rect.left}px;top:${rect.top}px;transform:rotate(2deg) scale(1.03);box-shadow:var(--shadow-drag);border-radius:var(--r-md);opacity:1;`;
+      card.classList.add('dragging');
+    }
+    if(!taskDrag.active)return;
+    const clone=document.getElementById('drag-clone');
+    clone.style.left=(ev.clientX-taskDrag.offsetX)+'px';
+    clone.style.top=(ev.clientY-taskDrag.offsetY)+'px';
+    let found=null;
+    document.querySelectorAll('#tasks-board .kanban-col').forEach(col=>{
+      const cr=col.getBoundingClientRect();col.classList.remove('drag-over');
+      if(ev.clientX>=cr.left&&ev.clientX<=cr.right&&ev.clientY>=cr.top&&ev.clientY<=cr.bottom)found=col.dataset.status;
+    });
+    taskDrag.overStatus=found;
+    if(found)document.querySelector(`#tasks-board .kanban-col[data-status="${found}"]`)?.classList.add('drag-over');
+  };
+  const onUp=()=>{
+    document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);
+    document.getElementById('drag-clone').style.opacity='0';
+    document.getElementById('tkcard-'+id)?.classList.remove('dragging');
+    document.querySelectorAll('#tasks-board .kanban-col').forEach(c=>c.classList.remove('drag-over'));
+    if(taskDrag.active&&taskDrag.overStatus&&taskDrag.overStatus!==taskDrag.fromStatus)changeTaskStatus(id,taskDrag.overStatus);
+    taskDrag.active=false;
+  };
+  document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);
 }
 
 // ══════════════ DIRECTORY ══════════════
