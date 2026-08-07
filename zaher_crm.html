@@ -2385,7 +2385,7 @@ function renderDetail(){
   if(state.pipeline==='partners'){ tags=catChip(r.category)+tierPill(r.tier)+tags; }
   else if(state.pipeline==='customers'&&r.sector){ tags=`<span class="tag">${escHtml(r.sector)}</span>`+tags; }
   else if(state.pipeline==='events'&&r.eventType){ tags=`<span class="tag">${escHtml(r.eventType)}</span>`+tags; }
-  document.getElementById('det-tags').innerHTML=tags;
+  document.getElementById('det-tags').innerHTML=tags+tagSelectHtml(r);
   // Breadcrumb of every note on the record, most recent first — same vertical-trace
   // styling as the Activity timeline. Every explicit a.note (stage moves, and any
   // record created/imported after this feature shipped) is included as-is; records
