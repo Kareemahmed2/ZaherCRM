@@ -876,6 +876,18 @@ function stagePill(stage){ const c=STAGE_COLOR[stage]||'#888780'; return `<span 
 function catChip(cat){ const m=CAT_META[cat]; if(!m) return ''; return `<span class="chip" style="background:${m.bg};color:${m.c};">${cat.replace(' & ','/').replace('Startup Development Orgs','Accelerator').replace('Government & National Dev','Government').replace('SaaS & E-commerce Platforms','Platform').replace('Operational Touchpoint','Logistics').replace('Marketing Agencies','Agency')}</span>`; }
 function tierPill(t){ if(!t) return ''; return `<span class="tier-pill t${t}">Tier ${t}</span>`; }
 function isP2(){ return state.pipeline==='partners'&&state.portfolio===2; }
+// A customer deal only starts counting toward Pipeline Value once it reaches Proposal —
+// earlier stages (Researched..Discovery Call) rarely have a real number behind them yet.
+// Active Client isn't part of Pipeline Value either: once a deal closes, its value moves
+// out of the pipeline and into MRR instead.
+function isPipelineValueStage(stage){
+  const idx=STAGES.customers.indexOf(stage), proposalIdx=STAGES.customers.indexOf('Proposal');
+  return idx>=proposalIdx && stage!=='Active Client';
+}
+function customerPipelineValue(recs){ return recs.filter(r=>isPipelineValueStage(r.stage)).reduce((s,r)=>s+(r.value||0),0); }
+// MRR is the sum of `value` across customers currently at Active Client — ARR is just
+// that annualized (×12), not a separately-tracked figure.
+function customerMRR(recs){ return recs.filter(r=>r.stage==='Active Client').reduce((s,r)=>s+(r.value||0),0); }
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('show'),2400);}
 // Returns a record, null (no match), or {ambiguous:true,candidates:[...]} when a member-name
 // tier matches more than one company — with common contact names, two different companies
@@ -1186,11 +1198,16 @@ function renderDashboard(){
     const founders=recs.reduce((s,r)=>s+(r.founders||0),0);
     cards=[['Ecosystem partners',total,'All'],['Workshops delivered',wshops,'Leading indicator'],['Founders reached',founders,'Educated'],['Recurring / Ecosystem',won.length,'Standing']];
   } else {
-    const pipeVal=active.reduce((s,r)=>s+(r.value||0),0);
+    const isCust=state.pipeline==='customers';
+    const pipeVal=isCust?customerPipelineValue(recs):active.reduce((s,r)=>s+(r.value||0),0);
     const l1={partners:'Total partners',customers:'Total customers',investors:'Total investors'}[state.pipeline];
     const l3={partners:'Revenue partners',customers:'Active clients',investors:'Closed'}[state.pipeline];
     const l4={partners:'Potential ARR',customers:'Pipeline value',investors:'Open raise'}[state.pipeline];
-    cards=[[l1,total,'All'],['In pipeline',active.length,'Active'],[l3,won.length,total?((won.length/total)*100).toFixed(0)+'% rate':'0%'],[l4,fv(pipeVal),'Open']];
+    cards=[[l1,total,'All'],['In pipeline',active.length,'Active'],[l3,won.length,total?((won.length/total)*100).toFixed(0)+'% rate':'0%'],[l4,fv(pipeVal),isCust?'Proposal+':'Open']];
+    if(isCust){
+      const mrr=customerMRR(recs);
+      cards.push(['MRR',fv(mrr),'Active clients'],['ARR',fv(mrr*12),'MRR × 12']);
+    }
   }
   document.getElementById('stats-grid').innerHTML=cards.map(c=>`<div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-value">${c[1]}</div><div class="stat-delta">${c[2]}</div></div>`).join('');
 
@@ -2252,8 +2269,10 @@ function renderAnalytics(){
     const w=recs.reduce((s,r)=>s+(r.workshops||0),0),f=recs.reduce((s,r)=>s+(r.founders||0),0);
     kpis=[['Ecosystem partners',recs.length],['Workshops delivered',w],['Founders reached',f],['Recurring / Ecosystem',won.length]];
   } else {
+    const isCust=state.pipeline==='customers';
     const allVal=recs.reduce((s,r)=>s+(r.value||0),0),wonVal=won.reduce((s,r)=>s+(r.value||0),0);
-    kpis=[['Total value',fv(allVal)],[{partners:'Signed ARR',customers:'Won revenue',investors:'Capital raised'}[state.pipeline],fv(wonVal)],['Avg deal',fv(recs.length?Math.round(allVal/recs.length):0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
+    kpis=[['Total value',fv(allVal)],[{partners:'Signed ARR',customers:'MRR',investors:'Capital raised'}[state.pipeline],fv(wonVal)],['Avg deal',fv(recs.length?Math.round(allVal/recs.length):0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
+    if(isCust) kpis.push(['ARR',fv(wonVal*12)],['Pipeline value',fv(customerPipelineValue(recs))]);
   }
   document.getElementById('an-kpis').innerHTML=kpis.map(k=>`<div class="stat-card"><div class="stat-label">${k[0]}</div><div class="stat-value">${k[1]}</div><div class="stat-delta">${state.pipeline}</div></div>`).join('');
   // stage chart
