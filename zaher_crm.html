@@ -42,7 +42,7 @@
   .logo-sub { font-size:10px; color:var(--gray-500); font-weight:500; }
   .sidebar-section { padding:14px 12px 6px; }
   .sidebar-label { font-size:10px; font-weight:600; color:var(--gray-500); text-transform:uppercase; letter-spacing:.09em; padding:0 8px; margin-bottom:4px; }
-  .nav-item { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:var(--r-sm); cursor:pointer; color:var(--gray-700); font-size:13px; font-weight:400; transition:background .12s,color .12s; margin-bottom:1px; }
+  .nav-item { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:var(--r-sm); cursor:pointer; color:var(--gray-700); font-size:13px; font-weight:400; transition:background .12s,color .12s; margin-bottom:1px; border:none; background:none; width:100%; text-align:left; font-family:inherit; }
   .nav-item:hover { background:var(--gray-100); }
   .nav-item svg { width:15px; height:15px; flex-shrink:0; opacity:.65; }
   .nav-item.active { background:var(--accent-bg); color:var(--accent); font-weight:500; }
@@ -210,7 +210,7 @@
   .cal-tooltip .ctt-notes{margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);white-space:pre-wrap;}
 
   /* ── DETAIL ── */
-  .detail-back{display:flex;align-items:center;gap:6px;color:var(--gray-500);font-size:12px;cursor:pointer;margin-bottom:16px;width:fit-content;}
+  .detail-back{display:flex;align-items:center;gap:6px;color:var(--gray-500);font-size:12px;cursor:pointer;margin-bottom:16px;width:fit-content;border:none;background:none;font-family:inherit;}
   .detail-back:hover{color:var(--accent);} .detail-back svg{width:14px;height:14px;}
   .detail-grid{display:grid;grid-template-columns:1fr 300px;gap:16px;}
   .detail-profile{background:var(--white);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:16px;}
@@ -355,33 +355,35 @@
     <div><div class="logo-text">Zaher CRM</div><div class="logo-sub">AI Visibility · GEO</div></div>
   </div>
 
-  <div class="pl-strip">
+  <nav class="pl-strip" aria-label="Switch pipeline">
     <button class="pl-btn active" data-pl="partners" onclick="setPipeline('partners')"><span class="dot" style="background:#378ADD"></span>Partners</button>
     <button class="pl-btn" data-pl="customers" onclick="setPipeline('customers')"><span class="dot" style="background:#639922"></span>Customers</button>
     <button class="pl-btn" data-pl="investors" onclick="setPipeline('investors')"><span class="dot" style="background:#0E7474"></span>Investors</button>
     <button class="pl-btn" data-pl="events" onclick="setPipeline('events')"><span class="dot" style="background:#854F0B"></span>Events</button>
-  </div>
+  </nav>
 
   <div class="sidebar-section">
     <div class="sidebar-label" id="nav-section-label">Partnerships</div>
-    <div class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
+    <nav aria-label="Sections">
+    <button type="button" class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
-    </div>
-    <div class="nav-item" id="nav-pipeline" onclick="showPage('pipeline')">
+    </button>
+    <button type="button" class="nav-item" id="nav-pipeline" onclick="showPage('pipeline')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="6" height="16" rx="1"/><rect x="10" y="4" width="6" height="12" rx="1"/><rect x="18" y="4" width="4" height="8" rx="1"/></svg>
       <span id="nav-pipeline-label">Pipeline</span><span class="nav-badge" id="nav-badge">0</span>
-    </div>
-    <div class="nav-item" id="nav-directory" onclick="showPage('directory')">
+    </button>
+    <button type="button" class="nav-item" id="nav-directory" onclick="showPage('directory')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 11a4 4 0 0 0 4 4v2"/></svg>
       <span id="nav-directory-label">Directory</span>
-    </div>
-    <div class="nav-item" id="nav-tasks" onclick="showPage('tasks')">
+    </button>
+    <button type="button" class="nav-item" id="nav-tasks" onclick="showPage('tasks')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       <span>Tasks</span><span class="nav-badge" id="nav-tasks-badge">0</span>
-    </div>
-    <div class="nav-item" id="nav-analytics" onclick="showPage('analytics')">
+    </button>
+    <button type="button" class="nav-item" id="nav-analytics" onclick="showPage('analytics')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Analytics
-    </div>
+    </button>
+    </nav>
   </div>
   <div class="sidebar-footer">
     <div class="user-chip">
@@ -394,7 +396,7 @@
 
 <main class="main">
   <div class="topbar">
-    <span class="topbar-title" id="topbar-title">Dashboard</span>
+    <h1 class="topbar-title" id="topbar-title">Dashboard</h1>
     <div class="topbar-right">
       <div class="seg" id="portfolio-toggle" style="display:none;">
         <button class="seg-btn active" id="pf1-btn" onclick="setPortfolio(1)">Portfolio 1 · Revenue</button>
@@ -495,10 +497,10 @@
 
   <!-- DETAIL -->
   <div class="page" id="page-detail">
-    <div class="detail-back" onclick="goBack()">
+    <button type="button" class="detail-back" onclick="goBack()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
       <span id="detail-back-label">Back</span>
-    </div>
+    </button>
     <div class="detail-grid">
       <div>
         <div class="detail-profile">
@@ -550,9 +552,9 @@
 
 <!-- ADD MODAL -->
 <div class="modal-overlay" id="modal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-header"><span class="modal-title" id="modal-title">Add</span>
-      <button class="modal-close" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="modal-close" aria-label="Close" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body" id="modal-body"></div>
     <div class="modal-footer">
@@ -564,9 +566,9 @@
 
 <!-- SCORER MODAL -->
 <div class="modal-overlay" id="scorer">
-  <div class="modal" style="width:440px;">
-    <div class="modal-header"><span class="modal-title">Agency scoring</span>
-      <button class="modal-close" onclick="closeScorer()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <div class="modal" style="width:440px;" role="dialog" aria-modal="true" aria-labelledby="scorer-title">
+    <div class="modal-header"><span class="modal-title" id="scorer-title">Agency scoring</span>
+      <button class="modal-close" aria-label="Close" onclick="closeScorer()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="form-group"><label class="form-label">Agency name (optional)</label><input class="form-input" id="sc-name" placeholder="e.g. Bytes Future"></div>
@@ -601,15 +603,15 @@
 
 <!-- MEMBER MODAL -->
 <div class="modal-overlay" id="member-modal">
-  <div class="modal" style="width:420px;">
+  <div class="modal" style="width:420px;" role="dialog" aria-modal="true" aria-labelledby="member-modal-title">
     <div class="modal-header"><span class="modal-title" id="member-modal-title">Add member</span>
-      <button class="modal-close" onclick="closeMemberModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="modal-close" aria-label="Close" onclick="closeMemberModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="mem-name" placeholder="Sara Rashid"></div>
       <div class="form-row"><div class="form-group"><label class="form-label">Title</label><input class="form-input" id="mem-title" placeholder="Head of Marketing"></div>
-      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="mem-email" placeholder="name@company.com"></div></div>
-      <div class="form-row"><div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="mem-phone" placeholder="+971 5x xxx xxxx"></div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="mem-email" placeholder="name@company.com"></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Phone</label><input class="form-input" type="tel" id="mem-phone" placeholder="+971 5x xxx xxxx"></div>
       <div class="form-group"><label class="form-label">LinkedIn</label><input class="form-input" id="mem-linkedin" placeholder="linkedin.com/in/..."></div></div>
     </div>
     <div class="modal-footer">
@@ -621,9 +623,9 @@
 
 <!-- TASK MODAL -->
 <div class="modal-overlay" id="task-modal">
-  <div class="modal" style="width:420px;">
+  <div class="modal" style="width:420px;" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
     <div class="modal-header"><span class="modal-title" id="task-modal-title">Add task</span>
-      <button class="modal-close" onclick="closeTaskModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="modal-close" aria-label="Close" onclick="closeTaskModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="form-group"><label class="form-label">Title *</label><input class="form-input" id="task-title" placeholder="Send updated proposal"></div>
@@ -643,9 +645,9 @@
 
 <!-- STAGE CHANGE MODAL -->
 <div class="modal-overlay" id="stage-note-modal">
-  <div class="modal" style="width:400px;">
+  <div class="modal" style="width:400px;" role="dialog" aria-modal="true" aria-labelledby="stage-note-title">
     <div class="modal-header"><span class="modal-title" id="stage-note-title">Move stage</span>
-      <button class="modal-close" onclick="cancelStageChange()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="modal-close" aria-label="Close" onclick="cancelStageChange()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="form-group" id="stage-segment-group" style="display:none;"><label class="form-label">Segment</label>
@@ -668,9 +670,9 @@
 
 <!-- ADD NOTE MODAL -->
 <div class="modal-overlay" id="add-note-modal">
-  <div class="modal" style="width:400px;">
-    <div class="modal-header"><span class="modal-title">Add note</span>
-      <button class="modal-close" onclick="cancelAddNote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <div class="modal" style="width:400px;" role="dialog" aria-modal="true" aria-labelledby="add-note-title">
+    <div class="modal-header"><span class="modal-title" id="add-note-title">Add note</span>
+      <button class="modal-close" aria-label="Close" onclick="cancelAddNote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="form-group"><label class="form-label">Note</label><textarea class="form-input" id="add-note-text" rows="3" placeholder="What's new?"></textarea></div>
@@ -683,7 +685,7 @@
 </div>
 
 <div class="confirm-overlay" id="confirm-overlay">
-  <div class="confirm-box">
+  <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
     <div class="confirm-title" id="confirm-title">Delete this record?</div>
     <div class="confirm-msg" id="confirm-msg"></div>
     <div class="confirm-actions">
@@ -702,20 +704,20 @@
 </div>
 
 <!-- CHATBOT -->
-<button class="chat-fab" id="chat-fab" onclick="toggleChat()">
+<button class="chat-fab" id="chat-fab" onclick="toggleChat()" aria-label="Open assistant chat">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
 </button>
 <div class="chat-panel" id="chat-panel">
   <div class="chat-head">
     <span class="dot"></span>
     <div><div class="t">Zaher Assistant</div><div class="s">Ask it to update or query the CRM</div></div>
-    <button class="x" onclick="toggleChat()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button class="x" onclick="toggleChat()" aria-label="Close chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div class="chat-body" id="chat-body"></div>
   <div class="chat-suggest" id="chat-suggest"></div>
   <div class="chat-input-row">
     <textarea class="chat-input" id="chat-input" rows="1" placeholder="Message the assistant..." onkeydown="chatKey(event)" oninput="autoGrow(this)"></textarea>
-    <button class="chat-send" id="chat-send" onclick="sendChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+    <button class="chat-send" id="chat-send" onclick="sendChat()" aria-label="Send message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
   </div>
 </div>
 
@@ -724,7 +726,7 @@
 <div class="import-undo-bar" id="import-undo-bar">
   <span id="import-undo-text"></span>
   <button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="undoLastImport()">Undo</button>
-  <button class="modal-close" onclick="hideImportUndoBar()" title="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <button class="modal-close" onclick="hideImportUndoBar()" title="Dismiss" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
 </div>
 
 <!-- AUTH GATE -->
@@ -871,8 +873,12 @@ const avc=id=>AV_COLORS[Math.abs(id)%AV_COLORS.length];
 // calendar event bars so a given event reads as the same color everywhere in the app.
 const AVC_HEX={'av-blue':'#185FA5','av-green':'#3B6D11','av-amber':'#854F0B','av-purple':'#534AB7','av-red':'#E24B4A','av-teal':'#0E7474'};
 const avcHex=id=>AVC_HEX[avc(id)];
-const fv=v=>!v?'$0':v>=1000000?'$'+(v/1000000).toFixed(1)+'M':v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v;
-const ff=v=>!v?'$0':'$'+v.toLocaleString();
+// Both format the sign separately (rather than letting it ride along inside the number) so a
+// negative value reads as "-$500", not "$-500" — v>=1000 etc. all short-circuit on a negative
+// v otherwise, since -500 is neither !v nor >=1000, falling through to the raw-number branch
+// with the minus sign stuck between the $ and the digits.
+const fv=v=>{ if(!v) return '$0'; const neg=v<0, av=Math.abs(v); const s=av>=1000000?(av/1000000).toFixed(1)+'M':av>=1000?(av/1000).toFixed(0)+'k':''+av; return (neg?'-':'')+'$'+s; };
+const ff=v=>{ if(!v) return '$0'; const neg=v<0; return (neg?'-':'')+'$'+Math.abs(v).toLocaleString(); };
 function fmtTs(ts){ if(!ts) return '—'; const d=new Date(ts); return isNaN(d)?'—':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
 function activeStages(){ if(state.pipeline==='partners') return STAGES['partners'+state.portfolio]; return STAGES[state.pipeline]; }
 function activeRecords(){ return records.filter(r=>r.pipeline===state.pipeline && (state.pipeline!=='partners'||r.portfolio===state.portfolio)); }
@@ -1497,6 +1503,25 @@ function filterFieldsFor(p){
   return [{key:'thesis',label:'Thesis'},{key:'fundSize',label:'Fund size'},{key:'stage',label:'Stage'},{key:'source',label:'Source'}];
 }
 function toggleFilterPanel(id){ document.getElementById(id).classList.toggle('open'); }
+// Pairs every `.form-label` with its field via a real `for`/`id`, instead of relying on
+// visual adjacency (screen readers and "click label to focus field" both need the real
+// association). Written as one generic pass over `.form-group` rather than hand-adding
+// for="..." to ~70 label/input pairs scattered across every pipeline's add/edit form, the
+// filter panel, and every other modal — most of which are assembled as template-literal HTML
+// at render time, not static markup, so a one-off edit wouldn't stay correct as forms change.
+// Skips groups built around checkboxes (e.g. the scorer's "Hard-skip filters") — those inputs
+// are already individually wrapped in their own <label class="check-row"> and a group-level
+// label there is a heading for several fields, not a caption for one.
+function wireFormLabels(root){
+  (root||document).querySelectorAll('.form-group').forEach(g=>{
+    if(g.querySelector('.check-row'))return;
+    const label=g.querySelector('label.form-label');
+    const field=g.querySelector('input,select,textarea');
+    if(!label||!field)return;
+    if(!field.id)field.id='auto-fld-'+Math.random().toString(36).slice(2,9);
+    label.setAttribute('for',field.id);
+  });
+}
 function renderFilterPanel(panelId){
   const panel=document.getElementById(panelId); if(!panel)return;
   const fields=filterFieldsFor(state.pipeline);
@@ -1511,11 +1536,12 @@ function renderFilterPanel(panelId){
       </select></div>`;
   }).join('');
   if(!isP2()&&state.pipeline!=='events'){
-    html+=`<div class="form-group"><label class="form-label">Min ticket ($)</label><input class="form-input" type="number" placeholder="0" value="${state.filters.valueMin||''}" oninput="setFilterDebounced('valueMin',this.value)"></div>
-    <div class="form-group"><label class="form-label">Max ticket ($)</label><input class="form-input" type="number" placeholder="Any" value="${state.filters.valueMax||''}" oninput="setFilterDebounced('valueMax',this.value)"></div>`;
+    html+=`<div class="form-group"><label class="form-label">Min ticket ($)</label><input class="form-input" type="number" min="0" placeholder="0" value="${state.filters.valueMin||''}" oninput="setFilterDebounced('valueMin',this.value)"></div>
+    <div class="form-group"><label class="form-label">Max ticket ($)</label><input class="form-input" type="number" min="0" placeholder="Any" value="${state.filters.valueMax||''}" oninput="setFilterDebounced('valueMax',this.value)"></div>`;
   }
   html+=`<div class="form-group" style="display:flex;align-items:flex-end;min-width:auto;"><button class="btn btn-ghost" style="font-size:12px;padding:7px 10px;" onclick="clearFilters()">Clear filters</button></div>`;
   panel.innerHTML=html;
+  wireFormLabels(panel);
 }
 // Deliberately doesn't call renderFilterPanel() here — the panel (including the Min/Max
 // ticket number inputs) is only rebuilt on page navigation (see showPage()), not on every
@@ -1647,9 +1673,9 @@ function renderCalendar(list){
     <div class="calendar-header">
       <div class="calendar-title">${monthLabel}</div>
       <div class="calendar-nav">
-        <button class="btn btn-ghost" onclick="calPrevMonth()">‹</button>
+        <button class="btn btn-ghost" onclick="calPrevMonth()" aria-label="Previous month">‹</button>
         <button class="btn btn-ghost" onclick="calToday()">Today</button>
-        <button class="btn btn-ghost" onclick="calNextMonth()">›</button>
+        <button class="btn btn-ghost" onclick="calNextMonth()" aria-label="Next month">›</button>
       </div>
     </div>
     <div class="calendar-weekdays">${weekdayLabels.map(w=>`<div class="cal-weekday">${w}</div>`).join('')}</div>
@@ -2452,7 +2478,7 @@ function renderDetail(){
     <div class="field-item" style="border-right:none;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer;" onclick="editTask(${t.id})">
         <div class="field-val" style="min-width:0;">${escHtml(t.title)}</div>
-        <button class="modal-close" style="flex-shrink:0;" onclick="event.stopPropagation();deleteTask(${t.id})" title="Delete task">✕</button>
+        <button class="modal-close" style="flex-shrink:0;" onclick="event.stopPropagation();deleteTask(${t.id})" title="Delete task" aria-label="Delete task">✕</button>
       </div>
       <div style="font-size:11px;color:var(--gray-500);margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}<span>${fmtDeadline(t.deadline)}</span></div>
       <select class="form-input" style="font-size:11px;padding:5px 8px;margin-top:8px;" onchange="changeTaskStatus(${t.id},this.value)">
@@ -2612,7 +2638,7 @@ function extraFieldsHtml(p,r){
       <div class="form-group"><label class="form-label">Portfolio</label><select class="form-input" id="f-portfolio"><option value="1" ${portfolio===1?'selected':''}>1 · Revenue</option><option value="2" ${portfolio===2?'selected':''}>2 · Ecosystem</option></select></div>
       <div class="form-group"><label class="form-label">Category</label><select class="form-input" id="f-category">${Object.keys(CAT_META).map(c=>`<option ${r&&r.category===c?'selected':''}>${c}</option>`).join('')}</select></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">Model</label><input class="form-input" id="f-model" placeholder="Referral / Reseller / ..." value="${escAttr(r?r.model:'')}"></div>
-      <div class="form-group"><label class="form-label">Potential ARR ($)</label><input class="form-input" type="number" id="f-value" placeholder="20000" value="${r&&r.value?r.value:''}"></div></div>
+      <div class="form-group"><label class="form-label">Potential ARR ($)</label><input class="form-input" type="number" min="0" id="f-value" placeholder="20000" value="${r&&r.value?r.value:''}"></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">Website</label><input class="form-input" id="f-website" placeholder="company.com" value="${escAttr(r?r.website:'')}"></div>
       <div class="form-group"><label class="form-label">Region</label><input class="form-input" id="f-region" placeholder="UAE, Saudi Arabia, ..." value="${escAttr(r?r.region:'')}"></div></div>
       <div class="form-group"><label class="form-label">Tier</label><select class="form-input" id="f-tier">
@@ -2633,7 +2659,7 @@ function extraFieldsHtml(p,r){
       : `<input class="form-input" id="f-segment" value="— set at Active Client" disabled>`;
     return `<div class="form-row"><div class="form-group"><label class="form-label">Sector</label><input class="form-input" id="f-sector" placeholder="E-Commerce" value="${escAttr(r?r.sector:'')}"></div>
       <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="f-website" placeholder="company.com" value="${escAttr(r?r.website:'')}"></div></div>
-      <div class="form-row"><div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" id="f-value" placeholder="12000" value="${r&&r.value?r.value:''}"></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" min="0" id="f-value" placeholder="12000" value="${r&&r.value?r.value:''}"></div>
       <div class="form-group"><label class="form-label">Segment</label>${segField}</div></div>
       <div class="form-group"><label class="form-label">Lead source</label><input class="form-input" id="f-leadsource" placeholder="LinkedIn / Community / Partner" value="${escAttr(r?r.leadSource:'')}"></div>
       <div class="form-row">
@@ -2657,13 +2683,13 @@ function extraFieldsHtml(p,r){
       </div>
       <div id="f-inperson-group" style="display:${format==='In-Person'?'':'none'};">
         <div class="form-row"><div class="form-group"><label class="form-label">Venue name</label><input class="form-input" id="f-venuename" placeholder="Venue" value="${escAttr(r?r.venueName:'')}"></div>
-        <div class="form-group"><label class="form-label">Capacity</label><input class="form-input" type="number" id="f-capacity" placeholder="100" value="${r&&r.capacity!=null?r.capacity:''}"></div></div>
+        <div class="form-group"><label class="form-label">Capacity</label><input class="form-input" type="number" min="0" id="f-capacity" placeholder="100" value="${r&&r.capacity!=null?r.capacity:''}"></div></div>
         <div class="form-group"><label class="form-label">Address</label><input class="form-input" id="f-address" placeholder="Street, City" value="${escAttr(r?r.address:'')}"></div>
         <div class="form-group"><label class="form-label">Map link / coordinates</label><input class="form-input" id="f-mapurl" placeholder="maps.google.com/... or lat,lng" value="${escAttr(r?r.mapUrl:'')}"></div>
       </div>`;
   } else {
     return `<div class="form-row"><div class="form-group"><label class="form-label">Fund size</label><input class="form-input" id="f-fundsize" placeholder="$80M" value="${escAttr(r?r.fundSize:'')}"></div>
-      <div class="form-group"><label class="form-label">Target raise ($)</label><input class="form-input" type="number" id="f-value" placeholder="500000" value="${r&&r.value?r.value:''}"></div></div>
+      <div class="form-group"><label class="form-label">Target raise ($)</label><input class="form-input" type="number" min="0" id="f-value" placeholder="500000" value="${r&&r.value?r.value:''}"></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">Thesis</label><input class="form-input" id="f-thesis" placeholder="MENA SaaS" value="${escAttr(r?r.thesis:'')}"></div>
       <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="f-website" placeholder="company.com" value="${escAttr(r?r.website:'')}"></div></div>`;
   }
@@ -2685,8 +2711,8 @@ function renderModalForm(p,r,stage){
     : `<div class="form-group"><label class="form-label">${p==='partners'?'Organisation':'Company / Brand'} *</label><input class="form-input" id="f-company" placeholder="Company" value="${escAttr(r?r.company:'')}"></div>`
     + (r?'':`<div class="form-row"><div class="form-group"><label class="form-label">Contact name</label><input class="form-input" id="f-name" placeholder="Person (optional — becomes the first member)"></div>
     <div class="form-group"><label class="form-label">Role</label><input class="form-input" id="f-role" placeholder="Title"></div></div>
-    <div class="form-row"><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f-email" placeholder="name@company.com"></div>
-    <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="f-phone" placeholder="+971 5x xxx xxxx"></div></div>`);
+    <div class="form-row"><div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="f-email" placeholder="name@company.com"></div>
+    <div class="form-group"><label class="form-label">Phone</label><input class="form-input" type="tel" id="f-phone" placeholder="+971 5x xxx xxxx"></div></div>`);
   document.getElementById('modal-body').innerHTML=`
     ${importRow}
     ${companyContactRows}
@@ -2694,6 +2720,7 @@ function renderModalForm(p,r,stage){
     ${stageSourceRow}
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="f-notes" rows="2" placeholder="Context...">${r?escHtml(r.notes||''):''}</textarea></div>`;
   if(p==='customers')toggleAddFormSegment(curStage);
+  wireFormLabels(document.getElementById('modal-body'));
   document.getElementById('modal').classList.add('open');
 }
 function openModal(stage){
@@ -2715,15 +2742,34 @@ function openEditModal(){
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');editId=null;editPipeline=null;}
 function val(id){const el=document.getElementById(id);return el?el.value.trim():'';}
+// Shared across every add/edit form (partners/customers/investors/events) and the member
+// modal, rather than duplicating pattern checks per pipeline — email/phone/currency fields
+// all funnel through the same three helpers regardless of which form they're on.
+const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(s){ return !s||EMAIL_RE.test(s); }
+// Deliberately lenient — only rejects letters/obviously-not-a-phone-number input, not any
+// particular country's formatting, since the CRM's contacts span many regions and formats.
+const PHONE_RE=/^[+()0-9\s-]{6,20}$/;
+function isValidPhone(s){ return !s||PHONE_RE.test(s); }
+function normalizePhone(s){ return s.replace(/\s+/g,' ').trim(); }
+// Save-time guard behind the number inputs' min="0" — the app never calls
+// reportValidity()/checkValidity() on these (submit is a plain button click, not a form
+// submit event), so a browser that lets you type a literal "-500" past the min attribute
+// would otherwise store it untouched and corrupt every roll-up it feeds into.
+function nonNegativeNum(id){ const n=Number(val(id)); return (!n||n<0)?0:n; }
 async function addRecord(){
   const company=val('f-company'); const p=state.pipeline;
   if(!company){showToast((p==='events'?'Event title':'Organisation name')+' is required');return;}
-  const contactName=val('f-name'),contactRole=val('f-role'),contactEmail=val('f-email'),contactPhone=val('f-phone');
+  const contactEmail=val('f-email');
+  if(!isValidEmail(contactEmail)){showToast('Enter a valid email address, or leave it blank');return;}
+  const contactPhone=normalizePhone(val('f-phone'));
+  if(!isValidPhone(contactPhone)){showToast('Enter a valid phone number, or leave it blank');return;}
+  const contactName=val('f-name'),contactRole=val('f-role');
   const hasContact=contactName||contactRole||contactEmail||contactPhone;
   const members=hasContact?[{name:contactName||company,title:contactRole,email:contactEmail,phone:contactPhone,linkedin:''}]:[];
   const notesVal=val('f-notes');
   const addedEntry={t:'Added to CRM',d:new Date().toISOString()}; if(notesVal)addedEntry.note=notesVal;
-  const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:notesVal,value:Number(val('f-value'))||0,activity:[addedEntry]};
+  const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:notesVal,value:nonNegativeNum('f-value'),activity:[addedEntry]};
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.website=val('f-website');r.region=val('f-region');r.tier=val('f-tier')?Number(val('f-tier')):null;r.score=null;if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){
     const segEl=document.getElementById('f-segment');
@@ -2741,7 +2787,7 @@ async function addRecord(){
     r.format=val('f-format')||'Virtual';
     r.meetingUrl=r.format==='Virtual'?val('f-meetingurl'):'';r.meetingPasscode=r.format==='Virtual'?val('f-meetingpasscode'):'';r.dialIn=r.format==='Virtual'?val('f-dialin'):'';
     r.venueName=r.format==='In-Person'?val('f-venuename'):'';r.address=r.format==='In-Person'?val('f-address'):'';r.mapUrl=r.format==='In-Person'?val('f-mapurl'):'';
-    r.capacity=r.format==='In-Person'?(Number(val('f-capacity'))||null):null;
+    r.capacity=r.format==='In-Person'&&val('f-capacity')!==''?Math.max(0,Number(val('f-capacity'))||0):null;
     delete r.value; delete r.source;
   }
   else {r.fundSize=val('f-fundsize');r.thesis=val('f-thesis');r.website=val('f-website');}
@@ -2763,7 +2809,7 @@ function saveEditedRecord(){
     if(segEl&&segEl.tagName==='SELECT'&&!segEl.value){showToast('Pick SaaS or Enterprise — required for an Active Client');return;}
   }
   r.company=company; r.name=company; r.stage=val('f-stage'); r.notes=val('f-notes');
-  if(p!=='events') r.value=Number(val('f-value'))||0;
+  if(p!=='events') r.value=nonNegativeNum('f-value');
   if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); r.website=val('f-website'); r.region=val('f-region'); r.tier=val('f-tier')?Number(val('f-tier')):null; }
   else if(p==='customers'){
     if(segEl&&segEl.tagName==='SELECT'){
@@ -2779,7 +2825,7 @@ function saveEditedRecord(){
     r.format=val('f-format')||r.format;
     r.meetingUrl=r.format==='Virtual'?val('f-meetingurl'):'';r.meetingPasscode=r.format==='Virtual'?val('f-meetingpasscode'):'';r.dialIn=r.format==='Virtual'?val('f-dialin'):'';
     r.venueName=r.format==='In-Person'?val('f-venuename'):'';r.address=r.format==='In-Person'?val('f-address'):'';r.mapUrl=r.format==='In-Person'?val('f-mapurl'):'';
-    r.capacity=r.format==='In-Person'?(Number(val('f-capacity'))||null):null;
+    r.capacity=r.format==='In-Person'&&val('f-capacity')!==''?Math.max(0,Number(val('f-capacity'))||0):null;
   }
   else { r.source=val('f-source')||r.source; r.fundSize=val('f-fundsize'); r.thesis=val('f-thesis'); r.website=val('f-website'); }
   r.activity=(r.activity||[]).concat([{t:'Details updated',d:new Date().toISOString()}]);
@@ -2878,7 +2924,9 @@ function closeMemberModal(){ document.getElementById('member-modal').classList.r
 function saveMemberModal(){
   const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
   const name=val('mem-name'); if(!name){showToast('Member name is required');return;}
-  const member={name,title:val('mem-title'),email:val('mem-email'),phone:val('mem-phone'),linkedin:val('mem-linkedin')};
+  const email=val('mem-email'); if(!isValidEmail(email)){showToast('Enter a valid email address, or leave it blank');return;}
+  const phone=normalizePhone(val('mem-phone')); if(!isValidPhone(phone)){showToast('Enter a valid phone number, or leave it blank');return;}
+  const member={name,title:val('mem-title'),email,phone,linkedin:val('mem-linkedin')};
   r.members=r.members||[];
   if(editMemberIndex==null){
     r.members.push(member);
@@ -3216,6 +3264,42 @@ async function signOutUser(){
 
 // ══════════════ INIT ══════════════
 window.addEventListener('click',e=>{if(e.target.id==='stage-note-modal'){cancelStageChange();return;}if(e.target.classList&&e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');if(e.target.classList&&e.target.classList.contains('confirm-overlay'))e.target.classList.remove('open');});
+// Each modal-overlay/confirm-overlay's real close function (not just classList.remove('open'))
+// so Escape also clears the state a plain class toggle wouldn't — e.g. cancelStageChange()
+// clearing `pendingStage`, closeModal() clearing editId/editPipeline.
+const MODAL_CLOSERS={modal:closeModal,scorer:closeScorer,'member-modal':closeMemberModal,'task-modal':closeTaskModal,'stage-note-modal':cancelStageChange,'add-note-modal':cancelAddNote,'confirm-overlay':closeConfirm};
+function getOpenDialogEl(){
+  for(const id in MODAL_CLOSERS){ const el=document.getElementById(id); if(el&&el.classList.contains('open')) return el.querySelector(':scope > div'); }
+  return null;
+}
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    for(const id in MODAL_CLOSERS){ const el=document.getElementById(id); if(el&&el.classList.contains('open')){ MODAL_CLOSERS[id](); return; } }
+  } else if(e.key==='Tab'){
+    // Trap Tab within whichever dialog is currently open, so it can't cycle focus out to the
+    // page underneath — the boundaries wrap, the middle just follows normal tab order.
+    const dialog=getOpenDialogEl(); if(!dialog)return;
+    const focusables=Array.from(dialog.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')).filter(el=>el.offsetParent!==null);
+    if(!focusables.length)return;
+    const first=focusables[0], last=focusables[focusables.length-1];
+    if(e.shiftKey&&document.activeElement===first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey&&document.activeElement===last){ e.preventDefault(); first.focus(); }
+  }
+});
+// Moves focus into a dialog the moment it opens (rather than leaving it on whatever button
+// triggered it, outside the trap above) by watching for the 'open' class rather than editing
+// every individual openX() function — one observer covers all current and future modals.
+function setupModalFocusManagement(){
+  document.querySelectorAll('.modal-overlay, .confirm-overlay').forEach(overlay=>{
+    const dialog=overlay.querySelector(':scope > div'); if(!dialog)return;
+    if(!dialog.hasAttribute('tabindex'))dialog.setAttribute('tabindex','-1');
+    new MutationObserver(muts=>{
+      muts.forEach(m=>{ if(m.attributeName==='class'&&overlay.classList.contains('open')) setTimeout(()=>dialog.focus(),0); });
+    }).observe(overlay,{attributes:true});
+  });
+}
+wireFormLabels(document);
+setupModalFocusManagement();
 (async function init(){
   if(!sb){ await startApp(); return; }
   const {data:{session}}=await sb.auth.getSession();
