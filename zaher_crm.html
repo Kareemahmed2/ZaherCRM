@@ -1110,6 +1110,29 @@ function toggleEventLocationFields(format){
   document.getElementById('f-inperson-group').style.display=format==='In-Person'?'':'none';
 }
 function fmtDateTime(ts){ if(!ts) return '—'; const d=new Date(ts); return isNaN(d)?'—':d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
+// Activity entries created before this fix stored a fixed literal like "Today" in `d` instead
+// of a real timestamp, so every one of them displayed as "Today" forever regardless of when it
+// actually happened. New entries now store an ISO timestamp; timeAgo() renders those as
+// relative time and falls back to showing older literal-string entries verbatim — there's no
+// way to recover a real time from a string that never encoded one.
+function timeAgo(d){
+  if(!d) return '—';
+  // Only real ISO timestamps (what we write now) get relative-time treatment. Legacy literals
+  // like "Apr 15" or "Today" are not full ISO strings but new Date() still "successfully"
+  // parses e.g. "Apr 15" as some arbitrary year — silently wrong, not just imprecise — so they
+  // must be filtered out before ever reaching new Date(), not after, via an isNaN check.
+  if(!/^\d{4}-\d{2}-\d{2}T/.test(d)) return d;
+  const dt=new Date(d);
+  if(isNaN(dt)) return d;
+  const min=Math.round((Date.now()-dt.getTime())/60000);
+  if(min<1) return 'Just now';
+  if(min<60) return `${min} minute${min===1?'':'s'} ago`;
+  const hr=Math.round(min/60);
+  if(hr<24) return `${hr} hour${hr===1?'':'s'} ago`;
+  const day=Math.round(hr/24);
+  if(day<7) return `${day} day${day===1?'':'s'} ago`;
+  return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
 function toDatetimeLocal(ts){ if(!ts) return ''; const d=new Date(ts); if(isNaN(d))return ''; const p=n=>(''+n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
 function fromDatetimeLocal(v){ if(!v) return null; const d=new Date(v); return isNaN(d)?null:d.toISOString(); }
 
@@ -1175,8 +1198,8 @@ function showPage(page){
   const titles={dashboard:'Dashboard',pipeline:pipelineTitles[state.pipeline]||'Pipeline',directory:{partners:'Directory',customers:'Contacts',investors:'Investors',events:'Events'}[state.pipeline],tasks:'Tasks',analytics:'Analytics',detail:rec?rec.name:'Detail'};
   document.getElementById('topbar-title').textContent=titles[page]||page;
   if(page==='dashboard')renderDashboard();
-  if(page==='pipeline')renderPipeline();
-  if(page==='directory')renderDirectory();
+  if(page==='pipeline'){renderFilterPanel('pipeline-filter-panel');renderPipeline();}
+  if(page==='directory'){renderFilterPanel('dir-filter-panel');renderDirectory();}
   if(page==='tasks')renderTasks();
   if(page==='analytics')renderAnalytics();
 }
@@ -1266,7 +1289,7 @@ function renderDashboard(){
     <div class="act-dot-wrap"><div class="act-dot" style="background:${n.color}"></div></div>
     <div style="flex:1;"><div class="act-text" style="font-weight:600;color:var(--gray-900);">${escHtml(n.company)}</div>
     <div class="tl-note" style="margin-top:4px;">${escHtml(n.note)}</div>
-    <div class="act-time" style="margin-top:4px;">${escHtml(n.time)}</div></div></div>`).join(''):`<div class="notes-body">No notes yet.</div>`;
+    <div class="act-time" style="margin-top:4px;">${escHtml(timeAgo(n.time))}</div></div></div>`).join(''):`<div class="notes-body">No notes yet.</div>`;
 
   const todo=activeTasks().filter(t=>t.status!=='Done').sort((a,b)=>taskUrgencyScore(b)-taskUrgencyScore(a));
   document.getElementById('todo-feed').innerHTML=todo.length?todo.slice(0,6).map(t=>{
@@ -1288,7 +1311,7 @@ function renderDashboard(){
   acts.sort((a,b)=>b.order-a.order);
   document.getElementById('activity-feed').innerHTML=acts.slice(0,8).map(a=>`
     <div class="act-item"><div class="act-dot-wrap"><div class="act-dot" style="background:${a.color}"></div></div>
-    <div><div class="act-text">${escHtml(a.text)}</div><div class="act-time">${escHtml(a.time)}</div></div></div>`).join('');
+    <div><div class="act-text">${escHtml(a.text)}</div><div class="act-time">${escHtml(timeAgo(a.time))}</div></div></div>`).join('');
 }
 
 // ══════════════ KANBAN ══════════════
@@ -1419,7 +1442,7 @@ function confirmStageChange(){
 function applyStage(id,newStage,toast,note,segment,subscriptionPeriod,subscriptionDate){
   const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r||r.stage===newStage)return;
   const old=r.stage; r.stage=newStage;
-  const entry={t:`Stage: ${old} → ${newStage}`,d:'Today'};
+  const entry={t:`Stage: ${old} → ${newStage}`,d:new Date().toISOString()};
   if(note)entry.note=note;
   if(segment){
     r.segment=segment;
@@ -1447,7 +1470,7 @@ function cancelAddNote(){ document.getElementById('add-note-modal').classList.re
 function confirmAddNote(){
   const note=document.getElementById('add-note-text').value.trim(); if(!note)return;
   const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
-  r.activity.push({t:'Note',d:'Today',note});
+  r.activity.push({t:'Note',d:new Date().toISOString(),note});
   saveRecord(r);
   document.getElementById('add-note-modal').classList.remove('open');
   renderDetail();
@@ -1479,14 +1502,20 @@ function renderFilterPanel(panelId){
       </select></div>`;
   }).join('');
   if(!isP2()&&state.pipeline!=='events'){
-    html+=`<div class="form-group"><label class="form-label">Min ticket ($)</label><input class="form-input" type="number" placeholder="0" value="${state.filters.valueMin||''}" oninput="setFilter('valueMin',this.value)"></div>
-    <div class="form-group"><label class="form-label">Max ticket ($)</label><input class="form-input" type="number" placeholder="Any" value="${state.filters.valueMax||''}" oninput="setFilter('valueMax',this.value)"></div>`;
+    html+=`<div class="form-group"><label class="form-label">Min ticket ($)</label><input class="form-input" type="number" placeholder="0" value="${state.filters.valueMin||''}" oninput="setFilterDebounced('valueMin',this.value)"></div>
+    <div class="form-group"><label class="form-label">Max ticket ($)</label><input class="form-input" type="number" placeholder="Any" value="${state.filters.valueMax||''}" oninput="setFilterDebounced('valueMax',this.value)"></div>`;
   }
   html+=`<div class="form-group" style="display:flex;align-items:flex-end;min-width:auto;"><button class="btn btn-ghost" style="font-size:12px;padding:7px 10px;" onclick="clearFilters()">Clear filters</button></div>`;
   panel.innerHTML=html;
 }
+// Deliberately doesn't call renderFilterPanel() here — the panel (including the Min/Max
+// ticket number inputs) is only rebuilt on page navigation (see showPage()), not on every
+// filter change. Rebuilding it here used to destroy/recreate the input the user was actively
+// typing into on each keystroke, dropping focus and every character after the first.
 function setFilter(key,v){ if(v==='')delete state.filters[key]; else state.filters[key]=v; renderPipeline(); renderDirectory(); }
-function clearFilters(){ state.filters={}; renderPipeline(); renderDirectory(); }
+let filterDebounceTimer=null;
+function setFilterDebounced(key,v){ clearTimeout(filterDebounceTimer); filterDebounceTimer=setTimeout(()=>setFilter(key,v),250); }
+function clearFilters(){ state.filters={}; renderFilterPanel('pipeline-filter-panel'); renderFilterPanel('dir-filter-panel'); renderPipeline(); renderDirectory(); }
 function applyFilters(list){
   const entries=Object.entries(state.filters); if(!entries.length)return list;
   return list.filter(r=>entries.every(([k,v])=>{
@@ -1497,7 +1526,6 @@ function applyFilters(list){
 }
 function renderPipeline(){
   updateBadge();
-  renderFilterPanel('pipeline-filter-panel');
   const recs=activeRecords(), stages=activeStages();
   const q=(document.getElementById('search-input')||{value:''}).value.toLowerCase();
   let list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)
@@ -1697,7 +1725,6 @@ function taskDragStart(e,id){
 
 // ══════════════ DIRECTORY ══════════════
 function renderDirectory(){
-  renderFilterPanel('dir-filter-panel');
   const recs=activeRecords();
   const q=(document.getElementById('dir-search')||{value:''}).value.toLowerCase();
   let list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)
@@ -1818,7 +1845,7 @@ function bulkChangeStage(){
   if(!recs.length){ showToast('Selected records are already at that stage'); return; }
   recs.forEach(r=>{
     const old=r.stage; r.stage=newStage;
-    const entry={t:`Stage: ${old} → ${newStage}`,d:'Today'};
+    const entry={t:`Stage: ${old} → ${newStage}`,d:new Date().toISOString()};
     if(segment){
       r.segment=segment;
       r.subscriptionPeriod=segment==='Enterprise'?subscriptionPeriod:'';
@@ -2137,7 +2164,7 @@ async function handleImportFile(ev){
         }
 
         if(!changes.length){ skippedCount++; continue; }
-        existing.activity.push({t:`Import: ${changes.join(', ')}`,d:'Today'});
+        existing.activity.push({t:`Import: ${changes.join(', ')}`,d:new Date().toISOString()});
         if(alreadyPersisted) touchedExisting.add(existing);
         mergedCount++;
         continue;
@@ -2147,7 +2174,7 @@ async function handleImportFile(ev){
       const stage=matchInList(stageList,get('stage'))||stageList[0];
       const importTs=new Date().toISOString();
       const importNotes=(get('notes')||'').toString();
-      const importedEntry={t:'Imported',d:'Today'}; if(importNotes)importedEntry.note=importNotes;
+      const importedEntry={t:'Imported',d:new Date().toISOString()}; if(importNotes)importedEntry.note=importNotes;
       const r={pipeline,name:company,company,
         role:'',email:'',phone:'',members:newMember?[newMember]:[],
         stage, value:Number(get('value'))||0, source:(get('source')||'Import').toString(),
@@ -2228,8 +2255,8 @@ function exportRecords(fmt){
   if(!recs.length){showToast('Nothing to export in this view');return;}
   const rows=recs.map(r=>({
     id:r.id, pipeline:r.pipeline, name:r.name, company:r.company, role:r.role||'', email:r.email||'',
-    phone:r.phone||'', stage:r.stage, value:r.value||0, source:r.pipeline==='customers'?(r.leadSource||''):(r.source||''), date:r.date||'', notes:r.notes||'',
-    category:r.category||'', model:r.model||'', tier:r.tier||'', region:r.region||'',
+    phone:r.phone||'', website:r.website||'', stage:r.stage, value:r.value||0, source:r.pipeline==='customers'?(r.leadSource||''):(r.source||''), date:r.date||'', notes:r.notes||'',
+    category:r.category||'', model:r.model||'', tier:r.tier||'', score:r.score!=null?r.score:'', region:r.region||'',
     sector:r.sector||'', segment:r.segment||'', package:r.package||'', aiScore:r.aiScore||'', nextStep:r.nextStep||'',
     subscriptionPeriod:r.subscriptionPeriod||'', subscriptionDate:r.subscriptionDate||'',
     members:(r.members||[]).map(m=>`${m.name}${m.title?' ('+m.title+')':''}${m.email?' <'+m.email+'>':''}`).join('; '),
@@ -2243,7 +2270,8 @@ function exportRecords(fmt){
   const ws=XLSX.utils.json_to_sheet(rows);
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Records');
-  const fname=`zaher-crm-${state.pipeline}-${Date.now()}.${fmt}`;
+  const stamp=new Date().toISOString().slice(0,10);
+  const fname=`zaher-crm-${state.pipeline}-${stamp}.${fmt}`;
   XLSX.writeFile(wb,fname,{bookType:fmt});
 }
 
@@ -2402,7 +2430,7 @@ function renderDetail(){
   noteEntries=noteEntries.reverse();
   document.getElementById('det-note-trail').innerHTML=noteEntries.length?noteEntries.map((a,i)=>`
     <div class="tl-item"><div class="tl-dot-col"><div class="tl-dot"></div>${i<noteEntries.length-1?'<div class="tl-line"></div>':''}</div>
-    <div style="flex:1;"><div class="tl-note" style="margin-top:0;">${escHtml(a.note)}</div><div class="tl-date" style="margin-top:4px;">${escHtml(a.label)} · ${escHtml(a.date)}</div></div></div>`).join(''):`<div class="notes-body">No notes yet.</div>`;
+    <div style="flex:1;"><div class="tl-note" style="margin-top:0;">${escHtml(a.note)}</div><div class="tl-date" style="margin-top:4px;">${escHtml(a.label)} · ${escHtml(timeAgo(a.date))}</div></div></div>`).join(''):`<div class="notes-body">No notes yet.</div>`;
   document.getElementById('det-contact-btn').onclick=()=>showToast('✉ Opening email to '+((pmDetail&&pmDetail.email)||'—'));
 
   // Open tasks first (sorted by urgency), done tasks trail at the bottom.
@@ -2512,7 +2540,7 @@ function renderDetail(){
   const acts=r.activity.slice().reverse();
   document.getElementById('det-timeline').innerHTML=acts.map((a,i)=>`
     <div class="tl-item"><div class="tl-dot-col"><div class="tl-dot"></div>${i<acts.length-1?'<div class="tl-line"></div>':''}</div>
-    <div style="flex:1;"><div class="tl-text">${escHtml(a.t)}</div><div class="tl-date">${escHtml(a.d)}</div>${a.note?`<div class="tl-note">${escHtml(a.note)}</div>`:''}</div></div>`).join('');
+    <div style="flex:1;"><div class="tl-text">${escHtml(a.t)}</div><div class="tl-date">${escHtml(timeAgo(a.d))}</div>${a.note?`<div class="tl-note">${escHtml(a.note)}</div>`:''}</div></div>`).join('');
 }
 
 // ══════════════ MODALS ══════════════
@@ -2661,7 +2689,7 @@ async function addRecord(){
   const hasContact=contactName||contactRole||contactEmail||contactPhone;
   const members=hasContact?[{name:contactName||company,title:contactRole,email:contactEmail,phone:contactPhone,linkedin:''}]:[];
   const notesVal=val('f-notes');
-  const addedEntry={t:'Added to CRM',d:'Today'}; if(notesVal)addedEntry.note=notesVal;
+  const addedEntry={t:'Added to CRM',d:new Date().toISOString()}; if(notesVal)addedEntry.note=notesVal;
   const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:notesVal,value:Number(val('f-value'))||0,activity:[addedEntry]};
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){
@@ -2721,7 +2749,7 @@ function saveEditedRecord(){
     r.capacity=r.format==='In-Person'?(Number(val('f-capacity'))||null):null;
   }
   else { r.source=val('f-source')||r.source; r.fundSize=val('f-fundsize'); r.thesis=val('f-thesis'); r.website=val('f-website'); }
-  r.activity=(r.activity||[]).concat([{t:'Details updated',d:'Today'}]);
+  r.activity=(r.activity||[]).concat([{t:'Details updated',d:new Date().toISOString()}]);
   closeModal(); saveRecord(r);
   if(p==='partners'&&r.portfolio)state.portfolio=r.portfolio;
   refreshView(); showToast(`${company} updated`);
@@ -2796,10 +2824,10 @@ function saveMemberModal(){
   r.members=r.members||[];
   if(editMemberIndex==null){
     r.members.push(member);
-    r.activity=(r.activity||[]).concat([{t:`Added member: ${name}`,d:'Today'}]);
+    r.activity=(r.activity||[]).concat([{t:`Added member: ${name}`,d:new Date().toISOString()}]);
   } else {
     r.members[editMemberIndex]=member;
-    r.activity=(r.activity||[]).concat([{t:`Updated member: ${name}`,d:'Today'}]);
+    r.activity=(r.activity||[]).concat([{t:`Updated member: ${name}`,d:new Date().toISOString()}]);
   }
   closeMemberModal(); saveRecord(r); renderDetail(); showToast(`${name} saved`);
 }
@@ -2808,7 +2836,7 @@ function deleteMember(i){
   const m=(r.members||[])[i]; if(!m)return;
   if(!confirm(`Remove ${m.name} from ${r.company}'s members?`))return;
   r.members.splice(i,1);
-  r.activity=(r.activity||[]).concat([{t:`Removed member: ${m.name}`,d:'Today'}]);
+  r.activity=(r.activity||[]).concat([{t:`Removed member: ${m.name}`,d:new Date().toISOString()}]);
   saveRecord(r); renderDetail(); showToast(`${m.name} removed`);
 }
 
@@ -3004,11 +3032,11 @@ function buildSystemMessage(){
 function syncNote(ok){ return ok?'.':' (locally only — it failed to sync to Supabase, so the change may not persist).'; }
 async function execTool(name,input){
   try{
-    if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;const entry={t:`Stage: ${old} → ${match}`,d:'Today'};if(input.note)entry.note=(''+input.note).trim();r.activity.push(entry);const ok=await saveRecord(r);refreshView();return `Moved ${r.company} to ${match}${syncNote(ok)}`;}
-    if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:'Today'});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
-    if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=Number(input.portfolio)||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:Number(input.value)||0,activity:[{t:'Added via assistant',d:'Today'}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=matchInList(['SaaS','Enterprise'],input.segment)||null;r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'&&input.capacity!=null&&input.capacity!==''?Number(input.capacity):null;delete r.value;delete r.source;}else{r.fundSize='';r.thesis='';}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
+    if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;const entry={t:`Stage: ${old} → ${match}`,d:new Date().toISOString()};if(input.note)entry.note=(''+input.note).trim();r.activity.push(entry);const ok=await saveRecord(r);refreshView();return `Moved ${r.company} to ${match}${syncNote(ok)}`;}
+    if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:new Date().toISOString()});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
+    if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=Number(input.portfolio)||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:'Assistant',date:'Today',notes:'',value:Number(input.value)||0,activity:[{t:'Added via assistant',d:new Date().toISOString()}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model='';r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource='Assistant';r.segment=matchInList(['SaaS','Enterprise'],input.segment)||null;r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?(input.subscriptionPeriod||''):'';r.subscriptionDate=r.segment==='SaaS'?(input.subscriptionDate||''):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'&&input.capacity!=null&&input.capacity!==''?Number(input.capacity):null;delete r.value;delete r.source;}else{r.fundSize='';r.thesis='';}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
     if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);records=records.filter(x=>x.id!==r.id);const ok=await deleteRecordRemote(r.id,r.pipeline);refreshView();return `Deleted ${r.company}${syncNote(ok)}`;}
-    if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);r.activity.push({t:input.text,d:'Today'});const ok=await saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}"${syncNote(ok)}`;}
+    if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);r.activity.push({t:input.text,d:new Date().toISOString()});const ok=await saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}"${syncNote(ok)}`;}
     if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}
     if(name==='switch_pipeline'){setPipeline(input.pipeline);if(input.pipeline==='partners'&&input.portfolio)setPortfolio(Number(input.portfolio));return `Switched to ${input.pipeline}${input.portfolio?' portfolio '+input.portfolio:''}.`;}
     if(name==='search_records'){return searchRecords(input);}
