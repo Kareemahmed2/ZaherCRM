@@ -514,7 +514,12 @@
           <div class="fields-grid" id="det-fields"></div>
         </div>
         <div class="score-card" id="det-score-card" style="display:none;">
-          <div class="card-header"><span class="card-title">Agency score</span><span class="tier-pill" id="det-score-tier"></span></div>
+          <div class="card-header"><span class="card-title">Agency score</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="tier-pill" id="det-score-tier"></span>
+              <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" id="det-score-btn" onclick="openScorer(currentId,currentPipeline)">Score</button>
+            </div>
+          </div>
           <div class="score-breakdown" id="det-score-breakdown"></div>
         </div>
         <div class="notes-card" id="det-description-card" style="display:none;">
@@ -1137,6 +1142,10 @@ function toDatetimeLocal(ts){ if(!ts) return ''; const d=new Date(ts); if(isNaN(
 function fromDatetimeLocal(v){ if(!v) return null; const d=new Date(v); return isNaN(d)?null:d.toISOString(); }
 
 // ══════════════ AGENCY SCORING ══════════════
+// Shared with the detail-page score card, which needs to derive a tier from a stored score
+// when `tier` itself is null/missing on the record (an import data-quality gap — a filled-in
+// Score column with a blank Tier column) instead of showing the raw null.
+function deriveTierFromScore(score){ return score>=50?1:score>=25?2:3; }
 function scoreAgency(inp){
   if(inp.listsGeo) return {skip:true,reason:'Lists GEO/AEO as a service — competitor',score:0,tier:null,lines:[]};
   if(inp.offlineOnly) return {skip:true,reason:'Purely offline marketing',score:0,tier:null,lines:[]};
@@ -1155,7 +1164,7 @@ function scoreAgency(inp){
   else if(r>=10){s+=10;lines.push(['Client roster 10–19','+10']);}
   else lines.push(['Client roster under 10','+0']);
   if(inp.namedSeoTeam){s+=15;lines.push(['Named SEO team','+15']);}
-  const tier=s>=50?1:s>=25?2:3;
+  const tier=deriveTierFromScore(s);
   return {skip:false,score:s,tier,lines};
 }
 
@@ -2517,13 +2526,29 @@ function renderDetail(){
       </div>`).join(''):`<div class="notes-body">No members yet — add the first contact at this company.</div>`;
   }
 
-  // agency score card
+  // Agency score card — visible for any Marketing Agencies partner, scored or not, so there's
+  // always a way to trigger scoring from the detail page (previously the whole card, including
+  // its only path to the scorer, was hidden until a score already existed elsewhere).
   const scoreCard=document.getElementById('det-score-card');
-  if(state.pipeline==='partners'&&r.category==='Marketing Agencies'&&r.score!=null){
+  if(state.pipeline==='partners'&&r.category==='Marketing Agencies'){
     scoreCard.style.display='';
-    document.getElementById('det-score-tier').className='tier-pill t'+r.tier;
-    document.getElementById('det-score-tier').textContent='Tier '+r.tier;
-    document.getElementById('det-score-breakdown').innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;"><span class="score-big" style="color:${r.tier===1?'#3B6D11':'#854F0B'}">${r.score}</span><span style="font-size:12px;color:var(--gray-500);">/ 100 · threshold 50 = Tier 1</span></div><div style="font-size:12px;color:var(--gray-500);line-height:1.6;">${escHtml(r.clients||'')}</div>`;
+    document.getElementById('det-score-btn').textContent=(r.tier!=null||r.score!=null)?'Re-score':'Score';
+    // `tier` can be null while `score` is set (an import data-quality gap) — derive the
+    // implied tier from the score rather than ever rendering the raw null.
+    const dTier=r.tier!=null?r.tier:(r.score!=null?deriveTierFromScore(r.score):null);
+    const tierEl=document.getElementById('det-score-tier');
+    if(dTier!=null){ tierEl.className='tier-pill t'+dTier; tierEl.textContent='Tier '+dTier; tierEl.style.display=''; }
+    else tierEl.style.display='none';
+    let scoreLine;
+    if(r.score!=null){
+      const band=dTier===1?'≥ 50':dTier===2?'25–49':'< 25';
+      scoreLine=`<span class="score-big" style="color:${dTier===1?'#3B6D11':'#854F0B'}">${r.score}</span><span style="font-size:12px;color:var(--gray-500);">/ 100 → Tier ${dTier} (${band})</span>`;
+    } else if(r.tier!=null){
+      scoreLine=`<span style="font-size:12px;color:var(--gray-500);">Tier set manually — no score on file.</span>`;
+    } else {
+      scoreLine=`<span style="font-size:12px;color:var(--gray-500);">Not scored yet.</span>`;
+    }
+    document.getElementById('det-score-breakdown').innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">${scoreLine}</div><div style="font-size:12px;color:var(--gray-500);line-height:1.6;">${escHtml(r.clients||'')}</div>`;
   } else scoreCard.style.display='none';
 
   // stage tracker
@@ -2587,7 +2612,15 @@ function extraFieldsHtml(p,r){
       <div class="form-group"><label class="form-label">Portfolio</label><select class="form-input" id="f-portfolio"><option value="1" ${portfolio===1?'selected':''}>1 · Revenue</option><option value="2" ${portfolio===2?'selected':''}>2 · Ecosystem</option></select></div>
       <div class="form-group"><label class="form-label">Category</label><select class="form-input" id="f-category">${Object.keys(CAT_META).map(c=>`<option ${r&&r.category===c?'selected':''}>${c}</option>`).join('')}</select></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">Model</label><input class="form-input" id="f-model" placeholder="Referral / Reseller / ..." value="${escAttr(r?r.model:'')}"></div>
-      <div class="form-group"><label class="form-label">Potential ARR ($)</label><input class="form-input" type="number" id="f-value" placeholder="20000" value="${r&&r.value?r.value:''}"></div></div>`;
+      <div class="form-group"><label class="form-label">Potential ARR ($)</label><input class="form-input" type="number" id="f-value" placeholder="20000" value="${r&&r.value?r.value:''}"></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Website</label><input class="form-input" id="f-website" placeholder="company.com" value="${escAttr(r?r.website:'')}"></div>
+      <div class="form-group"><label class="form-label">Region</label><input class="form-input" id="f-region" placeholder="UAE, Saudi Arabia, ..." value="${escAttr(r?r.region:'')}"></div></div>
+      <div class="form-group"><label class="form-label">Tier</label><select class="form-input" id="f-tier">
+        <option value="" ${!(r&&r.tier)?'selected':''}>Not scored</option>
+        <option value="1" ${r&&r.tier===1?'selected':''}>Tier 1</option>
+        <option value="2" ${r&&r.tier===2?'selected':''}>Tier 2</option>
+        <option value="3" ${r&&r.tier===3?'selected':''}>Tier 3</option>
+      </select></div>`;
   } else if(p==='customers'){
     // Segment (SaaS/Enterprise) isn't known until the deal actually closes — it's decided
     // when terms are discussed, not up front — so it stays null through every stage before
@@ -2691,7 +2724,7 @@ async function addRecord(){
   const notesVal=val('f-notes');
   const addedEntry={t:'Added to CRM',d:new Date().toISOString()}; if(notesVal)addedEntry.note=notesVal;
   const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:notesVal,value:Number(val('f-value'))||0,activity:[addedEntry]};
-  if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.tier=null;r.score=null;r.region='';if(r.portfolio===2){r.workshops=0;r.founders=0;}}
+  if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.website=val('f-website');r.region=val('f-region');r.tier=val('f-tier')?Number(val('f-tier')):null;r.score=null;if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){
     const segEl=document.getElementById('f-segment');
     if(segEl&&segEl.tagName==='SELECT'){
@@ -2731,7 +2764,7 @@ function saveEditedRecord(){
   }
   r.company=company; r.name=company; r.stage=val('f-stage'); r.notes=val('f-notes');
   if(p!=='events') r.value=Number(val('f-value'))||0;
-  if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); }
+  if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); r.website=val('f-website'); r.region=val('f-region'); r.tier=val('f-tier')?Number(val('f-tier')):null; }
   else if(p==='customers'){
     if(segEl&&segEl.tagName==='SELECT'){
       r.segment=segEl.value;
@@ -2771,7 +2804,18 @@ function closeConfirm(){document.getElementById('confirm-overlay').classList.rem
 function execDelete(){const r=records.find(x=>x.id===deleteId&&x.pipeline===deletePipeline);records=records.filter(x=>!(x.id===deleteId&&x.pipeline===deletePipeline));deleteRecordRemote(deleteId,deletePipeline);if(r){tasks=tasks.filter(t=>!(t.pipeline===deletePipeline&&t.record_id===deleteId));deleteTasksForRecordRemote(deletePipeline,deleteId);}closeConfirm();showToast(`${r?r.company:'Record'} deleted`);goBack();}
 
 // ══════════════ SCORER ══════════════
-function openScorer(){document.getElementById('scorer').classList.add('open');document.getElementById('sc-result').style.display='none';}
+// scorerContext binds the modal to a specific record when opened from that record's detail
+// page (see the score-card's "Score"/"Re-score" button), so runScorer()'s result can be saved
+// back onto it. Opened from the standalone header button (no args), it stays null and the
+// modal behaves as a pure what-if calculator with no save option — same as before this fix.
+let scorerContext=null, lastScorerResult=null;
+function openScorer(recordId,pipeline){
+  scorerContext=(recordId!=null&&pipeline)?{id:recordId,pipeline}:null;
+  const rec=scorerContext?records.find(x=>x.id===recordId&&x.pipeline===pipeline):null;
+  document.getElementById('sc-name').value=rec?rec.company:'';
+  document.getElementById('scorer').classList.add('open');
+  document.getElementById('sc-result').style.display='none';
+}
 function closeScorer(){document.getElementById('scorer').classList.remove('open');}
 function runScorer(){
   const inp={listsGeo:document.getElementById('sc-geo').checked,offlineOnly:document.getElementById('sc-offline').checked,leadgenOnly:document.getElementById('sc-leadgen').checked,
@@ -2779,12 +2823,26 @@ function runScorer(){
     services:['seo','content','ads','brand'].filter(s=>document.getElementById('sc-'+s).checked),
     rosterSize:document.getElementById('sc-roster').value,namedSeoTeam:document.getElementById('sc-team').checked};
   const res=scoreAgency(inp);
+  lastScorerResult=res;
   const box=document.getElementById('sc-result'); box.style.display='';
+  const saveBtn=scorerContext?`<button class="btn btn-primary" style="margin-top:12px;font-size:12px;padding:6px 14px;" onclick="saveScorerResult()">Save to ${escHtml(records.find(x=>x.id===scorerContext.id&&x.pipeline===scorerContext.pipeline).company)}</button>`:'';
   if(res.skip){ box.innerHTML=`<div style="font-size:18px;font-weight:700;color:var(--red-400);">Skip</div><div style="font-size:12px;color:var(--gray-500);margin-top:4px;">${res.reason}</div>`; return; }
-  if(res.gate){ box.innerHTML=`<div style="font-size:22px;font-weight:700;color:var(--amber-600);">Tier 2</div><div style="font-size:12px;color:var(--gray-500);margin-top:4px;">Pure B2B — auto-placed, scoring skipped</div>`; return; }
+  if(res.gate){ box.innerHTML=`<div style="font-size:22px;font-weight:700;color:var(--amber-600);">Tier 2</div><div style="font-size:12px;color:var(--gray-500);margin-top:4px;">Pure B2B — auto-placed, scoring skipped</div>${saveBtn}`; return; }
   const col=res.tier===1?'#3B6D11':res.tier===2?'#854F0B':'#888780';
   box.innerHTML=`<div style="font-size:34px;font-weight:700;letter-spacing:-1.5px;color:${col};">${res.score}</div><div class="tier-pill t${res.tier}" style="margin:4px 0 10px;">Tier ${res.tier}</div>
-    <div style="text-align:left;font-size:12px;">${res.lines.map(l=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--border);"><span style="color:var(--gray-700);">${l[0]}</span><span style="font-weight:600;color:${col};">${l[1]}</span></div>`).join('')}</div>`;
+    <div style="text-align:left;font-size:12px;">${res.lines.map(l=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--border);"><span style="color:var(--gray-700);">${l[0]}</span><span style="font-weight:600;color:${col};">${l[1]}</span></div>`).join('')}</div>${saveBtn}`;
+}
+function saveScorerResult(){
+  if(!scorerContext||!lastScorerResult||lastScorerResult.skip)return;
+  const r=records.find(x=>x.id===scorerContext.id&&x.pipeline===scorerContext.pipeline); if(!r)return;
+  r.tier=lastScorerResult.tier;
+  r.score=lastScorerResult.gate?null:lastScorerResult.score;
+  const scoreNote=r.score!=null?`${r.score}/100`:'pure B2B, auto-placed';
+  r.activity=(r.activity||[]).concat([{t:`Scored via agency scorer: Tier ${r.tier} (${scoreNote})`,d:new Date().toISOString()}]);
+  saveRecord(r);
+  closeScorer();
+  refreshView();
+  showToast(`${r.company} scored — Tier ${r.tier}`);
 }
 
 // ══════════════ MEMBERS (customers) ══════════════
