@@ -761,6 +761,10 @@
   <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
     <div class="confirm-title" id="confirm-title">Delete this record?</div>
     <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="form-group" id="confirm-typed-group" style="display:none;margin-top:4px;">
+      <label class="form-label" for="confirm-typed-input">Type DELETE to confirm</label>
+      <input class="form-input" id="confirm-typed-input" oninput="checkConfirmTypedInput()" autocomplete="off">
+    </div>
     <div class="confirm-actions">
       <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
       <button class="btn btn-danger" id="confirm-delete-btn" onclick="execDelete()">Delete</button>
@@ -800,6 +804,11 @@
   <span id="import-undo-text"></span>
   <button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="undoLastImport()">Undo</button>
   <button class="modal-close" onclick="hideImportUndoBar()" title="Dismiss" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+</div>
+<div class="import-undo-bar" id="bulk-delete-undo-bar">
+  <span id="bulk-delete-undo-text"></span>
+  <button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="undoBulkDelete()">Undo</button>
+  <button class="modal-close" onclick="hideBulkDeleteUndoBar()" title="Dismiss" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
 </div>
 
 <!-- AUTH GATE -->
@@ -2012,20 +2021,49 @@ function bulkChangeStage(){
   showToast(`${recs.length} record${recs.length===1?'':'s'} moved to ${newStage}`);
   refreshView(); updateBadge();
 }
+// Every flow that opens the shared confirm modal (this one, confirmDelete(), confirmDeleteTask())
+// resets the typed-confirmation group itself on open rather than relying on close-time cleanup —
+// the modal can also be dismissed via Escape or a backdrop click, which bypass closeConfirm(),
+// so cleanup-on-open is the only path guaranteed to run before the group might be needed again.
+let confirmTypedRequired=null;
+function checkConfirmTypedInput(){
+  const btn=document.getElementById('confirm-delete-btn');
+  if(!confirmTypedRequired){ btn.disabled=false; return; }
+  btn.disabled=document.getElementById('confirm-typed-input').value.trim().toUpperCase()!==confirmTypedRequired;
+}
 function bulkDeleteSelected(){
   const ids=[...dirSelected];
   const recs=records.filter(x=>ids.includes(x.id)&&x.pipeline===state.pipeline);
   if(!recs.length)return;
   const names=recs.slice(0,5).map(r=>r.company).join(', ')+(recs.length>5?`, +${recs.length-5} more`:'');
   document.getElementById('confirm-title').textContent=`Delete ${recs.length} record${recs.length===1?'':'s'}?`;
-  document.getElementById('confirm-msg').textContent=`This removes ${names} from the CRM. This can't be undone.`;
+  document.getElementById('confirm-msg').textContent=`This removes ${names} from the CRM.`;
   document.getElementById('confirm-delete-btn').onclick=execBulkDelete;
+  const typedGroup=document.getElementById('confirm-typed-group'), btn=document.getElementById('confirm-delete-btn');
+  // Typed confirmation only kicks in above ~10 records — one click + one confirm stays enough
+  // for the common case, but a 115-record wipeout gets a deliberate extra step.
+  if(recs.length>10){
+    confirmTypedRequired='DELETE';
+    document.getElementById('confirm-typed-input').value='';
+    typedGroup.style.display='';
+    btn.disabled=true;
+  } else {
+    confirmTypedRequired=null;
+    typedGroup.style.display='none';
+    btn.disabled=false;
+  }
   document.getElementById('confirm-overlay').classList.add('open');
 }
+let lastBulkDeleteUndo=null, bulkDeleteUndoTimer=null;
 function execBulkDelete(){
   const pipeline=state.pipeline;
   const ids=[...dirSelected];
   const recs=records.filter(x=>ids.includes(x.id)&&x.pipeline===pipeline);
+  const relatedTasks=tasks.filter(t=>t.pipeline===pipeline&&ids.includes(t.record_id));
+  // Deep copy before anything is mutated/deleted — same snapshot-then-restore shape as the
+  // importer's undo (importUndoSnapshot()/undoLastImport()), sized for whole records rather
+  // than a handful of fields since these are being deleted outright, not backfilled.
+  const snapshot={pipeline,records:JSON.parse(JSON.stringify(recs)),tasks:JSON.parse(JSON.stringify(relatedTasks))};
   records=records.filter(x=>!(x.pipeline===pipeline&&ids.includes(x.id)));
   recs.forEach(r=>{
     deleteRecordRemote(r.id,pipeline);
@@ -2034,8 +2072,44 @@ function execBulkDelete(){
   });
   dirSelected.clear();
   closeConfirm();
-  showToast(`${recs.length} record${recs.length===1?'':'s'} deleted`);
   refreshView();
+  showBulkDeleteUndoBar(snapshot);
+}
+function showBulkDeleteUndoBar(snapshot){
+  lastBulkDeleteUndo=snapshot;
+  const bar=document.getElementById('bulk-delete-undo-bar'), txt=document.getElementById('bulk-delete-undo-text');
+  if(!bar||!txt)return;
+  txt.textContent=`${snapshot.records.length} record${snapshot.records.length===1?'':'s'} deleted.`;
+  bar.classList.add('show');
+  clearTimeout(bulkDeleteUndoTimer);
+  bulkDeleteUndoTimer=setTimeout(hideBulkDeleteUndoBar,10000);
+}
+function hideBulkDeleteUndoBar(){
+  clearTimeout(bulkDeleteUndoTimer);
+  const bar=document.getElementById('bulk-delete-undo-bar');
+  if(bar)bar.classList.remove('show');
+  lastBulkDeleteUndo=null;
+}
+// Re-creates each deleted record via createRecord() — which, like every insert in this app,
+// always assigns a fresh id (the Postgres column is GENERATED ALWAYS, so the original id can't
+// be reused) — then repoints that record's tasks at the new id before recreating them too.
+async function undoBulkDelete(){
+  const snap=lastBulkDeleteUndo; if(!snap)return;
+  lastBulkDeleteUndo=null; hideBulkDeleteUndoBar();
+  for(const rec of snap.records){
+    const oldId=rec.id;
+    delete rec.id; delete rec.created_at; delete rec.updated_at;
+    await createRecord(rec);
+    records.push(rec);
+    snap.tasks.filter(t=>t.record_id===oldId).forEach(t=>{ t.record_id=rec.id; });
+  }
+  for(const t of snap.tasks){
+    delete t.id; delete t.created_at; delete t.updated_at;
+    await createTask(t);
+    tasks.push(t);
+  }
+  refreshView();
+  showToast(`${snap.records.length} record${snap.records.length===1?'':'s'} restored`);
 }
 
 // ══════════════ CSV / EXCEL IMPORT & EXPORT ══════════════
@@ -3019,6 +3093,9 @@ function confirmDelete(){
   document.getElementById('confirm-title').textContent='Delete this record?';
   document.getElementById('confirm-msg').textContent=`This removes ${r.company} from the CRM. This can't be undone.`;
   document.getElementById('confirm-delete-btn').onclick=execDelete;
+  confirmTypedRequired=null;
+  document.getElementById('confirm-typed-group').style.display='none';
+  document.getElementById('confirm-delete-btn').disabled=false;
   document.getElementById('confirm-overlay').classList.add('open');
 }
 function closeConfirm(){document.getElementById('confirm-overlay').classList.remove('open');}
@@ -3197,6 +3274,9 @@ function confirmDeleteTask(id){
   document.getElementById('confirm-title').textContent='Delete this task?';
   document.getElementById('confirm-msg').textContent=`This removes "${t.title}". This can't be undone.`;
   document.getElementById('confirm-delete-btn').onclick=execDeleteTask;
+  confirmTypedRequired=null;
+  document.getElementById('confirm-typed-group').style.display='none';
+  document.getElementById('confirm-delete-btn').disabled=false;
   document.getElementById('confirm-overlay').classList.add('open');
 }
 async function execDeleteTask(){
