@@ -2888,7 +2888,8 @@ const TOOLS=[
   {type:'function',function:{name:'delete_record',description:'Delete a record from the CRM.',parameters:{type:'object',properties:{record:{type:'string'}},required:['record']}}},
   {type:'function',function:{name:'log_activity',description:'Log an activity note on a record.',parameters:{type:'object',properties:{record:{type:'string'},text:{type:'string'}},required:['record','text']}}},
   {type:'function',function:{name:'score_agency',description:'Run the agency qualification scoring rubric and return score + tier.',parameters:{type:'object',properties:{clientType:{type:'string',enum:['b2c','mixed','b2b']},services:{type:'array',items:{type:'string',enum:['seo','content','ads','brand']}},rosterSize:{type:'number'},namedSeoTeam:{type:'boolean'},listsGeo:{type:'boolean'},offlineOnly:{type:'boolean'},leadgenOnly:{type:'boolean'}},required:['clientType']}}},
-  {type:'function',function:{name:'switch_pipeline',description:'Switch the visible pipeline / portfolio.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors','events']},portfolio:{type:'number',enum:[1,2]}},required:['pipeline']}}}
+  {type:'function',function:{name:'switch_pipeline',description:'Switch the visible pipeline / portfolio.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors','events']},portfolio:{type:'number',enum:[1,2]}},required:['pipeline']}}},
+  {type:'function',function:{name:'search_records',description:'Look up records by company/contact name, sector, category, stage, etc. CURRENT DATA is only a rollup — call this before answering questions about a specific record, or before calling move_stage/update_record/delete_record/log_activity if unsure of the exact company name.',parameters:{type:'object',properties:{query:{type:'string',description:'Search text, matched against company/contact name, sector, category, stage, notes. Leave empty (with pipeline set) to list a pipeline.'},pipeline:{type:'string',enum:['partners','customers','investors','events'],description:'Optional — restrict to one pipeline'},limit:{type:'number',description:'Max results, default 20, max 50'}},required:[]}}}
 ];
 // update_record's `field` comes straight from the LLM's tool call with no other validation —
 // without an allow-list it could set structural/identity fields (id, pipeline, members, ...)
@@ -2901,25 +2902,66 @@ const UPDATE_FIELD_ALLOWLIST={
   investors:['fundSize','thesis','website'],
   events:['eventType','description','startAt','endAt','timezone','format','meetingUrl','meetingPasscode','dialIn','venueName','address','mapUrl','capacity']
 };
-function snapshot(){
-  return records.map(r=>{
-    const o={id:r.id,pipeline:r.pipeline,company:r.company,stage:r.stage};
-    o.members=(r.members||[]).map(m=>({name:m.name,title:m.title}));
-    if(r.pipeline==='partners'){o.portfolio=r.portfolio;o.category=r.category;o.model=r.model;o.tier=r.tier;o.score=r.score;if(r.portfolio===2){o.workshops=r.workshops;o.founders=r.founders;}else o.value=r.value;}
-    else if(r.pipeline==='customers'){
-      o.sector=r.sector;o.segment=r.segment;o.aiScore=r.aiScore;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;
-      if(r.segment==='Enterprise')o.subscriptionPeriod=r.subscriptionPeriod;
-      else if(r.segment==='SaaS')o.subscriptionDate=r.subscriptionDate;
-      if(r.referredBy){const p=records.find(x=>x.id===r.referredBy&&x.pipeline==='customers');o.referredBy=p?p.company:null;}
-    }
-    else if(r.pipeline==='events'){
-      o.title=r.company;o.eventType=r.eventType;o.description=r.description;o.startAt=r.startAt;o.endAt=r.endAt;o.timezone=r.timezone;o.format=r.format;
-      if(r.format==='Virtual'){o.meetingUrl=r.meetingUrl;o.dialIn=r.dialIn;}
-      else {o.venueName=r.venueName;o.address=r.address;o.capacity=r.capacity;}
-      delete o.members;
-    }
-    else {o.fundSize=r.fundSize;o.thesis=r.thesis;o.targetRaise=r.value;o.website=r.website;}
-    return o;});
+function snapshotRecord(r){
+  const o={id:r.id,pipeline:r.pipeline,company:r.company,stage:r.stage};
+  o.members=(r.members||[]).map(m=>({name:m.name,title:m.title}));
+  if(r.pipeline==='partners'){o.portfolio=r.portfolio;o.category=r.category;o.model=r.model;o.tier=r.tier;o.score=r.score;if(r.portfolio===2){o.workshops=r.workshops;o.founders=r.founders;}else o.value=r.value;}
+  else if(r.pipeline==='customers'){
+    o.sector=r.sector;o.segment=r.segment;o.aiScore=r.aiScore;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;
+    if(r.segment==='Enterprise')o.subscriptionPeriod=r.subscriptionPeriod;
+    else if(r.segment==='SaaS')o.subscriptionDate=r.subscriptionDate;
+    if(r.referredBy){const p=records.find(x=>x.id===r.referredBy&&x.pipeline==='customers');o.referredBy=p?p.company:null;}
+  }
+  else if(r.pipeline==='events'){
+    o.title=r.company;o.eventType=r.eventType;o.description=r.description;o.startAt=r.startAt;o.endAt=r.endAt;o.timezone=r.timezone;o.format=r.format;
+    if(r.format==='Virtual'){o.meetingUrl=r.meetingUrl;o.dialIn=r.dialIn;}
+    else {o.venueName=r.venueName;o.address=r.address;o.capacity=r.capacity;}
+    delete o.members;
+  }
+  else {o.fundSize=r.fundSize;o.thesis=r.thesis;o.targetRaise=r.value;o.website=r.website;}
+  return o;
+}
+// Used only by search_records now — buildSystem() no longer dumps every record into the
+// prompt (that was blowing Groq's 12k TPM limit at ~296 records). Kept for any future
+// full-export use of a plain snapshot array.
+function snapshot(){ return records.map(snapshotRecord); }
+// Bounded regardless of record count — a per-pipeline/stage rollup instead of every record,
+// so the assistant's context can't grow unboundedly as the CRM fills up. The model pulls
+// specifics via the search_records tool instead of having everything pre-loaded.
+function buildAggregateSummary(){
+  const groups={};
+  for(const r of records){
+    const key=r.pipeline+(r.pipeline==='partners'?'.p'+(r.portfolio||1):'');
+    if(!groups[key])groups[key]={pipeline:r.pipeline,portfolio:r.portfolio,count:0,byStage:{},totalValue:0};
+    const g=groups[key];
+    g.count++;
+    g.byStage[r.stage]=(g.byStage[r.stage]||0)+1;
+    if(r.pipeline!=='events')g.totalValue+=(r.value||0);
+  }
+  return Object.values(groups).map(g=>{
+    const label=g.pipeline+(g.portfolio?` (portfolio ${g.portfolio})`:'');
+    const stages=Object.entries(g.byStage).map(([s,n])=>`${s}: ${n}`).join(', ');
+    const valueLine=g.pipeline!=='events'?` Total value: $${g.totalValue.toLocaleString()}.`:'';
+    return `${label} — ${g.count} records. By stage: ${stages}.${valueLine}`;
+  }).join('\n');
+}
+// The model calls this to pull actual record details instead of relying on a full dump in
+// the prompt — keeps CRM growth from ever re-blowing the token budget again.
+function searchRecords(input){
+  const q=((input&&input.query)||'').toLowerCase().trim();
+  const pipelineFilter=input&&input.pipeline;
+  const limit=Math.max(1,Math.min((input&&input.limit)||20,50));
+  let pool=records;
+  if(pipelineFilter)pool=pool.filter(r=>r.pipeline===pipelineFilter);
+  if(q){
+    pool=pool.filter(r=>{
+      const hay=[r.company,r.name,r.sector,r.thesis,r.category,r.model,r.stage,r.eventType,r.notes,
+        ...(r.members||[]).flatMap(m=>[m.name,m.email,m.title])].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  const matches=pool.slice(0,limit).map(snapshotRecord);
+  return {count:matches.length,truncated:pool.length>limit,results:matches};
 }
 function buildSystem(){
   return `You are the assistant inside Zaher.AI's CRM. Zaher.AI is an Arabic GEO (Generative Engine Optimization / AI Visibility) company that helps Arabic brands get cited in AI search (ChatGPT, Gemini, Perplexity).
@@ -2933,12 +2975,25 @@ Partners/customers/investors are company-based: the company/organisation is each
 
 Agency scoring rubric (use score_agency): hard-skip if lists GEO/AEO, offline-only, or lead-gen-only. Pure B2B => auto Tier 2. Otherwise points: B2C +20 / mixed +10; SEO +20; Content +15; Ads +10; Brand +10; roster 20+ +20 / 10-19 +10; named SEO team +15. Tiers: 50+ = Tier 1, 25-49 = Tier 2, under 25 = Tier 3.
 
-You can answer questions directly from the CURRENT DATA below, and you can change the CRM using tools. When the user asks to add/move/update/delete/log, call the matching tool. Keep replies short and concrete. After acting, confirm what changed in one sentence.
+CURRENT DATA is a rollup, not a record dump — call search_records to look up an actual
+company/contact by name, sector, stage, etc. before answering questions about it or before
+calling move_stage/update_record/delete_record/log_activity if you're not certain of the
+exact company name. You can change the CRM using tools. When the user asks to
+add/move/update/delete/log, call the matching tool. Keep replies short and concrete. After
+acting, confirm what changed in one sentence.
 
-CURRENT DATA (${records.length} records):
-${JSON.stringify(snapshot())}`;
+CURRENT DATA (${records.length} records total):
+${buildAggregateSummary()}`;
 }
-function buildSystemMessage(){ return {role:'system',content:buildSystem()}; }
+// Defensive cap — the aggregate summary in buildSystem() is bounded by pipeline/stage count
+// rather than record count, so this shouldn't ever trip, but it's cheap insurance against
+// Groq's 12k TPM limit if the summary ever grows an unbounded dimension.
+function buildSystemMessage(){
+  const CHAR_BUDGET=20000; // ~5k tokens, well under Groq's 12k TPM ceiling alongside history/tools
+  let content=buildSystem();
+  if(content.length>CHAR_BUDGET)content=content.slice(0,CHAR_BUDGET)+'\n...(truncated)';
+  return {role:'system',content};
+}
 // Appended to a tool's confirmation when its Supabase write didn't actually go through —
 // saveRecord/deleteRecordRemote/createRecord already toast this separately, but the chatbot's
 // own reply text would otherwise still claim success as fact before that's known to be true.
@@ -2952,6 +3007,7 @@ async function execTool(name,input){
     if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);r.activity.push({t:input.text,d:'Today'});const ok=await saveRecord(r);refreshView();return `Logged on ${r.company}: "${input.text}"${syncNote(ok)}`;}
     if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}
     if(name==='switch_pipeline'){setPipeline(input.pipeline);if(input.pipeline==='partners'&&input.portfolio)setPortfolio(input.portfolio);return `Switched to ${input.pipeline}${input.portfolio?' portfolio '+input.portfolio:''}.`;}
+    if(name==='search_records'){return searchRecords(input);}
     return 'Unknown tool.';
   }catch(e){return 'Error: '+e.message;}
 }
@@ -2977,7 +3033,10 @@ async function sendChat(){
       const messages=[buildSystemMessage(),...chatHistory];
       const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages,tools:TOOLS})});
       const data=await res.json();
-      if(!res.ok||data.error)throw new Error(data.error||('API '+res.status));
+      if(!res.ok||data.error){
+        const em=(data.error&&typeof data.error==='object')?(data.error.message||JSON.stringify(data.error)):(data.error||('API '+res.status));
+        throw new Error(em);
+      }
       const msg=(data.choices&&data.choices[0]&&data.choices[0].message)||{};
       chatHistory.push(msg);
       if(msg.content&&msg.content.trim()){typing.remove();addBubble('bot',msg.content.trim());b.appendChild(typing);}
@@ -2992,14 +3051,15 @@ async function sendChat(){
     }
   }catch(e){
     typing.remove();
-    addBubble('err',`Couldn't reach the assistant (${e.message}). Make sure GROQ_API_KEY is set in your Vercel project's environment variables.`);
+    console.error('Chat error:',e);
+    addBubble('err','The assistant is temporarily unavailable — try again in a moment, or try a shorter question.');
   }
   typing.remove();
   chatBusy=false;document.getElementById('chat-send').disabled=false;
   document.getElementById('chat-input').focus();
 }
 function labelTool(name,input){
-  const m={move_stage:`Moved ${escHtml(input.record)} → ${escHtml(input.stage)}`,update_record:`Updated ${escHtml(input.record)}`,add_record:`Added ${escHtml(input.company)}`,delete_record:`Deleted ${escHtml(input.record)}`,log_activity:`Logged activity on ${escHtml(input.record)}`,score_agency:`Ran agency scoring`,switch_pipeline:`Switched to ${escHtml(input.pipeline)}`};
+  const m={move_stage:`Moved ${escHtml(input.record)} → ${escHtml(input.stage)}`,update_record:`Updated ${escHtml(input.record)}`,add_record:`Added ${escHtml(input.company)}`,delete_record:`Deleted ${escHtml(input.record)}`,log_activity:`Logged activity on ${escHtml(input.record)}`,score_agency:`Ran agency scoring`,switch_pipeline:`Switched to ${escHtml(input.pipeline)}`,search_records:`Searched records${input.query?` for "${escHtml(input.query)}"`:''}`};
   return m[name]||name;
 }
 
