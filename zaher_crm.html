@@ -1188,7 +1188,15 @@ function toggleEventLocationFields(format){
   document.getElementById('f-virtual-group').style.display=format==='Virtual'?'':'none';
   document.getElementById('f-inperson-group').style.display=format==='In-Person'?'':'none';
 }
-function fmtDateTime(ts){ if(!ts) return '—'; const d=new Date(ts); return isNaN(d)?'—':d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
+// tz omitted defaults to the viewer's own browser zone (unchanged existing behavior for
+// callers that don't have one handy); passing an event's own r.timezone renders it in that
+// event's zone instead, so two people in different countries see the same wall-clock time the
+// organizer set, not each their own local conversion of the same instant.
+function fmtDateTime(ts,tz){ if(!ts) return '—'; const d=new Date(ts); if(isNaN(d))return '—'; const opts={month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}; if(tz){opts.timeZone=tz;opts.timeZoneName='short';} return d.toLocaleString('en-US',opts); }
+// "Upcoming" means starts in the future — not "not yet marked Completed/Canceled" (the old
+// status-based active.length), which counted every stale Draft/Scheduled event regardless of
+// its actual date, including ones that already happened.
+function upcomingEventsCount(recs){ const now=Date.now(); return recs.filter(r=>r.startAt&&new Date(r.startAt).getTime()>=now).length; }
 // Activity entries created before this fix stored a fixed literal like "Today" in `d` instead
 // of a real timestamp, so every one of them displayed as "Today" forever regardless of when it
 // actually happened. New entries now store an ISO timestamp; timeAgo() renders those as
@@ -1310,7 +1318,7 @@ function renderDashboard(){
   if(isEvents){
     const completed=recs.filter(r=>r.stage==='Completed').length;
     const canceled=recs.filter(r=>r.stage==='Canceled').length;
-    cards=[['Total events',total,'All'],['Upcoming',active.length,'Draft/Scheduled/In Progress'],['Completed',completed,total?((completed/total)*100).toFixed(0)+'% rate':'0%'],['Canceled',canceled,total?((canceled/total)*100).toFixed(0)+'% rate':'0%']];
+    cards=[['Total events',total,'All'],['Upcoming',upcomingEventsCount(recs),'Starts in the future'],['Completed',completed,total?((completed/total)*100).toFixed(0)+'% rate':'0%'],['Canceled',canceled,total?((canceled/total)*100).toFixed(0)+'% rate':'0%']];
   } else if(isP2()){
     const wshops=recs.reduce((s,r)=>s+(r.workshops||0),0);
     const founders=recs.reduce((s,r)=>s+(r.founders||0),0);
@@ -1333,11 +1341,15 @@ function renderDashboard(){
   document.getElementById('dash-table-title').textContent='Recent '+{partners:'partners',customers:'customers',investors:'investors',events:'events'}[state.pipeline];
   if(isEvents){
     document.getElementById('dash-thead').innerHTML=`<tr><th>Title</th><th>Type</th><th>Start</th><th>Format</th><th>Status</th></tr>`;
-    document.getElementById('recent-body').innerHTML=recs.slice(0,7).map(r=>`
+    // Sorted by date (latest-scheduled first) — the underlying `recs` array has no inherent
+    // date order (roughly insertion/import order), so without this the preview mixed months
+    // with no discernible pattern.
+    const recentEvents=recs.slice().sort((a,b)=>new Date(b.startAt||0)-new Date(a.startAt||0));
+    document.getElementById('recent-body').innerHTML=recentEvents.slice(0,7).map(r=>`
     <tr onclick="openDetail(${r.id},'${r.pipeline}')">
       <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td><span class="lc">${escHtml(r.eventType||'—')}</span></td>
-      <td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.startAt)}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.startAt,r.timezone)}</td>
       <td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format||'—')}</span></td>
       <td>${stagePill(r.stage)}</td>
     </tr>`).join('');
@@ -1427,7 +1439,7 @@ function buildCard(r){
   else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment)}</span>`:''}${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.nextStep)}</span>`:''}</div>`;
   else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${escHtml(r.fundSize||'')} · ${escHtml(r.thesis||'')}</div>`;
   else if(state.pipeline==='events') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${r.eventType?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.eventType)}</span>`:''}${r.format?`<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format)}</span>`:''}</div>`;
-  const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:state.pipeline==='events'?`<div class="k-card-value" style="font-size:12px;">${fmtDateTime(r.startAt)}</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
+  const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:state.pipeline==='events'?`<div class="k-card-value" style="font-size:12px;">${fmtDateTime(r.startAt,r.timezone)}</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
   const pm=primaryMember(r);
   const cardPrimary=escHtml(r.company);
   const cardSecondary=state.pipeline==='events'?(r.format==='In-Person'?escHtml(r.venueName||r.address||'In-Person'):'Virtual'):(pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—');
@@ -1869,7 +1881,7 @@ function renderDirectory(){
       <td style="font-size:12px;color:var(--gray-700);">${escHtml(r.eventType||'—')}</td>
       <td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format||'—')}</span></td>
       <td style="font-size:12px;color:var(--gray-500);">${r.format==='In-Person'?escHtml(loc):(linkHtml(loc)||'—')}</td>
-      <td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.startAt)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.endAt)}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.startAt,r.timezone)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.endAt,r.timezone)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.timezone||'—')}</td>
       <td>${stagePill(r.stage)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
@@ -2421,7 +2433,7 @@ function renderAnalytics(){
   let kpis;
   if(isEvents){
     const completed=recs.filter(r=>r.stage==='Completed').length, canceled=recs.filter(r=>r.stage==='Canceled').length;
-    kpis=[['Total events',recs.length],['Upcoming',active.length],['Completed',completed],['Canceled',canceled]];
+    kpis=[['Total events',recs.length],['Upcoming',upcomingEventsCount(recs)],['Completed',completed],['Canceled',canceled]];
   } else if(isP2()){
     const w=recs.reduce((s,r)=>s+(r.workshops||0),0),f=recs.reduce((s,r)=>s+(r.founders||0),0);
     kpis=[['Ecosystem partners',recs.length],['Workshops delivered',w],['Founders reached',f],['Recurring / Ecosystem',won.length]];
@@ -2463,7 +2475,7 @@ function renderAnalytics(){
   let s1,s2;
   if(isEvents){
     s1=['#639922',recs.filter(r=>r.stage==='Completed').length,'Completed events',won.length+' terminal'];
-    s2=['#EF9F27',active.length,'Upcoming events','Draft/Scheduled/In Progress'];
+    s2=['#EF9F27',upcomingEventsCount(recs),'Upcoming events','Starts in the future'];
   } else if(isP2()){
     s1=['#3B6D11',recs.reduce((s,r)=>s+(r.workshops||0),0),'Workshops delivered',won.length+' recurring'];
     s2=['#0E7474',recs.reduce((s,r)=>s+(r.founders||0),0),'Founders educated','Leading indicator'];
@@ -2587,7 +2599,7 @@ function renderDetail(){
     if(r.segment==='Enterprise')fields.push(['Subscription period',r.subscriptionPeriod||'—',false]);
     else if(r.segment==='SaaS')fields.push(['Subscription date',r.subscriptionDate||'—',false]);
   } else if(state.pipeline==='events'){
-    fields.push(['Format',r.format||'—',false],['Start',fmtDateTime(r.startAt),false],['End',fmtDateTime(r.endAt),false],['Timezone',r.timezone||'—',false]);
+    fields.push(['Format',r.format||'—',false],['Start',fmtDateTime(r.startAt,r.timezone),false],['End',fmtDateTime(r.endAt,r.timezone),false],['Timezone',r.timezone||'—',false]);
     if(r.format==='Virtual'){
       if(r.meetingUrl)fields.push(['Meeting link',r.meetingUrl,true]);
       fields.push(['Passcode',r.meetingPasscode||'—',false],['Dial-in',r.dialIn||'—',false]);
