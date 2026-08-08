@@ -2133,6 +2133,24 @@ function matchTagValue(raw){
   if(s==='reachout done') return 'Reachout Done';
   return '';
 }
+// Strips punctuation and a standalone "2026"-style year token so "Cairo ICT" and
+// "Cairo ICT 2026" normalize to the same string — used only for the events fuzzy-dedupe
+// below, never for display or the exact-match path every other pipeline uses.
+function normalizeEventName(s){
+  return (s||'').toLowerCase().replace(/[^\w\s]/g,'').replace(/\b20\d{2}\b/g,'').replace(/\s+/g,' ').trim();
+}
+// Fuzzy dedupe for events only: side-by-side duplicates in the source data typically differ
+// just by a trailing year suffix in the title, which exact-name matching (used everywhere
+// else) doesn't catch. Only merges when BOTH the normalized name matches AND the dates are
+// within 3 days of each other — matching on name alone would also incorrectly fold a
+// legitimately recurring annual event into one record instead of one per edition, since two
+// real editions a year apart share the same normalized name but are ~365 days apart.
+function findFuzzyEventDuplicate(pool,company,rawStart){
+  const parsedStart=rawStart&&!isNaN(new Date(rawStart))?new Date(rawStart):null;
+  const normCompany=normalizeEventName(company);
+  if(!normCompany||!parsedStart)return undefined;
+  return pool.find(x=>x.pipeline==='events'&&normalizeEventName(x.company)===normCompany&&x.startAt&&Math.abs(new Date(x.startAt)-parsedStart)<=3*86400000);
+}
 const IMPORT_FIELD_MAP_EXTRA={
   partners:{portfolio:['portfolio'], category:['category'], model:['model'], tier:['tier'], score:['score'],
     website:['website'], region:['region'], clients:['clients'], workshops:['workshops'], founders:['founders']},
@@ -2260,7 +2278,21 @@ async function handleImportFile(ev){
     sawHeaderMatch=true;
     for(let i=1;i<rows.length;i++){
       const row=rows[i]; if(!row||!row.length)continue;
-      const get=f=>idx[f]!==undefined?row[idx[f]]:undefined;
+      // Every field read in this loop goes through get() — including the "fill only if still
+      // blank" logic below and new-record creation further down — so normalizing placeholder
+      // strings to undefined here (rather than at each of the ~25 call sites) makes every one
+      // of them treat "-"/"---"/"N/A" as genuinely missing data instead of a real value to
+      // import: without this a Source column full of "-" imports as the literal text "-", and
+      // a Sector of "---" fills in and blocks that field from ever being properly backfilled
+      // by a later, better import.
+      const get=f=>{
+        if(idx[f]===undefined)return undefined;
+        const v=row[idx[f]];
+        if(v==null)return undefined;
+        const s=(''+v).trim();
+        if(!s||/^[-—]+$/.test(s)||/^n\/?a$/i.test(s))return undefined;
+        return v;
+      };
       const company=(get('company')||get('name')||'').toString().trim(); if(!company)continue;
       // Every pipeline is company-based: `company` is the record's identity, and any
       // name/role/email/phone columns in the import file describe a contact person at
@@ -2277,13 +2309,15 @@ async function handleImportFile(ev){
       // If this company already exists in the pipeline — either already in the DB, or
       // created by an earlier row in this same import batch — don't create a duplicate
       // record; fold the row's contact into that record's members list instead.
-      const alreadyPersisted=records.find(x=>x.pipeline===pipeline&&(x.company||'').trim().toLowerCase()===company.toLowerCase());
+      const alreadyPersisted=records.find(x=>x.pipeline===pipeline&&(x.company||'').trim().toLowerCase()===company.toLowerCase())
+        || (pipeline==='events'?findFuzzyEventDuplicate(records,company,get('startAt')):undefined);
       // Snapshot a previously-persisted company's state the first time THIS import touches
       // it (before any mutation) — lets "Undo last import" restore it exactly, even if a
       // later row in this same batch (another contact at the same company) touches it again.
       if(alreadyPersisted&&!undoSnapshots.has(alreadyPersisted)) undoSnapshots.set(alreadyPersisted, importUndoSnapshot(pipeline, alreadyPersisted));
       const existing=alreadyPersisted
-        || newRecords.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase());
+        || newRecords.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase())
+        || (pipeline==='events'?findFuzzyEventDuplicate(newRecords,company,get('startAt')):undefined);
       if(existing){
         existing.members=existing.members||[];
         const changes=[];
