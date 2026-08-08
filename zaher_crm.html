@@ -1344,25 +1344,29 @@ function renderDashboard(){
   document.getElementById('stats-grid').innerHTML=cards.map(c=>`<div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-value">${c[1]}</div><div class="stat-delta">${c[2]}</div></div>`).join('');
 
   document.getElementById('dash-table-title').textContent='Recent '+{partners:'partners',customers:'customers',investors:'investors',events:'events'}[state.pipeline];
+  // Both branches below build a 5-column table — a pipeline with zero records previously left
+  // just the header row with nothing under it (e.g. a fresh Investors pipeline's "Recent
+  // investors"), unlike the "No notes yet." empty state used correctly elsewhere.
+  const emptyRecentRow='<tr><td colspan="5"><div class="notes-body">No records yet.</div></td></tr>';
   if(isEvents){
     document.getElementById('dash-thead').innerHTML=`<tr><th>Title</th><th>Type</th><th>Start</th><th>Format</th><th>Status</th></tr>`;
     // Sorted by date (latest-scheduled first) — the underlying `recs` array has no inherent
     // date order (roughly insertion/import order), so without this the preview mixed months
     // with no discernible pattern.
     const recentEvents=recs.slice().sort((a,b)=>new Date(b.startAt||0)-new Date(a.startAt||0));
-    document.getElementById('recent-body').innerHTML=recentEvents.slice(0,7).map(r=>`
+    document.getElementById('recent-body').innerHTML=recentEvents.length?recentEvents.slice(0,7).map(r=>`
     <tr onclick="openDetail(${r.id},'${r.pipeline}')">
       <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td><span class="lc">${escHtml(r.eventType||'—')}</span></td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.startAt,r.timezone)}</td>
       <td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format||'—')}</span></td>
       <td>${stagePill(r.stage)}</td>
-    </tr>`).join('');
+    </tr>`).join(''):emptyRecentRow;
   } else {
   const valCol=isP2()?'Founders':(state.pipeline==='investors'?'Target':'Value');
   const isCustDash=state.pipeline==='customers';
   document.getElementById('dash-thead').innerHTML=`<tr><th>Name</th><th>${state.pipeline==='partners'?'Category':isCustDash?'Sector':'Firm'}</th><th>Website</th><th>${valCol}</th><th>Stage</th></tr>`;
-  document.getElementById('recent-body').innerHTML=recs.slice(0,7).map(r=>{
+  document.getElementById('recent-body').innerHTML=recs.length?recs.slice(0,7).map(r=>{
     const pm=primaryMember(r);
     const primary=escHtml(r.company);
     const secondary=pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—';
@@ -1373,7 +1377,7 @@ function renderDashboard(){
       <td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>
       <td style="font-weight:500;">${isP2()?(r.founders||0):fv(r.value)}</td>
       <td>${stagePill(r.stage)}</td>
-    </tr>`;}).join('');
+    </tr>`;}).join(''):emptyRecentRow;
   }
 
   document.getElementById('funnel-title').textContent=isP2()?'Ecosystem funnel':'Funnel';
@@ -2425,21 +2429,82 @@ function exportRecords(fmt){
 }
 
 // ══════════════ ANALYTICS ══════════════
+// Picks a "nice" axis max + tick step (one of 1/2/5/10 x a power of ten) instead of just
+// dividing the raw data max by 4 — with a raw max of 1, that produced ticks at
+// round(0*1),round(.25*1),round(.5*1),round(.75*1),round(1*1) = 0,0,1,1,1, four gridlines with
+// only two distinct labels between them. Clamped to a whole-number step since every chart this
+// feeds is either an integer count or a whole-dollar value — never fractional units.
+function niceAxisStep(rawMax){
+  if(rawMax<=0) return {max:1,step:1};
+  const roughStep=rawMax/4;
+  const mag=Math.pow(10,Math.floor(Math.log10(roughStep)));
+  const norm=roughStep/mag;
+  const niceFrac=norm<1.5?1:norm<3?2:norm<7?5:10;
+  const step=Math.max(1,niceFrac*mag);
+  const max=Math.ceil(rawMax/step)*step;
+  return {max,step};
+}
+// Wraps a label to fit maxWidth (measured in the canvas's current font), rather than the old
+// fixed slice(0,10)/two-line scheme that silently dropped anything past ~20 characters total
+// ("Prospecting" -> "Prospectin") and lost whole words on longer stage names entirely.
+function wrapCanvasLabel(ctx,text,maxWidth){
+  const words=(text||'').split(' ');
+  const lines=[]; let cur='';
+  for(const w of words){
+    const test=cur?cur+' '+w:w;
+    if(cur&&ctx.measureText(test).width>maxWidth){ lines.push(cur); cur=w; }
+    else cur=test;
+  }
+  if(cur)lines.push(cur);
+  return lines;
+}
 function drawBar(id,labels,data,color){
   const canvas=document.getElementById(id); if(!canvas)return;
   const ctx=canvas.getContext('2d');
-  const W=canvas.parentElement.clientWidth-40; canvas.width=W; canvas.height=200;
-  const H=200,pad={t:16,r:16,b:44,l:52},cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  // Scale the backing bitmap by devicePixelRatio (kept 1:1 with CSS size via canvas.style.*)
+  // so retina/high-DPI displays render this crisp instead of soft — the canvas.width= alone
+  // was setting bitmap resolution equal to CSS pixel size, i.e. always 1x.
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth-40, H=200;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,W,H);
-  const mx=Math.max(...data,1);
+
+  const pad={t:16,r:16,l:52};
+  const cW=W-pad.l-pad.r;
+  const bgW=cW/Math.max(labels.length,1);
+  ctx.font='9px DM Sans';
+  const wrapped=labels.map(l=>wrapCanvasLabel(ctx,l,bgW-4).slice(0,3));
+  const maxLines=Math.max(1,...wrapped.map(w=>w.length));
+  pad.b=20+maxLines*11;
+  const cH=H-pad.t-pad.b;
+
+  const {max:mx,step}=niceAxisStep(Math.max(...data,1));
+  const numTicks=Math.max(1,Math.round(mx/step));
   ctx.strokeStyle='rgba(0,0,0,0.06)';ctx.fillStyle='#888780';ctx.font='10px DM Sans';ctx.textAlign='right';
-  for(let i=0;i<=4;i++){const y=pad.t+cH-(i/4)*cH;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cW,y);ctx.stroke();const v=Math.round((i/4)*mx);ctx.fillText(v>=1000?(v/1000).toFixed(0)+'k':v,pad.l-6,y+3);}
-  const bgW=cW/labels.length,bp=Math.min(16,bgW*0.25),bW=bgW-bp*2;
+  for(let i=0;i<=numTicks;i++){const y=pad.t+cH-(i/numTicks)*cH;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cW,y);ctx.stroke();const v=i*step;ctx.fillText(v>=1000?(v/1000).toFixed(0)+'k':v,pad.l-6,y+3);}
+
+  const bp=Math.min(16,bgW*0.25),bW=bgW-bp*2;
   data.forEach((val,i)=>{const bh=(val/mx)*cH,x=pad.l+i*bgW+bp,y=pad.t+cH-bh,r=Math.min(4,bW/2);ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+bW-r,y);ctx.quadraticCurveTo(x+bW,y,x+bW,y+r);ctx.lineTo(x+bW,y+bh);ctx.lineTo(x,y+bh);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();ctx.fill();});
+
   ctx.fillStyle='#888780';ctx.textAlign='center';ctx.font='9px DM Sans';
-  labels.forEach((l,i)=>{const words=l.split(' ');const x=pad.l+i*bgW+bgW/2;ctx.fillText((words[0]||'').slice(0,10),x,H-24);if(words[1])ctx.fillText(words.slice(1).join(' ').slice(0,10),x,H-13);});
+  wrapped.forEach((lines,i)=>{const x=pad.l+i*bgW+bgW/2;lines.forEach((line,li)=>ctx.fillText(line,x,pad.t+cH+14+li*11));});
 }
-function barList(items,color){ const mx=Math.max(...items.map(i=>i.v),1); return items.map(i=>`<div class="bar-row"><div class="bar-name">${escHtml(i.name)}</div><div class="bar-bg"><div class="bar-fill" style="width:${(i.v/mx)*100}%;background:${i.color||color};"></div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${escHtml(i.extra)}</div>`:''}</div>`).join(''); }
+// Chart canvases don't redraw on their own when the window resizes (canvas dims are only set
+// at draw time) — re-render Analytics (debounced) whenever it's the active page.
+let analyticsResizeTimer=null;
+window.addEventListener('resize',()=>{
+  const page=document.getElementById('page-analytics');
+  if(!page||!page.classList.contains('active'))return;
+  clearTimeout(analyticsResizeTimer);
+  analyticsResizeTimer=setTimeout(renderAnalytics,150);
+});
+// Shared by every Analytics breakdown panel (By category/sector/thesis/source/format, segment
+// split) — an empty pipeline previously rendered as a blank rectangle with no explanation
+// ("By thesis"/"By source" on a fresh Investors pipeline, for example). Matches the "No notes
+// yet." pattern already used correctly on the dashboard's Recent notes feed.
+function barList(items,color){ if(!items.length) return `<div class="notes-body" style="padding:16px 20px;">No data yet.</div>`; const mx=Math.max(...items.map(i=>i.v),1); return items.map(i=>`<div class="bar-row"><div class="bar-name">${escHtml(i.name)}</div><div class="bar-bg"><div class="bar-fill" style="width:${(i.v/mx)*100}%;background:${i.color||color};"></div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${escHtml(i.extra)}</div>`:''}</div>`).join(''); }
 function renderAnalytics(){
   const recs=activeRecords(), stages=activeStages(), ac=PIPE_ACCENT[state.pipeline];
   const won=recs.filter(r=>TERMINAL.has(r.stage)), active=recs.filter(r=>!TERMINAL.has(r.stage));
