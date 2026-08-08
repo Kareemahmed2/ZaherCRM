@@ -113,6 +113,17 @@
   .card-title { font-size:13px; font-weight:500; color:var(--gray-900); }
   .leads-table { width:100%; border-collapse:collapse; }
   .leads-table th { text-align:left; font-size:11px; color:var(--gray-500); font-weight:500; text-transform:uppercase; letter-spacing:.06em; padding:10px 20px; border-bottom:1px solid var(--border); background:var(--gray-50); }
+  /* Directory only (not the shorter dashboard preview table, which never needs it) — sticks
+     just below the topbar's sticky 52px while the page scrolls. Only matters above the ~900px
+     responsive breakpoint: below it the Directory table becomes a card list with no header row
+     at all (see the RESPONSIVE block), so there's nothing to stick.
+     position:sticky doesn't work through an ancestor with overflow:hidden — the .card it
+     sits in normally has that for its rounded corners, so it's overridden to visible here,
+     with the corner rounding reapplied directly to the header row's end cells instead. */
+  #page-directory .card { overflow:visible; }
+  #page-directory .leads-table th { position:sticky; top:52px; z-index:10; }
+  #page-directory .leads-table th:first-child { border-top-left-radius:var(--r-lg); }
+  #page-directory .leads-table th:last-child { border-top-right-radius:var(--r-lg); }
   .leads-table td { padding:12px 20px; border-bottom:1px solid var(--border); font-size:13px; }
   .leads-table tr:last-child td { border-bottom:none; }
   .leads-table tbody tr:hover td { background:var(--gray-50); cursor:pointer; }
@@ -149,13 +160,19 @@
 
   /* ── KANBAN ── */
   .kanban-board{display:flex;gap:14px;overflow-x:auto;padding-bottom:16px;align-items:flex-start;scroll-snap-type:x proximity;}
-  .kanban-col{min-width:236px;flex-shrink:0;border-radius:var(--r-lg);padding:0 0 4px;scroll-snap-align:start;}
+  /* Each column scrolls its own cards independently instead of growing the whole page to fit
+     the tallest column — with 114+ cards in one column that page grew past 22,000px and
+     scrolled every other column's header out of view along with it. .col-cards' existing
+     min-height:60px (an empty-column drop-target floor) already overrides flex's default
+     min-height:auto, so flex:1 + overflow-y:auto is enough on its own — no extra min-height:0
+     needed the way .main/.two-col elsewhere needed it (those had no explicit min-height at all). */
+  .kanban-col{min-width:236px;flex-shrink:0;border-radius:var(--r-lg);padding:0 0 4px;scroll-snap-align:start;display:flex;flex-direction:column;max-height:calc(100vh - 230px);}
   .kanban-col.drag-over{background:var(--accent-bg);outline:2px dashed var(--accent);outline-offset:-2px;}
-  .col-header{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 10px;}
+  .col-header{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 10px;flex-shrink:0;}
   .col-name{font-size:12px;font-weight:600;color:var(--gray-700);text-transform:uppercase;letter-spacing:.04em;}
   .col-count{font-size:11px;font-weight:500;background:var(--gray-100);color:var(--gray-500);padding:2px 8px;border-radius:99px;}
   .col-total{font-size:10px;color:var(--gray-500);margin-top:2px;}
-  .col-cards{min-height:60px;border-radius:var(--r-md);padding:2px 0;}
+  .col-cards{min-height:60px;border-radius:var(--r-md);padding:2px 0;flex:1;overflow-y:auto;}
   .k-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:8px;cursor:grab;transition:box-shadow .15s,border-color .15s,transform .1s,opacity .2s;}
   .k-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:var(--accent-bg);}
   .k-card.dragging{opacity:.4;cursor:grabbing;transform:scale(.97);}
@@ -164,7 +181,7 @@
   .k-card-value{font-size:14px;font-weight:600;color:var(--gray-900);letter-spacing:-0.3px;}
   .k-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
   .k-card-source{font-size:10px;color:var(--gray-500);} .k-card-date{font-size:10px;color:var(--gray-500);font-family:var(--font-mono);}
-  .add-card-btn{width:100%;padding:8px;border:1px dashed var(--gray-200);border-radius:var(--r-md);background:transparent;color:var(--gray-500);font-family:var(--font);font-size:12px;cursor:pointer;text-align:center;transition:all .12s;margin-top:4px;}
+  .add-card-btn{width:100%;padding:8px;border:1px dashed var(--gray-200);border-radius:var(--r-md);background:transparent;color:var(--gray-500);font-family:var(--font);font-size:12px;cursor:pointer;text-align:center;transition:all .12s;margin-top:4px;flex-shrink:0;}
   .add-card-btn:hover{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
   #drag-clone{position:fixed;pointer-events:none;z-index:9999;opacity:0;transition:opacity .1s;transform-origin:top left;}
 
@@ -1267,7 +1284,7 @@ function scoreAgency(inp){
 // ══════════════ PIPELINE / PORTFOLIO SWITCH ══════════════
 function setPipeline(p){
   state.pipeline=p; if(p==='partners'&&!state.portfolio) state.portfolio=1;
-  state.filters={};
+  state.filters={}; state.dirSort=null;
   dirSelected.clear();
   document.body.className='pl-'+p;
   document.querySelectorAll('.pl-btn').forEach(b=>b.classList.toggle('active',b.dataset.pl===p));
@@ -1286,7 +1303,7 @@ function setPipeline(p){
 }
 function setPortfolio(pf){
   state.portfolio=pf;
-  state.filters={};
+  state.filters={}; state.dirSort=null;
   document.getElementById('pf1-btn').classList.toggle('active',pf===1);
   document.getElementById('pf2-btn').classList.toggle('active',pf===2);
   const active=document.querySelector('.page.active').id.replace('page-','');
@@ -1873,15 +1890,32 @@ function taskDragStart(e,id){
 }
 
 // ══════════════ DIRECTORY ══════════════
+// Builds a clickable, sortable <tr> of <th>s from a plain label list — one helper instead of
+// hand-adding an onclick + sort-direction arrow to each of the ~40 <th>s across the four
+// pipelines' branches below. Column index doubles as the sort key: sortKeys[state.dirSort.key]
+// (defined per branch, same order as these labels) supplies the actual comparable value.
+function sortableHead(labels){
+  return '<tr>'+labels.map((l,i)=>{
+    const active=state.dirSort&&state.dirSort.key===i;
+    const arrow=active?(state.dirSort.dir===1?' ▲':' ▼'):'';
+    return `<th onclick="setDirSort(${i})" style="cursor:pointer;user-select:none;white-space:nowrap;">${escHtml(l)}${arrow}</th>`;
+  }).join('')+'</tr>';
+}
+function setDirSort(index){
+  if(state.dirSort&&state.dirSort.key===index) state.dirSort={key:index,dir:state.dirSort.dir*-1};
+  else state.dirSort={key:index,dir:1};
+  renderDirectory();
+}
 function renderDirectory(){
   const recs=activeRecords();
   const q=(document.getElementById('dir-search')||{value:''}).value.toLowerCase();
   let list=q?recs.filter(r=>r.name.toLowerCase().includes(q)||r.company.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)
     ||(r.members||[]).some(m=>(m.name||'').toLowerCase().includes(q)||(m.email||'').toLowerCase().includes(q))):recs;
   list=applyFilters(list);
-  let head,rowFn;
+  let head,rowFn,sortKeys;
   if(state.pipeline==='partners'){
-    head=`<tr><th>Organisation</th><th>Primary contact</th><th>Category</th><th>Model</th><th>Tier / Score</th><th>Website</th><th>Stage</th><th>${isP2()?'Founders':'Value'}</th><th>Added</th><th>Updated</th></tr>`;
+    head=sortableHead(['Organisation','Primary contact','Category','Model','Tier / Score','Website','Stage',isP2()?'Founders':'Value','Added','Updated']);
+    sortKeys=[r=>r.company||'',r=>(primaryMember(r)||{}).name||'',r=>r.category||'',r=>r.model||'',r=>r.tier||0,r=>r.website||'',r=>r.stage||'',r=>isP2()?(r.founders||0):(r.value||0),r=>r.created_at||'',r=>r.updated_at||''];
     rowFn=r=>{ const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div><div class="lc">${escHtml(r.region||'')}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td>
@@ -1891,7 +1925,8 @@ function renderDirectory(){
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else if(state.pipeline==='customers'){
-    head=`<tr><th>Company</th><th>Primary contact</th><th>Sector</th><th>Segment</th><th>AI Score</th><th>Website</th><th>Next step</th><th>Source</th><th>Stage</th><th>MRR/yr</th><th>Added</th><th>Updated</th></tr>`;
+    head=sortableHead(['Company','Primary contact','Sector','Segment','AI Score','Website','Next step','Source','Stage','MRR/yr','Added','Updated']);
+    sortKeys=[r=>r.company||'',r=>(primaryMember(r)||{}).name||'',r=>r.sector||'',r=>r.segment||'',r=>r.aiScore||0,r=>r.website||'',r=>r.nextStep||'',r=>r.leadSource||'',r=>r.stage||'',r=>r.value||0,r=>r.created_at||'',r=>r.updated_at||''];
     rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy&&x.pipeline==='customers'):null; const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span></td>
@@ -1903,7 +1938,8 @@ function renderDirectory(){
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else if(state.pipeline==='events'){
-    head=`<tr><th>Title</th><th>Type</th><th>Format</th><th>Location</th><th>Start</th><th>End</th><th>Timezone</th><th>Status</th><th>Added</th><th>Updated</th></tr>`;
+    head=sortableHead(['Title','Type','Format','Location','Start','End','Timezone','Status','Added','Updated']);
+    sortKeys=[r=>r.company||'',r=>r.eventType||'',r=>r.format||'',r=>(r.format==='In-Person'?(r.venueName||r.address||''):(r.meetingUrl||'')),r=>r.startAt||'',r=>r.endAt||'',r=>r.timezone||'',r=>r.stage||'',r=>r.created_at||'',r=>r.updated_at||''];
     rowFn=r=>{ const loc=r.format==='In-Person'?(r.venueName||r.address||'—'):(r.meetingUrl||'Virtual');
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${escHtml(r.eventType||'—')}</td>
@@ -1914,13 +1950,25 @@ function renderDirectory(){
       <td>${stagePill(r.stage)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else {
-    head=`<tr><th>Firm</th><th>Primary contact</th><th>Fund</th><th>Thesis</th><th>Website</th><th>Stage</th><th>Target</th><th>Added</th><th>Updated</th></tr>`;
+    head=sortableHead(['Firm','Primary contact','Fund','Thesis','Website','Stage','Target','Added','Updated']);
+    sortKeys=[r=>r.company||'',r=>(primaryMember(r)||{}).name||'',r=>r.fundSize||'',r=>r.thesis||'',r=>r.website||'',r=>r.stage||'',r=>r.value||0,r=>r.created_at||'',r=>r.updated_at||''];
     rowFn=r=>{ const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td><td style="font-size:12px;">${escHtml(r.fundSize||'—')}</td>
       <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.thesis||'—')}</td><td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }}
+  if(state.dirSort&&sortKeys[state.dirSort.key]){
+    const key=sortKeys[state.dirSort.key], dir=state.dirSort.dir;
+    // localeCompare (case/accent-insensitive) for strings — plain < / > is a code-point
+    // comparison, which sorts every capital-letter name before any lowercase-starting one
+    // (e.g. "iMile" landing dead last after "Zid") instead of true alphabetical order.
+    list=list.slice().sort((a,b)=>{
+      const av=key(a),bv=key(b);
+      const cmp=(typeof av==='string'&&typeof bv==='string')?av.localeCompare(bv,undefined,{sensitivity:'base'}):(av<bv?-1:av>bv?1:0);
+      return cmp*dir;
+    });
+  }
   dirLastList=list;
   const visibleSelected=list.filter(r=>dirSelected.has(r.id)).length;
   const allChecked=list.length>0&&visibleSelected===list.length;
