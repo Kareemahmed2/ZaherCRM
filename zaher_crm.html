@@ -544,6 +544,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" placeholder="Search company or task..." id="task-search" oninput="renderTasks()">
       </div>
+      <button class="btn btn-primary" onclick="openAddTask(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add task
+      </button>
     </div>
     <div class="kanban-board" id="tasks-board"></div>
   </div>
@@ -696,6 +700,7 @@
       <button class="modal-close" aria-label="Close" onclick="closeTaskModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
+      <div class="form-group" id="task-company-group" style="display:none;"><label class="form-label">Company *</label><select class="form-input" id="task-company"></select></div>
       <div class="form-group"><label class="form-label">Title *</label><input class="form-input" id="task-title" placeholder="Send updated proposal"></div>
       <div class="form-group"><label class="form-label">Description</label><textarea class="form-input" id="task-desc" rows="3" placeholder="What needs to happen?"></textarea></div>
       <div class="form-row">
@@ -1771,6 +1776,16 @@ function renderCalendar(list){
 }
 
 // ══════════════ TASKS TAB ══════════════
+// No pill at all when there's no deadline (previously always rendered one showing fmtDeadline's
+// '—' placeholder — clutter for the common case of an undated task) and red/"Overdue" styling
+// once a still-open task's deadline is in the past — a task due 2020 looked identical to one
+// due next week otherwise.
+function taskDeadlinePill(t){
+  if(!t.deadline)return '';
+  const overdue=t.status!=='Done'&&new Date(t.deadline+'T00:00:00')<new Date(new Date().toDateString());
+  const bg=overdue?'var(--red-50)':'var(--gray-100)', fg=overdue?'var(--red-400)':'var(--gray-700)';
+  return `<span class="chip" style="background:${bg};color:${fg};">${overdue?'Overdue · ':''}${fmtDeadline(t.deadline)}</span>`;
+}
 function buildTaskCard(t){
   const c=taskCompany(t);
   return `<div class="k-card" id="tkcard-${t.id}" data-id="${t.id}" style="cursor:pointer;"
@@ -1780,7 +1795,7 @@ function buildTaskCard(t){
       <div class="av ${c?avc(c.id):''}" style="width:28px;height:28px;font-size:9px;">${c?ini(c.company):'?'}</div>
       <div class="k-card-info"><div class="kn">${escHtml(t.title)}</div><div class="kc">${c?escHtml(c.company):'—'}</div></div>
     </div>
-    <div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${fmtDeadline(t.deadline)}</span></div>
+    <div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}${taskDeadlinePill(t)}</div>
     <select class="form-input" style="font-size:12px;padding:5px 8px;" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" onchange="event.stopPropagation();changeTaskStatus(${t.id},this.value)">
       ${TASK_STATUSES.map(s=>`<option ${s===t.status?'selected':''}>${s}</option>`).join('')}
     </select>
@@ -2577,7 +2592,7 @@ function renderDetail(){
     <div class="field-item" style="border-right:none;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer;" onclick="editTask(${t.id})">
         <div class="field-val" style="min-width:0;">${escHtml(t.title)}</div>
-        <button class="modal-close" style="flex-shrink:0;" onclick="event.stopPropagation();deleteTask(${t.id})" title="Delete task" aria-label="Delete task">✕</button>
+        <button class="modal-close" style="flex-shrink:0;" onclick="event.stopPropagation();confirmDeleteTask(${t.id})" title="Delete task" aria-label="Delete task">✕</button>
       </div>
       <div style="font-size:11px;color:var(--gray-500);margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}<span>${fmtDeadline(t.deadline)}</span></div>
       <select class="form-input" style="font-size:11px;padding:5px 8px;margin-top:8px;" onchange="changeTaskStatus(${t.id},this.value)">
@@ -3046,11 +3061,14 @@ function deleteMember(i){
 }
 
 // ══════════════ TASKS ══════════════
-// Creation/editing/deletion only ever happens from the company detail page (see
-// det-tasks-list above) — the Tasks tab and dashboard to-do widget only call
-// changeTaskStatus(), which is why that one function lives outside the modal flow below.
+// Editing only ever happens from the company detail page (see det-tasks-list above), where
+// currentId/currentPipeline reliably point at the right record. Adding, though, now also
+// happens from the Tasks tab itself, which isn't scoped to any one record — openAddTask(true)
+// shows a Company picker so the task still lands on the right record; the detail-page "+ Add
+// task" button keeps calling openAddTask() with no args, using currentId/currentPipeline as
+// before, picker hidden.
 let editTaskId=null;
-function openAddTask(){
+function openAddTask(needsCompanyPicker){
   editTaskId=null;
   document.getElementById('task-title').value='';
   document.getElementById('task-desc').value='';
@@ -3059,11 +3077,19 @@ function openAddTask(){
   document.getElementById('task-status-group').style.display='none';
   document.getElementById('task-modal-title').textContent='Add task';
   document.getElementById('task-modal-submit-btn').textContent='Add task';
+  const companyGroup=document.getElementById('task-company-group');
+  if(needsCompanyPicker){
+    const recs=activeRecords();
+    if(!recs.length){showToast('Add a '+({partners:'partner',customers:'customer',investors:'investor',events:'event'}[state.pipeline]||'record')+' first');return;}
+    document.getElementById('task-company').innerHTML=recs.map(r=>`<option value="${r.id}">${escHtml(r.company)}</option>`).join('');
+    companyGroup.style.display='';
+  } else companyGroup.style.display='none';
   document.getElementById('task-modal').classList.add('open');
 }
 function editTask(id){
   const t=tasks.find(x=>x.id===id); if(!t)return;
   editTaskId=id;
+  document.getElementById('task-company-group').style.display='none';
   document.getElementById('task-title').value=t.title||'';
   document.getElementById('task-desc').value=t.description||'';
   document.getElementById('task-deadline').value=t.deadline||'';
@@ -3077,30 +3103,57 @@ function editTask(id){
 function closeTaskModal(){ document.getElementById('task-modal').classList.remove('open'); editTaskId=null; }
 async function saveTaskModal(){
   const title=val('task-title'); if(!title){showToast('Task title is required');return;}
-  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
+  const pickerVisible=document.getElementById('task-company-group').style.display!=='none';
+  const r=pickerVisible
+    ? activeRecords().find(x=>x.id===Number(val('task-company')))
+    : records.find(x=>x.id===currentId&&x.pipeline===currentPipeline);
+  if(!r){showToast('Pick a company');return;}
   const deadline=val('task-deadline')||null, priority=val('task-priority')||'Medium';
   if(editTaskId==null){
     const t={pipeline:r.pipeline,record_id:r.id,title,description:val('task-desc'),status:'Needs to be Done',deadline,priority};
     await createTask(t);
     tasks.push(t);
+    r.activity=(r.activity||[]).concat([{t:`Task added: ${title}`,d:new Date().toISOString()}]);
+    saveRecord(r);
   } else {
     const t=tasks.find(x=>x.id===editTaskId); if(!t)return;
     Object.assign(t,{title,description:val('task-desc'),deadline,priority,status:val('task-status')||t.status});
     await saveTask(t);
   }
-  closeTaskModal(); renderDetail(); updateBadge(); showToast('Task saved');
+  closeTaskModal(); refreshView(); showToast('Task saved');
 }
-async function deleteTask(id){
+let deleteTaskTargetId=null;
+// Reuses the same styled confirm modal as record deletion (see confirmDelete()/execDelete())
+// instead of the native confirm() the task-delete path used before — that dialog froze the
+// page for 45+ seconds during testing and looked inconsistent with every other delete flow.
+function confirmDeleteTask(id){
   const t=tasks.find(x=>x.id===id); if(!t)return;
-  if(!confirm(`Delete task "${t.title}"? This can't be undone.`))return;
+  deleteTaskTargetId=id;
+  document.getElementById('confirm-title').textContent='Delete this task?';
+  document.getElementById('confirm-msg').textContent=`This removes "${t.title}". This can't be undone.`;
+  document.getElementById('confirm-delete-btn').onclick=execDeleteTask;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+async function execDeleteTask(){
+  const id=deleteTaskTargetId; if(id==null)return;
   await deleteTaskRemote(id);
   tasks=tasks.filter(x=>x.id!==id);
-  renderDetail(); updateBadge(); showToast('Task deleted');
+  closeConfirm();
+  refreshView();
+  showToast('Task deleted');
 }
 async function changeTaskStatus(id,status){
   const t=tasks.find(x=>x.id===id); if(!t)return;
+  const wasDone=t.status==='Done';
   t.status=status;
   await saveTask(t);
+  // Only the transition into Done is logged (not every status change) — matches the audit's
+  // ask to make task completion visible in the record's history, without turning routine
+  // Needs-to-be-Done <-> Pending shuffling into activity-feed noise.
+  if(!wasDone&&status==='Done'){
+    const r=taskCompany(t);
+    if(r){ r.activity=(r.activity||[]).concat([{t:`Task completed: ${t.title}`,d:new Date().toISOString()}]); saveRecord(r); }
+  }
   refreshView();
 }
 
