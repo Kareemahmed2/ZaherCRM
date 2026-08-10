@@ -5,7 +5,12 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) { res.status(500).json({ error: 'GROQ_API_KEY not configured' }); return; }
-  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  // llama-3.3-70b-versatile is deprecated on Groq's free/dev tier (deprecation announced
+  // 2026-06-17, cutoff 2026-08-16) — requests were already failing/rate-limiting ahead of
+  // the hard cutoff, especially on larger tool-result payloads (search/list queries).
+  // openai/gpt-oss-120b is Groq's recommended replacement: same 131k context, comparable
+  // speed, full tool-calling support.
+  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
   try {
     const { messages, tools } = req.body || {};
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
