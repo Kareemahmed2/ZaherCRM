@@ -25,6 +25,10 @@ export default async function handler(req, res) {
       })
     });
     const data = await groqRes.json();
+    if (groqRes.status === 429) {
+      const retryAfter = groqRes.headers.get('retry-after');
+      if (retryAfter && data && typeof data === 'object') data.retryAfter = Number(retryAfter);
+    }
     res.status(groqRes.status).json(data);
   } catch (e) {
     res.status(500).json({ error: e.message });

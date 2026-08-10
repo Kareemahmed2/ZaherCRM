@@ -3430,7 +3430,7 @@ function snapshotRecord(r){
     if(r.referredBy){const p=records.find(x=>x.id===r.referredBy&&x.pipeline==='customers');o.referredBy=p?p.company:null;}
   }
   else if(r.pipeline==='events'){
-    o.title=r.company;o.eventType=r.eventType;o.description=r.description;o.startAt=r.startAt;o.endAt=r.endAt;o.timezone=r.timezone;o.format=r.format;
+    o.title=r.company;o.eventType=r.eventType;o.description=(r.description||'').slice(0,140);o.startAt=r.startAt;o.endAt=r.endAt;o.timezone=r.timezone;o.format=r.format;
     if(r.format==='Virtual'){o.meetingUrl=r.meetingUrl;o.dialIn=r.dialIn;}
     else {o.venueName=r.venueName;o.address=r.address;o.capacity=r.capacity;}
     delete o.members;
@@ -3467,7 +3467,7 @@ function buildAggregateSummary(){
 function searchRecords(input){
   const q=((input&&input.query)||'').toLowerCase().trim();
   const pipelineFilter=input&&input.pipeline;
-  const limit=Math.max(1,Math.min((input&&input.limit)||20,50));
+  const limit=Math.max(1,Math.min((input&&input.limit)||12,25));
   let pool=records;
   if(pipelineFilter)pool=pool.filter(r=>r.pipeline===pipelineFilter);
   if(q){
@@ -3536,6 +3536,31 @@ function renderSuggest(){document.getElementById('chat-suggest').innerHTML=SUGGE
 function quickChat(btn){document.getElementById('chat-input').value=btn.textContent;sendChat();}
 function addBubble(cls,text){const b=document.getElementById('chat-body');const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;b.appendChild(d);b.scrollTop=b.scrollHeight;return d;}
 function addAction(text){const b=document.getElementById('chat-body');const d=document.createElement('div');d.className='msg action';d.innerHTML=`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>${text}`;b.appendChild(d);b.scrollTop=b.scrollHeight;}
+// chatHistory keeps every turn for display, but resending the whole session on every
+// request (including every intermediate tool round-trip) is what blows Groq's per-minute
+// token budget on longer chats — only the most recent turns go to the model.
+function trimmedHistory(){
+  const TURNS=3;
+  const userIdx=[];
+  for(let i=0;i<chatHistory.length;i++)if(chatHistory[i].role==='user')userIdx.push(i);
+  if(userIdx.length<=TURNS)return chatHistory;
+  return chatHistory.slice(userIdx[userIdx.length-TURNS]);
+}
+// One retry on a 429 (Groq's tokens-per-minute limit), waiting the server-reported
+// retry-after — a single burst of tool round-trips can transiently exceed the limit
+// even with trimmed history, and this is what "temporarily unavailable" was masking.
+async function fetchChat(messages){
+  for(let attempt=0;attempt<2;attempt++){
+    const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages,tools:TOOLS})});
+    const data=await res.json();
+    if(res.status===429&&attempt===0){
+      const wait=Math.min(Math.max(Number(data.retryAfter)||5,1),30);
+      await new Promise(r=>setTimeout(r,wait*1000));
+      continue;
+    }
+    return {res,data};
+  }
+}
 async function sendChat(){
   if(chatBusy)return;
   const inp=document.getElementById('chat-input');const text=inp.value.trim();if(!text)return;
@@ -3547,9 +3572,8 @@ async function sendChat(){
   try{
     let guard=0;
     while(guard++<6){
-      const messages=[buildSystemMessage(),...chatHistory];
-      const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages,tools:TOOLS})});
-      const data=await res.json();
+      const messages=[buildSystemMessage(),...trimmedHistory()];
+      const {res,data}=await fetchChat(messages);
       if(!res.ok||data.error){
         const em=(data.error&&typeof data.error==='object')?(data.error.message||JSON.stringify(data.error)):(data.error||('API '+res.status));
         throw new Error(em);
