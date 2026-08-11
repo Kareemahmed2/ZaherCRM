@@ -1886,12 +1886,12 @@ function renderDashboard(){
     if(isCust) cards.push(['MRR',ff(wonVal),'Active clients'],['ARR',ff(wonVal*12),'MRR × 12']);
     else if(state.pipeline==='partners') cards.push(['Signed ARR',ff(wonVal),'Revenue/Strategic partners']);
     else if(state.pipeline==='investors') cards.push(['Capital raised',ff(wonVal),'Closed deals']);
-    // Closed pipeline = value of every decided offer, won or lost (Rejected). Total pipeline
-    // folds that in alongside what's still open — the user explicitly chose to count rejected
-    // value toward the total rather than treat it as dead money excluded from it.
+    // Closed pipeline = Rejected value only -- Won already has its own card (MRR/ARR/Signed
+    // ARR/Capital raised above), so folding it into "Closed" too would double-count it there.
+    // Total pipeline still folds in Won + Rejected + Open — the user explicitly chose to count
+    // rejected value toward the total rather than treat it as dead money excluded from it.
     const rejectedVal=computeRejectedValue(recs);
-    const closedVal=wonVal+rejectedVal;
-    cards.push(['Closed pipeline',ff(closedVal),'Won + Rejected'],['Total pipeline',ff(closedVal+pipeVal),'Closed + Open']);
+    cards.push(['Closed pipeline',ff(rejectedVal),'Rejected'],['Total pipeline',ff(wonVal+rejectedVal+pipeVal),'Won + Rejected + Open']);
   }
   document.getElementById('stats-grid').innerHTML=cards.map(c=>`<div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-value">${c[1]}</div><div class="stat-delta">${c[2]}</div></div>`).join('');
 
@@ -3224,8 +3224,8 @@ function renderAnalytics(){
     const allVal=recs.reduce((s,r)=>s+(r.value||0),0),wonVal=won.reduce((s,r)=>s+(r.value||0),0);
     kpis=[['Total value',fv(allVal)],[{partners:'Signed ARR',customers:'MRR',investors:'Capital raised'}[state.pipeline],ff(wonVal)],['Avg deal',fv(recs.length?Math.round(allVal/recs.length):0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
     if(isCust) kpis.push(['ARR',ff(wonVal*12)]);
-    const pipeVal=computePipelineValue(stages,recs), rejectedVal=computeRejectedValue(recs), closedVal=wonVal+rejectedVal;
-    kpis.push(['Open pipeline',ff(pipeVal)],['Closed pipeline',ff(closedVal)],['Total pipeline',ff(closedVal+pipeVal)]);
+    const pipeVal=computePipelineValue(stages,recs), rejectedVal=computeRejectedValue(recs);
+    kpis.push(['Open pipeline',ff(pipeVal)],['Closed pipeline',ff(rejectedVal)],['Total pipeline',ff(wonVal+rejectedVal+pipeVal)]);
   }
   document.getElementById('an-kpis').innerHTML=kpis.map(k=>`<div class="stat-card"><div class="stat-label">${k[0]}</div><div class="stat-value">${k[1]}</div><div class="stat-delta">${state.pipeline}</div></div>`).join('');
   // stage chart
