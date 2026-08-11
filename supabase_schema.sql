@@ -522,6 +522,75 @@ drop policy if exists "zaher team delete tasks" on tasks;
 create policy "zaher team delete tasks" on tasks for delete using (is_zaher_team());
 
 -- ═══════════════════════════════════════════════════════════════════════
+-- Task assignment + in-app notifications (added 2026-08-11)
+-- `team_members` is a lightweight, read-mostly directory of teammate
+-- name/email pairs used to populate the "Assign to" picker on a task — kept
+-- in sync from auth.users by /api/admin-create-user.js (service-role, so it
+-- bypasses RLS) whenever a new account is created, and backfilled once below
+-- from whatever accounts already exist. Not a FK target for anything; the
+-- app matches tasks.assignedTo (and notifications.recipient_email) to it by
+-- email string, same polymorphic-by-value pattern tasks.record_id already
+-- uses for pipeline records.
+--
+-- `notifications` are the actual "you were assigned a task" alerts a
+-- teammate sees in the CRM's bell menu. Only the app writes these (on
+-- assignment); nothing here auto-generates them from tasks.assignedTo
+-- changing, so every assignment path in the app must call createNotification
+-- itself.
+-- ═══════════════════════════════════════════════════════════════════════
+
+alter table tasks add column if not exists "assignedTo" text;
+
+create table if not exists team_members (
+  id         bigint generated always as identity primary key,
+  name       text not null,
+  email      text not null unique,
+  created_at timestamptz not null default now()
+);
+
+alter table team_members enable row level security;
+
+drop policy if exists "zaher team read team_members" on team_members;
+create policy "zaher team read team_members" on team_members for select using (is_zaher_team());
+
+-- One-time backfill from auth.users for accounts created before this table existed
+-- (readable here because the SQL editor runs with elevated privileges). Safe to re-run.
+insert into team_members (name, email)
+select coalesce(nullif(raw_user_meta_data->>'name',''), split_part(email,'@',1)), email
+from auth.users
+where email ilike '%@zaher.ai'
+on conflict (email) do nothing;
+
+create table if not exists notifications (
+  id             bigint generated always as identity primary key,
+  recipient_email text not null,
+  message        text not null,
+  pipeline       text,
+  record_id      bigint,
+  task_id        bigint,
+  read           boolean not null default false,
+  created_at     timestamptz not null default now()
+);
+
+create index if not exists notifications_recipient_idx on notifications(recipient_email, read);
+
+alter table notifications enable row level security;
+
+-- Recipients only ever see/manage their own notifications (checked against the JWT email,
+-- same as is_zaher_team() does) — but *creating* one is inherently about someone else's inbox
+-- (whoever assigns a task notifies the assignee, not themselves), so the insert policy is
+-- just "any authenticated zaher team member", not restricted to the recipient.
+drop policy if exists "own notifications read" on notifications;
+create policy "own notifications read" on notifications for select
+  using (is_zaher_team() and recipient_email = (auth.jwt() ->> 'email'));
+drop policy if exists "zaher team insert notifications" on notifications;
+create policy "zaher team insert notifications" on notifications for insert with check (is_zaher_team());
+drop policy if exists "own notifications update" on notifications;
+create policy "own notifications update" on notifications for update
+  using (is_zaher_team() and recipient_email = (auth.jwt() ->> 'email'))
+  with check (is_zaher_team() and recipient_email = (auth.jwt() ->> 'email'));
+
+-- ═══════════════════════════════════════════════════════════════════════
 -- Reachout tag (added 2026-08-04)
 -- Free-text like `stage` (no check constraint, so a third value can be added
 -- later without a migration) — the app itself only ever writes 'Reachout

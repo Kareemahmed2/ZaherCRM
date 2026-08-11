@@ -43,6 +43,24 @@ export default async function handler(req, res) {
     const created = await createRes.json();
     if (!createRes.ok) { res.status(createRes.status).json({ error: created.msg || created.error_description || created.error || 'Failed to create account' }); return; }
 
+    // Keep team_members (the "Assign to" picker's source list) in sync — best-effort, since a
+    // failure here shouldn't block account creation itself. resolution=merge-duplicates makes
+    // this an upsert on the unique email column, so re-creating an existing account is harmless.
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/team_members`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          Prefer: 'resolution=merge-duplicates,return=minimal'
+        },
+        body: JSON.stringify({ name, email })
+      });
+    } catch (e) {
+      console.error('team_members sync failed:', e);
+    }
+
     res.status(200).json({ email, password, name });
   } catch (e) {
     res.status(500).json({ error: e.message });

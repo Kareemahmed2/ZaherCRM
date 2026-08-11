@@ -76,6 +76,22 @@
   .topbar-title { font-size:15px; font-weight:500; color:var(--gray-900); letter-spacing:-0.2px; }
   .topbar-right { display:flex; align-items:center; gap:10px; }
   .mode-chip { font-size:11px; font-weight:600; padding:3px 10px; border-radius:99px; background:var(--accent-bg); color:var(--accent); }
+  /* notifications */
+  .notif-wrap { position:relative; }
+  .notif-bell { position:relative; padding:8px; }
+  .notif-badge { position:absolute; top:1px; right:1px; min-width:15px; height:15px; padding:0 4px; border-radius:99px; background:var(--red-400); color:white; font-size:9px; font-weight:700; display:none; align-items:center; justify-content:center; line-height:1; }
+  .notif-panel { display:none; position:absolute; top:calc(100% + 8px); right:0; width:340px; max-width:88vw; max-height:420px; overflow-y:auto; background:var(--white); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow-md); z-index:150; }
+  .notif-panel.open { display:block; }
+  .notif-panel-head { position:sticky; top:0; display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border); font-size:13px; font-weight:600; background:var(--white); }
+  .notif-mark-all { background:none; border:none; color:var(--accent); font-size:11px; font-weight:500; cursor:pointer; padding:0; }
+  .notif-mark-all:hover { text-decoration:underline; }
+  .notif-item { display:block; width:100%; text-align:left; padding:10px 14px; border:none; border-bottom:1px solid var(--border); background:none; cursor:pointer; font-family:var(--font); }
+  .notif-item:last-child { border-bottom:none; }
+  .notif-item:hover { background:var(--gray-100); }
+  .notif-item.unread { background:var(--accent-bg); }
+  .notif-item .notif-msg { font-size:12px; color:var(--gray-900); line-height:1.4; }
+  .notif-item .notif-time { font-size:10px; color:var(--gray-500); margin-top:3px; }
+  .notif-empty { padding:24px 14px; font-size:12px; color:var(--gray-500); text-align:center; }
   /* portfolio toggle */
   .seg { display:inline-flex; background:var(--gray-100); border-radius:var(--r-sm); padding:2px; }
   .seg-btn { border:none; background:transparent; font-family:var(--font); font-size:12px; font-weight:500; color:var(--gray-500); padding:5px 12px; border-radius:4px; cursor:pointer; transition:all .12s; }
@@ -488,6 +504,16 @@
         <button class="seg-btn" id="pf2-btn" onclick="setPortfolio(2)">Portfolio 2 · Ecosystem</button>
       </div>
       <span class="mode-chip" id="topbar-mode-chip">Partners</span>
+      <div class="notif-wrap" id="notif-wrap">
+        <button type="button" class="btn btn-ghost notif-bell" id="notif-bell-btn" onclick="toggleNotifPanel()" aria-label="Notifications" title="Notifications">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-badge" id="notif-badge">0</span>
+        </button>
+        <div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notifications">
+          <div class="notif-panel-head"><span>Notifications</span><button type="button" class="notif-mark-all" onclick="markAllNotificationsRead()">Mark all read</button></div>
+          <div id="notif-list"></div>
+        </div>
+      </div>
       <button class="btn btn-ghost" id="score-btn" onclick="openScorer()" style="display:none;">Score an agency</button>
       <button class="btn btn-primary" onclick="openModal()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -724,6 +750,7 @@
         <div class="form-group"><label class="form-label">Deadline</label><input class="form-input" type="date" id="task-deadline"></div>
         <div class="form-group"><label class="form-label">Priority</label><select class="form-input" id="task-priority"><option>High</option><option selected>Medium</option><option>Low</option></select></div>
       </div>
+      <div class="form-group"><label class="form-label">Assign to</label><select class="form-input" id="task-assignee"><option value="">Unassigned</option></select></div>
       <div class="form-group" id="task-status-group" style="display:none;"><label class="form-label">Status</label><select class="form-input" id="task-status"><option>Needs to be Done</option><option>Pending</option><option>Done</option></select></div>
     </div>
     <div class="modal-footer">
@@ -954,6 +981,9 @@ let tasks = [];
 let nextId=100;
 let nextTaskId=1000;
 let lastImportUndo=null;
+let teamMembers = [];
+let notifications = [];
+let currentUserEmail='', currentUserName='';
 
 // ══════════════ STATE ══════════════
 let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1)};
@@ -1148,6 +1178,82 @@ async function deleteTasksForRecordRemote(pipeline, recordId){
   const {error} = await sb.from('tasks').delete().eq('pipeline', pipeline).eq('record_id', recordId);
   if(error){ console.error(error); showToast('Sync failed — orphaned tasks kept locally only'); return false; }
   return true;
+}
+
+// ══════════════ TEAM MEMBERS (task assignment) ══════════════
+async function loadTeamMembers(){
+  if(!sb){ teamMembers = currentUserEmail ? [{name:currentUserName||currentUserEmail,email:currentUserEmail}] : []; return; }
+  const {data,error} = await sb.from('team_members').select('*').order('name');
+  if(error){ console.error(error); return; }
+  teamMembers = data||[];
+}
+function assigneeName(email){ if(!email) return ''; const m=teamMembers.find(x=>x.email===email); return m?m.name:email; }
+function populateAssigneeOptions(){
+  const sel=document.getElementById('task-assignee');
+  sel.innerHTML='<option value="">Unassigned</option>'+teamMembers.map(m=>`<option value="${escHtml(m.email)}">${escHtml(m.name)}</option>`).join('');
+}
+
+// ══════════════ NOTIFICATIONS ══════════════
+// In-app "you were assigned a task" alerts, shown from the bell menu in the topbar. Nothing
+// generates these automatically from a DB change — every assignment path in the app (see
+// saveTaskModal) has to call createNotification itself.
+async function loadNotifications(){
+  if(!sb || !currentUserEmail) return;
+  const {data,error} = await sb.from('notifications').select('*').eq('recipient_email',currentUserEmail).order('created_at',{ascending:false}).limit(50);
+  if(error){ console.error(error); return; }
+  notifications = data||[];
+}
+async function createNotification(n){
+  if(!n.recipient_email) return;
+  const row={recipient_email:n.recipient_email, message:n.message, pipeline:n.pipeline||null, record_id:n.record_id||null, task_id:n.task_id||null, read:false};
+  if(!sb){
+    if(n.recipient_email===currentUserEmail){ notifications.unshift({...row,id:Date.now(),created_at:new Date().toISOString()}); updateNotifBadge(); }
+    return;
+  }
+  const {error} = await sb.from('notifications').insert(row);
+  if(error) console.error(error);
+}
+function updateNotifBadge(){
+  const badge=document.getElementById('notif-badge'); if(!badge)return;
+  const count=notifications.filter(n=>!n.read).length;
+  badge.textContent=count>9?'9+':String(count);
+  badge.style.display=count?'flex':'none';
+}
+function renderNotifPanel(){
+  const list=document.getElementById('notif-list'); if(!list)return;
+  if(!notifications.length){ list.innerHTML='<div class="notif-empty">No notifications yet.</div>'; return; }
+  list.innerHTML=notifications.map(n=>`
+    <button type="button" class="notif-item ${n.read?'':'unread'}" onclick="openNotification(${n.id})">
+      <div class="notif-msg">${escHtml(n.message)}</div>
+      <div class="notif-time">${timeAgo(n.created_at)}</div>
+    </button>`).join('');
+}
+async function toggleNotifPanel(){
+  const panel=document.getElementById('notif-panel');
+  const opening=!panel.classList.contains('open');
+  if(opening){ await loadNotifications(); renderNotifPanel(); updateNotifBadge(); }
+  panel.classList.toggle('open',opening);
+}
+function closeNotifPanel(){ document.getElementById('notif-panel')?.classList.remove('open'); }
+async function markNotificationRead(id){
+  const n=notifications.find(x=>x.id===id); if(!n||n.read)return;
+  n.read=true;
+  updateNotifBadge();
+  if(sb){ const {error}=await sb.from('notifications').update({read:true}).eq('id',id); if(error)console.error(error); }
+}
+async function markAllNotificationsRead(){
+  const unread=notifications.filter(n=>!n.read);
+  if(!unread.length)return;
+  unread.forEach(n=>n.read=true);
+  renderNotifPanel(); updateNotifBadge();
+  if(sb){ const {error}=await sb.from('notifications').update({read:true}).eq('recipient_email',currentUserEmail).eq('read',false); if(error)console.error(error); }
+}
+function openNotification(id){
+  const n=notifications.find(x=>x.id===id); if(!n)return;
+  markNotificationRead(id);
+  renderNotifPanel();
+  closeNotifPanel();
+  if(n.pipeline && n.record_id!=null) openDetail(n.record_id,n.pipeline);
 }
 
 // ══════════════ NEXT STEPS (customers) ══════════════
@@ -1816,6 +1922,10 @@ function taskDeadlinePill(t){
   const bg=overdue?'var(--red-50)':'var(--gray-100)', fg=overdue?'var(--red-400)':'var(--gray-700)';
   return `<span class="chip" style="background:${bg};color:${fg};">${overdue?'Overdue · ':''}${fmtDeadline(t.deadline)}</span>`;
 }
+function assigneeChip(t){
+  if(!t.assignedTo)return '';
+  return `<span class="chip" style="background:var(--accent-bg);color:var(--accent);" title="Assigned to ${escHtml(assigneeName(t.assignedTo))}">${escHtml(assigneeName(t.assignedTo))}</span>`;
+}
 function buildTaskCard(t){
   const c=taskCompany(t);
   return `<div class="k-card" id="tkcard-${t.id}" data-id="${t.id}" style="cursor:pointer;"
@@ -1825,7 +1935,7 @@ function buildTaskCard(t){
       <div class="av ${c?avc(c.id):''}" style="width:28px;height:28px;font-size:9px;">${c?ini(c.company):'?'}</div>
       <div class="k-card-info"><div class="kn">${escHtml(t.title)}</div><div class="kc">${c?escHtml(c.company):'—'}</div></div>
     </div>
-    <div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}${taskDeadlinePill(t)}</div>
+    <div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}${taskDeadlinePill(t)}${assigneeChip(t)}</div>
     <select class="form-input" style="font-size:12px;padding:5px 8px;" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" onchange="event.stopPropagation();changeTaskStatus(${t.id},this.value)">
       ${TASK_STATUSES.map(s=>`<option ${s===t.status?'selected':''}>${s}</option>`).join('')}
     </select>
@@ -2815,7 +2925,7 @@ function renderDetail(){
         <div class="field-val" style="min-width:0;">${escHtml(t.title)}</div>
         <button class="modal-close" style="flex-shrink:0;" onclick="event.stopPropagation();confirmDeleteTask(${t.id})" title="Delete task" aria-label="Delete task">✕</button>
       </div>
-      <div style="font-size:11px;color:var(--gray-500);margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}<span>${fmtDeadline(t.deadline)}</span></div>
+      <div style="font-size:11px;color:var(--gray-500);margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${priorityChip(t.priority)}<span>${fmtDeadline(t.deadline)}</span>${t.assignedTo?`<span>· ${escHtml(assigneeName(t.assignedTo))}</span>`:''}</div>
       <select class="form-input" style="font-size:11px;padding:5px 8px;margin-top:8px;" onchange="changeTaskStatus(${t.id},this.value)">
         ${TASK_STATUSES.map(s=>`<option ${s===t.status?'selected':''}>${s}</option>`).join('')}
       </select>
@@ -3298,6 +3408,8 @@ function openAddTask(needsCompanyPicker){
   document.getElementById('task-desc').value='';
   document.getElementById('task-deadline').value='';
   document.getElementById('task-priority').value='Medium';
+  populateAssigneeOptions();
+  document.getElementById('task-assignee').value='';
   document.getElementById('task-status-group').style.display='none';
   document.getElementById('task-modal-title').textContent='Add task';
   document.getElementById('task-modal-submit-btn').textContent='Add task';
@@ -3318,6 +3430,8 @@ function editTask(id){
   document.getElementById('task-desc').value=t.description||'';
   document.getElementById('task-deadline').value=t.deadline||'';
   document.getElementById('task-priority').value=t.priority||'Medium';
+  populateAssigneeOptions();
+  document.getElementById('task-assignee').value=t.assignedTo||'';
   document.getElementById('task-status').value=t.status||'Needs to be Done';
   document.getElementById('task-status-group').style.display='';
   document.getElementById('task-modal-title').textContent='Edit task';
@@ -3333,16 +3447,24 @@ async function saveTaskModal(){
     : records.find(x=>x.id===currentId&&x.pipeline===currentPipeline);
   if(!r){showToast('Pick a company');return;}
   const deadline=val('task-deadline')||null, priority=val('task-priority')||'Medium';
+  const assignedTo=val('task-assignee')||null;
   if(editTaskId==null){
-    const t={pipeline:r.pipeline,record_id:r.id,title,description:val('task-desc'),status:'Needs to be Done',deadline,priority};
+    const t={pipeline:r.pipeline,record_id:r.id,title,description:val('task-desc'),status:'Needs to be Done',deadline,priority,assignedTo};
     await createTask(t);
     tasks.push(t);
     r.activity=(r.activity||[]).concat([{t:`Task added: ${title}`,d:new Date().toISOString()}]);
     saveRecord(r);
+    if(assignedTo && assignedTo!==currentUserEmail){
+      createNotification({recipient_email:assignedTo, message:`${currentUserName||'A teammate'} assigned you a task: "${title}" (${r.company})`, pipeline:r.pipeline, record_id:r.id, task_id:t.id});
+    }
   } else {
     const t=tasks.find(x=>x.id===editTaskId); if(!t)return;
-    Object.assign(t,{title,description:val('task-desc'),deadline,priority,status:val('task-status')||t.status});
+    const prevAssignee=t.assignedTo||null;
+    Object.assign(t,{title,description:val('task-desc'),deadline,priority,status:val('task-status')||t.status,assignedTo});
     await saveTask(t);
+    if(assignedTo && assignedTo!==prevAssignee && assignedTo!==currentUserEmail){
+      createNotification({recipient_email:assignedTo, message:`${currentUserName||'A teammate'} assigned you a task: "${title}" (${r.company})`, pipeline:t.pipeline, record_id:t.record_id, task_id:t.id});
+    }
   }
   closeTaskModal(); refreshView(); showToast('Task saved');
 }
@@ -3612,6 +3734,12 @@ async function startApp(){
   await loadTasks();
   await loadNextStepOptions();
   await loadEventTypeOptions();
+  await loadTeamMembers();
+  await loadNotifications();
+  updateNotifBadge();
+  // Notifications aren't realtime — a teammate assigning you a task shows up next time this
+  // poll ticks (or immediately if you happen to open the bell menu yourself).
+  if(sb) setInterval(async()=>{ await loadNotifications(); updateNotifBadge(); if(document.getElementById('notif-panel').classList.contains('open')) renderNotifPanel(); }, 45000);
   setPipeline('partners');
   renderSuggest();
   addBubble('bot','Hi — I can update or answer questions about the CRM. Try one of the suggestions below, or ask me anything about your partners, customers, investors, or events.');
@@ -3624,6 +3752,7 @@ async function handleSession(session){
     gate.classList.remove('open');
     errBox.style.display='none';
     const displayName=(session.user.user_metadata&&session.user.user_metadata.name)||email.split('@')[0];
+    currentUserEmail=email; currentUserName=displayName;
     document.getElementById('user-name').textContent=displayName;
     document.getElementById('user-av').textContent=ini(displayName);
     if(!appStarted){ appStarted=true; await startApp(); }
@@ -3666,7 +3795,7 @@ async function signOutUser(){
 }
 
 // ══════════════ INIT ══════════════
-window.addEventListener('click',e=>{if(e.target.id==='stage-note-modal'){cancelStageChange();return;}if(e.target.classList&&e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');if(e.target.classList&&e.target.classList.contains('confirm-overlay'))e.target.classList.remove('open');});
+window.addEventListener('click',e=>{if(e.target.id==='stage-note-modal'){cancelStageChange();return;}if(e.target.classList&&e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');if(e.target.classList&&e.target.classList.contains('confirm-overlay'))e.target.classList.remove('open');const notifWrap=document.getElementById('notif-wrap');if(notifWrap&&!notifWrap.contains(e.target))closeNotifPanel();});
 // Each modal-overlay/confirm-overlay's real close function (not just classList.remove('open'))
 // so Escape also clears the state a plain class toggle wouldn't — e.g. cancelStageChange()
 // clearing `pendingStage`, closeModal() clearing editId/editPipeline.
@@ -3678,6 +3807,7 @@ function getOpenDialogEl(){
 window.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     for(const id in MODAL_CLOSERS){ const el=document.getElementById(id); if(el&&el.classList.contains('open')){ MODAL_CLOSERS[id](); return; } }
+    if(document.getElementById('notif-panel').classList.contains('open')){ closeNotifPanel(); return; }
     if(document.querySelector('.sidebar').classList.contains('sidebar-open')){ closeSidebar(); return; }
   } else if(e.key==='Tab'){
     // Trap Tab within whichever dialog is currently open, so it can't cycle focus out to the
