@@ -106,9 +106,13 @@ def groq_extract_signals(company, text):
         'Return an empty array if nothing notable is in the text.'
     )
     # Groq's free-tier TPM limit is tiny (8K/min, see [[project-chatbot-groq-rate-limits]]) and a
-    # weekly batch of ~14 back-to-back calls trips it -- retry once on 429 using the server's
-    # own Retry-After, same pattern as fetchChat() in zaher_crm.html.
-    for attempt in range(2):
+    # weekly batch of ~14 back-to-back calls trips it -- retry on 429 using the server's own
+    # Retry-After, same pattern as fetchChat() in zaher_crm.html, but with more attempts and a
+    # higher wait ceiling than the live chatbot since this runs unattended in the background and
+    # has no user waiting on a reply -- confirmed live that one retry isn't always enough (two
+    # competitors' Groq calls can land in the same rate-limit window back to back).
+    MAX_ATTEMPTS = 3
+    for attempt in range(MAX_ATTEMPTS):
         try:
             resp = requests.post(
                 'https://api.groq.com/openai/v1/chat/completions',
@@ -123,8 +127,8 @@ def groq_extract_signals(company, text):
                 },
                 timeout=30,
             )
-            if resp.status_code == 429 and attempt == 0:
-                wait = min(max(float(resp.headers.get('Retry-After', 5)), 1), 30)
+            if resp.status_code == 429 and attempt < MAX_ATTEMPTS - 1:
+                wait = min(max(float(resp.headers.get('Retry-After', 5)), 1), 60)
                 print(f'  Groq rate-limited for {company}, retrying in {wait:.0f}s...')
                 time.sleep(wait)
                 continue
