@@ -664,6 +664,10 @@
           <div class="fields-grid" id="comp-det-fields"></div>
         </div>
         <div class="notes-card">
+          <div class="card-header"><span class="card-title">Competitive Dynamics</span></div>
+          <div class="fields-grid" id="comp-det-dynamics"></div>
+        </div>
+        <div class="notes-card">
           <div class="card-header"><span class="card-title">Dialects</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openChipModal('dialects')">+ Add dialect</button></div>
           <div id="comp-det-dialects"></div>
         </div>
@@ -3429,6 +3433,13 @@ function renderCompetitorDetail(){
     ['Notes', c.notes||'—']
   ];
   document.getElementById('comp-det-fields').innerHTML=fields.map(([k,v,hint])=>`<div class="field-item"><div class="field-key"${hint?` title="${escAttr(hint)}" style="cursor:help;border-bottom:1px dotted var(--gray-400);width:fit-content;"`:''}>${escHtml(k)}</div><div class="field-val">${escHtml(v)}</div></div>`).join('');
+
+  // "Competitive Dynamics" -- relationship type (direct/indirect, derived from competitorType)
+  // and threat level, called out as their own labeled section per the user's explicit ask,
+  // rather than left as unlabeled pills mixed into the hero tags above.
+  document.getElementById('comp-det-dynamics').innerHTML=
+    `<div class="field-item"><div class="field-key">Relationship type</div><div class="field-val">${competitorPill(competitorRelationship(c),competitorRelationship(c)==='Direct'?'#E24B4A':'#378ADD')}</div></div>`+
+    `<div class="field-item"><div class="field-key">Threat level</div><div class="field-val">${c.threatLevel?competitorPill(c.threatLevel,competitorThreatColor(c.threatLevel)):'—'}</div></div>`;
 
   document.getElementById('comp-det-dialects').innerHTML=chipListHtml(c.dialects,'dialects');
   document.getElementById('comp-det-platforms').innerHTML=chipListHtml(c.platformsCovered,'platformsCovered');
