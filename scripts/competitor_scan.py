@@ -37,10 +37,10 @@ from datetime import datetime, timezone
 import requests
 from scrapling.fetchers import Fetcher
 
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://lzztbjjbtpuyatyxbrke.supabase.co')
-SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE_KEY']
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
-GROQ_MODEL = os.environ.get('GROQ_MODEL', 'openai/gpt-oss-120b')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://lzztbjjbtpuyatyxbrke.supabase.co').strip()
+SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE_KEY'].strip()
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '').strip() or None
+GROQ_MODEL = os.environ.get('GROQ_MODEL', 'openai/gpt-oss-120b').strip()
 
 SB_HEADERS = {
     'apikey': SERVICE_KEY,
