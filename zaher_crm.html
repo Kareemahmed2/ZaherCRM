@@ -3837,11 +3837,24 @@ async function sendChat(){
       if(msg.content&&msg.content.trim()){typing.remove();addBubble('bot',msg.content.trim());b.appendChild(typing);}
       const calls=msg.tool_calls||[];
       if(calls.length===0)break;
+      let lastActionReply=null, needsFollowUp=false;
       for(const c of calls){
         let args={}; try{args=JSON.parse(c.function.arguments||'{}');}catch(e){}
         const out=await execTool(c.function.name,args);
         typing.remove();addAction(labelTool(c.function.name,args));b.appendChild(typing);
         chatHistory.push({role:'tool',tool_call_id:c.id,content:typeof out==='string'?out:JSON.stringify(out)});
+        if(c.function.name==='search_records') needsFollowUp=true; else if(typeof out==='string') lastActionReply=out;
+      }
+      // Skip the extra round-trip that would just ask the model to restate what the
+      // action chip above already shows — every round-trip here resends the full system
+      // prompt + tool schemas against Groq's small TPM budget (see feedback memory), and
+      // execTool's own return string is a more trustworthy confirmation anyway (it reflects
+      // whether the Supabase write actually succeeded, not the model's guess that it did).
+      // search_records is the one call that genuinely needs a follow-up round, since the
+      // model has to read the results before deciding what to say or do next.
+      if(!needsFollowUp){
+        if(lastActionReply){ typing.remove(); addBubble('bot',lastActionReply); b.appendChild(typing); }
+        break;
       }
     }
   }catch(e){
