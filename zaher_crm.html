@@ -869,7 +869,7 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Threat level</label><select class="form-input" id="comp-f-threat"><option value="">—</option><option>High</option><option>Medium</option><option>Low</option></select></div>
-        <div class="form-group"><label class="form-label">Sovereign models (Jais/Falcon)</label><select class="form-input" id="comp-f-sovereign"><option value="No">No</option><option value="Yes">Yes</option><option value="Unverified">Unverified/Claimed</option></select></div>
+        <div class="form-group"><label class="form-label">Sovereign models (Jais/Falcon)</label><select class="form-input" id="comp-f-sovereign"><option value="No">No</option><option value="Yes">Yes</option><option value="Unverified">Unverified/Claimed</option></select><div style="font-size:11px;color:var(--gray-500);margin-top:4px;line-height:1.4;">Falcon (TII) and Jais (G42/MBZUAI) are the UAE's two sovereign Arabic-first LLMs — Falcon H1 and Jais 2 both rank among the top-rated Arabic-native models globally as of 2026. "Yes" = this competitor publicly claims to track/optimize for Falcon or Jais specifically, not just general multilingual/Arabic support.</div></div>
       </div>
       <div class="form-group"><label class="form-label">Arabic depth & dialect notes</label><textarea class="form-input" id="comp-f-arabicdepth" rows="2"></textarea></div>
       <div class="form-group"><label class="form-label">MENA localization notes</label><textarea class="form-input" id="comp-f-menanotes" rows="2"></textarea></div>
@@ -3416,9 +3416,10 @@ function renderCompetitorDetail(){
     competitorPill(c.status,competitorStatusColor(c.status))+
     (c.verified?competitorPill('Verified','#639922'):competitorPill('Unverified','#888780'));
 
+  const SOVEREIGN_HINT='Falcon (TII) and Jais (G42/MBZUAI) are the UAE\'s two sovereign Arabic-first LLMs — Falcon H1 and Jais 2 both rank among the top-rated Arabic-native models globally as of 2026. "Yes" = this competitor publicly claims to track/optimize for Falcon or Jais specifically, not just general multilingual/Arabic support.';
   const fields=[
     ['Delivery model', c.deliveryModel||'—'],
-    ['Sovereign models (Jais/Falcon)', c.sovereignModelCoverage],
+    ['Sovereign models (Jais/Falcon)', c.sovereignModelCoverage, SOVEREIGN_HINT],
     ['News/press page', c.newsUrl||'—'],
     ['Last checked', c.lastCheckedAt?fmtTs(c.lastCheckedAt):'Never'],
     ['Arabic depth & dialect notes', c.arabicDepthNotes||'—'],
@@ -3427,7 +3428,7 @@ function renderCompetitorDetail(){
     ['Features notes', c.featuresNotes||'—'],
     ['Notes', c.notes||'—']
   ];
-  document.getElementById('comp-det-fields').innerHTML=fields.map(([k,v])=>`<div class="field-item"><div class="field-key">${escHtml(k)}</div><div class="field-val">${escHtml(v)}</div></div>`).join('');
+  document.getElementById('comp-det-fields').innerHTML=fields.map(([k,v,hint])=>`<div class="field-item"><div class="field-key"${hint?` title="${escAttr(hint)}" style="cursor:help;border-bottom:1px dotted var(--gray-400);width:fit-content;"`:''}>${escHtml(k)}</div><div class="field-val">${escHtml(v)}</div></div>`).join('');
 
   document.getElementById('comp-det-dialects').innerHTML=chipListHtml(c.dialects,'dialects');
   document.getElementById('comp-det-platforms').innerHTML=chipListHtml(c.platformsCovered,'platformsCovered');
