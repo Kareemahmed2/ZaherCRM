@@ -204,7 +204,10 @@
   /* ── CALENDAR (Events "Schedule" tab) ── */
   .calendar-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
   .calendar-title{font-size:16px;font-weight:600;color:var(--gray-900);}
-  .calendar-nav{display:flex;gap:6px;}
+  .calendar-nav{display:flex;align-items:center;gap:6px;}
+  .cal-legend{display:flex;flex-wrap:wrap;gap:10px 14px;margin:-6px 0 12px;}
+  .cal-legend-item{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-500);}
+  .cal-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
   .calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;}
   .cal-weekday{font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.04em;text-align:center;padding:4px 0;}
   /* Each week is one positioning context: `.cal-week-days` lays out the actual bordered day
@@ -435,6 +438,8 @@
        the whole page 24px wider than the viewport instead of ever giving up that space. */
     .profile-hero{flex-wrap:wrap;}
     .profile-actions{flex-wrap:wrap;}
+    .calendar-header{flex-wrap:wrap;gap:10px;}
+    .calendar-nav{flex-wrap:wrap;}
   }
   @media (max-width:560px){
     .page{padding:16px;}
@@ -995,7 +1000,7 @@ let notifications = [];
 let currentUserEmail='', currentUserName='';
 
 // ══════════════ STATE ══════════════
-let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1)};
+let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),calColorMode:'type'};
 let currentId=null,currentPipeline=null,prevPage='pipeline';
 // Directory bulk-select: ids of checked rows in the currently active pipeline's Directory
 // table. Scoped to state.pipeline (cleared on switch) — same reasoning as every other
@@ -1011,6 +1016,16 @@ const avc=id=>AV_COLORS[Math.abs(id)%AV_COLORS.length];
 // calendar event bars so a given event reads as the same color everywhere in the app.
 const AVC_HEX={'av-blue':'#185FA5','av-green':'#3B6D11','av-amber':'#854F0B','av-purple':'#534AB7','av-red':'#E24B4A','av-teal':'#0E7474'};
 const avcHex=id=>AVC_HEX[avc(id)];
+// Calendar event color coding (by type or by format — see setCalColorMode). The known default
+// event types get fixed, memorable colors; a type a team member added via the "Add event type"
+// flow (event_type_options is a team-editable list, see supabase_schema.sql) falls back to a
+// deterministic hash into PALETTE, so it still gets a stable color without a code change.
+const EVENT_TYPE_COLOR={'Webinar':'#378ADD','Trade Show':'#854F0B','Product Demo':'#639922','1-on-1 Meeting':'#7F77DD','Conference':'#0E7474'};
+const FORMAT_COLOR={'Virtual':'#378ADD','In-Person':'#639922'};
+function strHashIdx(s,len){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; return Math.abs(h)%len; }
+function eventTypeColor(t){ if(!t) return '#888780'; return EVENT_TYPE_COLOR[t]||PALETTE[strHashIdx(t,PALETTE.length)]; }
+function calEventColor(r){ return state.calColorMode==='format'?(FORMAT_COLOR[r.format]||'#888780'):eventTypeColor(r.eventType); }
+function setCalColorMode(mode){ if(state.calColorMode===mode)return; state.calColorMode=mode; renderPipeline(); }
 // Both format the sign separately (rather than letting it ride along inside the number) so a
 // negative value reads as "-$500", not "$-500" — v>=1000 etc. all short-circuit on a negative
 // v otherwise, since -500 is neither !v nor >=1000, falling through to the raw-number branch
@@ -1847,6 +1862,7 @@ const CAL_HEADER_H=18, CAL_LANE_H=18, CAL_BASE_MIN=64;
 // venue/address (In-Person) or meeting link (Virtual) applies, plus notes if any.
 function eventTooltipHtml(r){
   const rows=[['Status',r.stage||'—']];
+  if(r.eventType) rows.push(['Type',r.eventType]);
   if(r.format) rows.push(['Format',r.format]);
   if(r.format==='In-Person'){
     if(r.venueName) rows.push(['Venue',r.venueName]);
@@ -1899,7 +1915,7 @@ function renderCalendar(list){
       const cls='cal-bar'+(isStart?' bar-start':'')+(isEnd?' bar-end':'');
       const tooltipCls='cal-tooltip'+(c1>=5?' tooltip-right':'');
       return `<div class="cal-bar-wrap" style="grid-column:${c0+1}/${c1+2};grid-row:${lane+2};">
-        <div class="${cls}" style="background:${avcHex(sp.r.id)};" onclick="openDetail(${sp.r.id},'${sp.r.pipeline}')">${escHtml(sp.r.company)}</div>
+        <div class="${cls}" style="background:${calEventColor(sp.r)};" onclick="openDetail(${sp.r.id},'${sp.r.pipeline}')">${escHtml(sp.r.company)}</div>
         <div class="${tooltipCls}">${eventTooltipHtml(sp.r)}</div>
       </div>`;
     }).join('');
@@ -1911,18 +1927,29 @@ function renderCalendar(list){
 
   const monthLabel=month.toLocaleDateString('en-US',{month:'long',year:'numeric'});
   const weekdayLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const byFormat=state.calColorMode==='format';
+  // Legend only lists colors actually in play this month (plus "Unscheduled", if any) — a
+  // fixed list of every known event type would include types with zero events on this page,
+  // cluttering the legend with swatches that don't appear anywhere in the visible grid.
+  const legendKeys=byFormat?['Virtual','In-Person']:Array.from(new Set(list.map(r=>r.eventType).filter(Boolean))).sort();
+  const legendHtml=legendKeys.length?`<div class="cal-legend">${legendKeys.map(k=>`<span class="cal-legend-item"><span class="cal-legend-dot" style="background:${byFormat?FORMAT_COLOR[k]:eventTypeColor(k)};"></span>${escHtml(k)}</span>`).join('')}</div>`:'';
   document.getElementById('calendar-view').innerHTML=`
     <div class="calendar-header">
       <div class="calendar-title">${monthLabel}</div>
       <div class="calendar-nav">
+        <div class="seg" style="margin-right:6px;">
+          <button type="button" class="seg-btn ${byFormat?'':'active'}" onclick="setCalColorMode('type')">By type</button>
+          <button type="button" class="seg-btn ${byFormat?'active':''}" onclick="setCalColorMode('format')">By format</button>
+        </div>
         <button class="btn btn-ghost" onclick="calPrevMonth()" aria-label="Previous month">‹</button>
         <button class="btn btn-ghost" onclick="calToday()">Today</button>
         <button class="btn btn-ghost" onclick="calNextMonth()" aria-label="Next month">›</button>
       </div>
     </div>
+    ${legendHtml}
     <div class="calendar-weekdays">${weekdayLabels.map(w=>`<div class="cal-weekday">${w}</div>`).join('')}</div>
     ${weekBlocks.join('')}
-    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id},'${r.pipeline}')"><span class="cal-event-dot" style="background:${avcHex(r.id)};"></span><div class="cal-event-wrap">${escHtml(r.company)}<div class="cal-tooltip tooltip-up">${eventTooltipHtml(r)}</div></div></div>`).join('')}</div>`:''}
+    ${unscheduled.length?`<div class="cal-unscheduled"><div class="card-title" style="margin-bottom:8px;display:block;">Unscheduled</div>${unscheduled.map(r=>`<div class="cal-event" style="padding:4px 0;" onclick="openDetail(${r.id},'${r.pipeline}')"><span class="cal-event-dot" style="background:${calEventColor(r)};"></span><div class="cal-event-wrap">${escHtml(r.company)}<div class="cal-tooltip tooltip-up">${eventTooltipHtml(r)}</div></div></div>`).join('')}</div>`:''}
   `;
 }
 
