@@ -32,6 +32,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime, timezone
 
 import requests
@@ -104,30 +105,40 @@ def groq_extract_signals(company, text):
         '"description": one sentence, "occurred_on": "YYYY-MM-DD" or null if unknown}. '
         'Return an empty array if nothing notable is in the text.'
     )
-    try:
-        resp = requests.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={'Authorization': f'Bearer {GROQ_API_KEY}', 'Content-Type': 'application/json'},
-            json={
-                'model': GROQ_MODEL,
-                'messages': [
-                    {'role': 'system', 'content': system},
-                    {'role': 'user', 'content': text},
-                ],
-                'max_tokens': 800,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        content = resp.json()['choices'][0]['message']['content'].strip()
-        # Models sometimes wrap JSON in a code fence despite being told not to -- strip it
-        # defensively rather than letting json.loads() choke on it.
-        content = re.sub(r'^```(?:json)?\s*|\s*```$', '', content)
-        items = json.loads(content)
-        return [i for i in items if isinstance(i, dict) and i.get('type') in SIGNAL_TYPES and i.get('description')]
-    except Exception as e:
-        print(f'  Groq signal extraction failed for {company}: {type(e).__name__}: {e}')
-        return []
+    # Groq's free-tier TPM limit is tiny (8K/min, see [[project-chatbot-groq-rate-limits]]) and a
+    # weekly batch of ~14 back-to-back calls trips it -- retry once on 429 using the server's
+    # own Retry-After, same pattern as fetchChat() in zaher_crm.html.
+    for attempt in range(2):
+        try:
+            resp = requests.post(
+                'https://api.groq.com/openai/v1/chat/completions',
+                headers={'Authorization': f'Bearer {GROQ_API_KEY}', 'Content-Type': 'application/json'},
+                json={
+                    'model': GROQ_MODEL,
+                    'messages': [
+                        {'role': 'system', 'content': system},
+                        {'role': 'user', 'content': text},
+                    ],
+                    'max_tokens': 800,
+                },
+                timeout=30,
+            )
+            if resp.status_code == 429 and attempt == 0:
+                wait = min(max(float(resp.headers.get('Retry-After', 5)), 1), 30)
+                print(f'  Groq rate-limited for {company}, retrying in {wait:.0f}s...')
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            content = resp.json()['choices'][0]['message']['content'].strip()
+            # Models sometimes wrap JSON in a code fence despite being told not to -- strip it
+            # defensively rather than letting json.loads() choke on it.
+            content = re.sub(r'^```(?:json)?\s*|\s*```$', '', content)
+            items = json.loads(content)
+            return [i for i in items if isinstance(i, dict) and i.get('type') in SIGNAL_TYPES and i.get('description')]
+        except Exception as e:
+            print(f'  Groq signal extraction failed for {company}: {type(e).__name__}: {e}')
+            return []
+    return []
 
 
 def is_duplicate(existing, candidate):
