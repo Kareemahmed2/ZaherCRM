@@ -658,7 +658,7 @@
             <div class="profile-actions">
               <button class="btn btn-danger" style="font-size:12px;padding:6px 12px;" onclick="confirmDeleteCompetitor()">Delete</button>
               <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="openEditCompetitorModal()">✎ Update</button>
-              <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="checkCompetitorNow()">Check now</button>
+              <button id="det-check-now-btn" class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="checkCompetitorNow()">Check now</button>
             </div>
           </div>
           <div class="fields-grid" id="comp-det-fields"></div>
@@ -3621,11 +3621,31 @@ async function dismissSignal(id){
   updateCompetitorsBadge();
   showToast('Signal dismissed');
 }
-// Stub for Phase 2/3 (see the Competitors plan) — the Scrapling-backed status/signal-detection
-// endpoints don't exist yet; this button is wired up now so no further UI change is needed once
-// they ship, but for now it just tells the user that.
-function checkCompetitorNow(){
-  showToast('Automated checks aren\'t built yet — status/verified stay manual for now.');
+// Triggers scripts/competitor_scan.py on demand (via api/trigger-competitor-scan.js ->
+// GitHub Actions workflow_dispatch) for just this one competitor, instead of waiting for
+// the weekly .github/workflows/competitor-scan.yml schedule. The scan runs on GitHub's
+// runners, not synchronously here, so this just queues it -- status/signals update in
+// the CRM a minute or two later once the run finishes.
+async function checkCompetitorNow(){
+  const c=competitors.find(x=>x.id===currentCompetitorId); if(!c)return;
+  if(!sb){ showToast('Not available in local/demo mode'); return; }
+  const btn=document.getElementById('det-check-now-btn');
+  if(btn){ btn.disabled=true; btn.textContent='Queuing…'; }
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    const res=await fetch('/api/trigger-competitor-scan',{
+      method:'POST',
+      headers:{'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}`},
+      body:JSON.stringify({competitorId:c.id})
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||`Request failed (${res.status})`);
+    showToast('Scan queued — check back in a minute or two for updated status/signals');
+  }catch(e){
+    showToast('Could not queue scan: '+e.message);
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='Check now'; }
+  }
 }
 
 // ══════════════ DETAIL ══════════════

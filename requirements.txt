@@ -1,0 +1,9 @@
+# For scripts/competitor_scan.py, run via .github/workflows/competitor-scan.yml
+# (not used by the Vercel deployment -- that's Node/JS only, see api/*.js).
+#
+# scrapling[fetchers] pulls in Playwright + Patchright as a hard dependency even though
+# we only use Scrapling's lightweight non-browser Fetcher class -- confirmed by installing
+# it (~251MB, ~214MB of which is Playwright/Patchright). That's why this runs on GitHub
+# Actions instead of a Vercel Python function; see scripts/competitor_scan.py's docstring.
+scrapling[fetchers]
+requests

@@ -1,0 +1,35 @@
+name: Competitor scan
+
+# Weekly by default -- every Monday 06:00 UTC. Runs on GitHub's runners rather than
+# Vercel because scripts/competitor_scan.py's only heavy dependency (Scrapling) hard-pulls
+# in Playwright/Patchright (~214MB) even though it's never used, well over/at Vercel's
+# serverless function size ceiling. See scripts/competitor_scan.py's docstring.
+#
+# Can also be run on demand -- either from the Actions tab, or triggered by the in-app
+# "Check now" button via api/trigger-competitor-scan.js -- optionally scoped to one
+# competitor via the competitor_id input, instead of the full weekly scan.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      competitor_id:
+        description: 'Competitor ID to check (leave blank to scan all)'
+        required: false
+        type: string
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: |
+          python scripts/competitor_scan.py ${{ inputs.competitor_id && format('--competitor-id={0}', inputs.competitor_id) || '' }}
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
