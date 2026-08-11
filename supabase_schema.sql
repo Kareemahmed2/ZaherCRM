@@ -671,6 +671,14 @@ create table if not exists competitors (
   "menaLocalizationNotes" text,
   "competitiveVerdict" text,
   "featuresNotes"   text,
+  "executionScope"  text check ("executionScope" in ('Monitoring only','Monitoring + Execution')),
+  "proofNotes"      text,
+  "reviewSources"   text,
+  "reviewSummary"   text,
+  "arrEstimate"     text,
+  "pricingModel"    text,
+  "entryPrice"      text,
+  "positioningClaim" text,
   status            text not null default 'Unknown' check (status in ('Operational','Inactive','Unknown')),
   verified          boolean not null default false,
   "lastCheckedAt"   timestamptz,
@@ -816,3 +824,23 @@ where c.company = 'Geoplex.ai'
     select 1 from competitor_signals cs
     where cs.competitor_id = c.id and cs.description like 'Site inaccessible%'
   );
+
+-- Competitors: additional data fields (added 2026-08-11) -- the original 14-competitor build
+-- covered relationship type, threat level, sovereign coverage, dialects/platforms, and free-text
+-- verdict/notes, but left out several fields the user asked for from the start: execution model
+-- (monitor-only vs also executes content, and what proof they show for it), where reviews are
+-- sourced from and a pos/neg summary of them, an ARR estimate, pricing (model + entry price), and
+-- their own stated positioning claim. All free text (not select/chip-list) since these are mostly
+-- one-off research notes, not a fixed taxonomy to filter on like dialects/platformsCovered are --
+-- except executionScope, which has exactly two real states worth a dropdown.
+-- These columns are also inline in the `create table` above for fresh installs; this ALTER
+-- backfills them onto the table that's already live (`create table if not exists` above is a
+-- no-op once the table exists, so re-running the file alone won't add these).
+alter table competitors add column if not exists "executionScope" text check ("executionScope" in ('Monitoring only','Monitoring + Execution'));
+alter table competitors add column if not exists "proofNotes" text;
+alter table competitors add column if not exists "reviewSources" text;
+alter table competitors add column if not exists "reviewSummary" text;
+alter table competitors add column if not exists "arrEstimate" text;
+alter table competitors add column if not exists "pricingModel" text;
+alter table competitors add column if not exists "entryPrice" text;
+alter table competitors add column if not exists "positioningClaim" text;

@@ -673,7 +673,7 @@
           <div id="comp-det-dialects"></div>
         </div>
         <div class="notes-card">
-          <div class="card-header"><span class="card-title">Platforms Covered</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openChipModal('platformsCovered')">+ Add platform</button></div>
+          <div class="card-header"><span class="card-title" id="comp-det-platforms-title">Platforms Covered</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openChipModal('platformsCovered')">+ Add platform</button></div>
           <div id="comp-det-platforms"></div>
         </div>
         <div class="notes-card">
@@ -870,15 +870,27 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Type *</label><select class="form-input" id="comp-f-type"><option value="MENA/Regional">MENA/Regional (Direct)</option><option value="Generic/International">Generic/International (Indirect)</option></select></div>
-        <div class="form-group"><label class="form-label">Delivery model</label><select class="form-input" id="comp-f-delivery"><option value="">—</option><option>Self-serve SaaS</option><option>Managed Service</option><option>Consulting</option><option>Suite Add-on</option></select></div>
+        <div class="form-group"><label class="form-label">Delivery model</label><select class="form-input" id="comp-f-delivery"><option value="">—</option><option>Self-serve SaaS</option><option>Managed Service</option><option>Consulting</option><option>Suite Add-on</option></select><div style="font-size:11px;color:var(--gray-500);margin-top:4px;line-height:1.4;">Self-serve SaaS = we/the target company self-implement from their tool. Managed Service = they run it for the client on an ongoing basis. Consulting = audit/recommendations only, no ongoing execution.</div></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Threat level</label><select class="form-input" id="comp-f-threat"><option value="">—</option><option>High</option><option>Medium</option><option>Low</option></select></div>
         <div class="form-group"><label class="form-label">Sovereign models (Jais/Falcon)</label><select class="form-input" id="comp-f-sovereign"><option value="No">No</option><option value="Yes">Yes</option><option value="Unverified">Unverified/Claimed</option></select><div style="font-size:11px;color:var(--gray-500);margin-top:4px;line-height:1.4;">Falcon (TII) and Jais (G42/MBZUAI) are the UAE's two sovereign Arabic-first LLMs — Falcon H1 and Jais 2 both rank among the top-rated Arabic-native models globally as of 2026. "Yes" = this competitor publicly claims to track/optimize for Falcon or Jais specifically, not just general multilingual/Arabic support.</div></div>
       </div>
       <div class="form-group"><label class="form-label">Arabic depth & dialect notes</label><textarea class="form-input" id="comp-f-arabicdepth" rows="2"></textarea></div>
-      <div class="form-group"><label class="form-label">MENA localization notes</label><textarea class="form-input" id="comp-f-menanotes" rows="2"></textarea></div>
-      <div class="form-group"><label class="form-label">Competitive verdict</label><textarea class="form-input" id="comp-f-verdict" rows="2" placeholder="Where they beat us / where we beat them"></textarea></div>
+      <div class="form-group"><label class="form-label">MENA localization notes</label><textarea class="form-input" id="comp-f-menanotes" rows="2" placeholder="Direct MENA target vs sector-specific in our market vs generic global coverage that happens to include us"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Execution scope</label><select class="form-input" id="comp-f-execscope"><option value="">—</option><option value="Monitoring only">Monitoring only</option><option value="Monitoring + Execution">Monitoring + Execution</option></select></div>
+        <div class="form-group"><label class="form-label">Proof of execution/monitoring</label><input class="form-input" id="comp-f-proof" placeholder="e.g. live citation-tracking dashboard, published reports"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Review sources</label><input class="form-input" id="comp-f-reviewsources" placeholder="e.g. G2, Capterra, own site testimonials"></div>
+      <div class="form-group"><label class="form-label">Review summary</label><textarea class="form-input" id="comp-f-reviewsummary" rows="2" placeholder="Positive and negative themes from reviews"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">ARR estimate</label><input class="form-input" id="comp-f-arr" placeholder="e.g. $5M ARR (est. via 2025 funding round)"></div>
+        <div class="form-group"><label class="form-label">Entry price</label><input class="form-input" id="comp-f-entryprice" placeholder="e.g. $299/mo starting, or Custom quote"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Pricing model</label><input class="form-input" id="comp-f-pricingmodel" placeholder="e.g. Tiered subscription, per-seat add-ons"></div>
+      <div class="form-group"><label class="form-label">Positioning claim</label><textarea class="form-input" id="comp-f-positioning" rows="2" placeholder="What they claim makes them different"></textarea></div>
+      <div class="form-group"><label class="form-label">Verdict vs Zaher AI</label><textarea class="form-input" id="comp-f-verdict" rows="2" placeholder="Where they beat us / where we beat them"></textarea></div>
       <div class="form-group"><label class="form-label">Features notes</label><textarea class="form-input" id="comp-f-features" rows="2"></textarea></div>
       <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="comp-f-notes" rows="2"></textarea></div>
     </div>
@@ -3429,7 +3441,15 @@ function renderCompetitorDetail(){
     ['Last checked', c.lastCheckedAt?fmtTs(c.lastCheckedAt):'Never'],
     ['Arabic depth & dialect notes', c.arabicDepthNotes||'—'],
     ['MENA localization notes', c.menaLocalizationNotes||'—'],
-    ['Competitive verdict', c.competitiveVerdict||'—'],
+    ['Execution scope', c.executionScope||'—'],
+    ['Proof of execution/monitoring', c.proofNotes||'—'],
+    ['Review sources', c.reviewSources||'—'],
+    ['Review summary', c.reviewSummary||'—'],
+    ['ARR estimate', c.arrEstimate||'—'],
+    ['Entry price', c.entryPrice||'—'],
+    ['Pricing model', c.pricingModel||'—'],
+    ['Positioning claim', c.positioningClaim||'—'],
+    ['Verdict vs Zaher AI', c.competitiveVerdict||'—'],
     ['Features notes', c.featuresNotes||'—'],
     ['Notes', c.notes||'—']
   ];
@@ -3444,6 +3464,7 @@ function renderCompetitorDetail(){
 
   document.getElementById('comp-det-dialects').innerHTML=chipListHtml(c.dialects,'dialects');
   document.getElementById('comp-det-platforms').innerHTML=chipListHtml(c.platformsCovered,'platformsCovered');
+  document.getElementById('comp-det-platforms-title').textContent=`Platforms Covered (${(c.platformsCovered||[]).length})`;
   document.getElementById('comp-det-labels').innerHTML=chipListHtml(c.labels,'labels',true);
 
   const sigs=signalsFor(c.id).slice().sort((a,b)=>(''+(b.occurred_on||b.created_at||'')).localeCompare(''+(a.occurred_on||a.created_at||'')));
@@ -3462,11 +3483,12 @@ function renderCompetitorDetail(){
 let editCompetitorId=null;
 function openAddCompetitorModal(){
   editCompetitorId=null;
-  ['company','website','newsurl','arabicdepth','menanotes','verdict','features','notes'].forEach(f=>{const el=document.getElementById('comp-f-'+f); if(el)el.value='';});
+  ['company','website','newsurl','arabicdepth','menanotes','verdict','features','notes','proof','reviewsources','reviewsummary','arr','entryprice','pricingmodel','positioning'].forEach(f=>{const el=document.getElementById('comp-f-'+f); if(el)el.value='';});
   document.getElementById('comp-f-type').value='MENA/Regional';
   document.getElementById('comp-f-delivery').value='';
   document.getElementById('comp-f-threat').value='';
   document.getElementById('comp-f-sovereign').value='No';
+  document.getElementById('comp-f-execscope').value='';
   document.getElementById('competitor-modal-title').textContent='Add competitor';
   document.getElementById('competitor-modal-submit-btn').textContent='Add competitor';
   document.getElementById('competitor-modal').classList.add('open');
@@ -3483,6 +3505,14 @@ function openEditCompetitorModal(){
   document.getElementById('comp-f-sovereign').value=c.sovereignModelCoverage||'No';
   document.getElementById('comp-f-arabicdepth').value=c.arabicDepthNotes||'';
   document.getElementById('comp-f-menanotes').value=c.menaLocalizationNotes||'';
+  document.getElementById('comp-f-execscope').value=c.executionScope||'';
+  document.getElementById('comp-f-proof').value=c.proofNotes||'';
+  document.getElementById('comp-f-reviewsources').value=c.reviewSources||'';
+  document.getElementById('comp-f-reviewsummary').value=c.reviewSummary||'';
+  document.getElementById('comp-f-arr').value=c.arrEstimate||'';
+  document.getElementById('comp-f-entryprice').value=c.entryPrice||'';
+  document.getElementById('comp-f-pricingmodel').value=c.pricingModel||'';
+  document.getElementById('comp-f-positioning').value=c.positioningClaim||'';
   document.getElementById('comp-f-verdict').value=c.competitiveVerdict||'';
   document.getElementById('comp-f-features').value=c.featuresNotes||'';
   document.getElementById('comp-f-notes').value=c.notes||'';
@@ -3503,6 +3533,14 @@ async function saveCompetitorModal(){
     sovereignModelCoverage: val('comp-f-sovereign')||'No',
     arabicDepthNotes: val('comp-f-arabicdepth'),
     menaLocalizationNotes: val('comp-f-menanotes'),
+    executionScope: val('comp-f-execscope')||null,
+    proofNotes: val('comp-f-proof'),
+    reviewSources: val('comp-f-reviewsources'),
+    reviewSummary: val('comp-f-reviewsummary'),
+    arrEstimate: val('comp-f-arr'),
+    entryPrice: val('comp-f-entryprice'),
+    pricingModel: val('comp-f-pricingmodel'),
+    positioningClaim: val('comp-f-positioning'),
     competitiveVerdict: val('comp-f-verdict'),
     featuresNotes: val('comp-f-features'),
     notes: val('comp-f-notes')
