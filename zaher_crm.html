@@ -873,20 +873,29 @@
 <script>
 // ══════════════ CONFIG ══════════════
 const STAGES = {
-  partners1: ['Researched','Emailed','Awareness','Educational Collaboration','Trust','Pilot Partnership','Revenue Partnership','Strategic Alliance'],
-  partners2: ['Researched','Emailed','Awareness','Conversation','Workshop Delivered','Recurring Relationship','Ecosystem Status'],
-  customers: ['Researched','Emailed','Audit Requested','Audit Delivered','Discovery Call','Proposal','Pilot','Active Client'],
-  investors: ['Researched','Emailed','Prospecting','First Meeting','Due Diligence','Term Sheet','Closed'],
+  partners1: ['Researched','Emailed','Awareness','Educational Collaboration','Trust','Pilot Partnership','Revenue Partnership','Strategic Alliance','Rejected'],
+  partners2: ['Researched','Emailed','Awareness','Conversation','Workshop Delivered','Recurring Relationship','Ecosystem Status','Rejected'],
+  customers: ['Researched','Emailed','Audit Requested','Audit Delivered','Discovery Call','Proposal','Pilot','Active Client','Rejected'],
+  investors: ['Researched','Emailed','Prospecting','First Meeting','Due Diligence','Term Sheet','Closed','Rejected'],
   events: ['Draft','Scheduled','In Progress','Completed','Canceled']
 };
-const TERMINAL = new Set(['Revenue Partnership','Strategic Alliance','Recurring Relationship','Ecosystem Status','Active Client','Closed','Completed','Canceled']);
+// 'Rejected' is deliberately appended *after* each pipeline's real win stage(s) above —
+// pipelineValueThresholdIdx() below finds the first TERMINAL stage by scanning the array in
+// order, and needs to land on the win stage, not Rejected, to compute the right threshold.
+const TERMINAL = new Set(['Revenue Partnership','Strategic Alliance','Recurring Relationship','Ecosystem Status','Active Client','Closed','Completed','Canceled','Rejected']);
+// TERMINAL mixes two different endings — actually-won deals vs. Rejected (closed-lost) — so
+// anywhere "won" specifically means revenue/won-count (not just "no longer active"), filter
+// with isWonStage instead of TERMINAL.has directly.
+const REJECTED_STAGE = 'Rejected';
+function isWonStage(s){ return TERMINAL.has(s) && s!==REJECTED_STAGE; }
 const STAGE_COLOR = {
   'Researched':'#888780','Emailed':'#534AB7',
   'Awareness':'#378ADD','Educational Collaboration':'#7F77DD','Trust':'#EF9F27','Pilot Partnership':'#D97706','Revenue Partnership':'#639922','Strategic Alliance':'#3B6D11',
   'Conversation':'#7F77DD','Workshop Delivered':'#EF9F27','Recurring Relationship':'#0E7474','Ecosystem Status':'#639922',
   'Audit Requested':'#378ADD','Audit Delivered':'#7F77DD','Discovery Call':'#EF9F27','Proposal':'#D97706','Pilot':'#0E7474','Active Client':'#639922',
   'Prospecting':'#378ADD','First Meeting':'#7F77DD','Due Diligence':'#EF9F27','Term Sheet':'#D97706','Closed':'#639922',
-  'Draft':'#888780','Scheduled':'#378ADD','In Progress':'#EF9F27','Completed':'#639922','Canceled':'#E24B4A'
+  'Draft':'#888780','Scheduled':'#378ADD','In Progress':'#EF9F27','Completed':'#639922','Canceled':'#E24B4A',
+  'Rejected':'#E24B4A'
 };
 const TAG_VALUES=['Reachout Priority','Reachout Done'];
 const TAG_COLOR={'Reachout Priority':'#E24B4A','Reachout Done':'#639922'};
@@ -1033,7 +1042,8 @@ function computePipelineValue(stagesArr,recs){
   const thresholdIdx=pipelineValueThresholdIdx(stagesArr);
   return recs.filter(r=>stagesArr.indexOf(r.stage)>=thresholdIdx && !TERMINAL.has(r.stage)).reduce((s,r)=>s+(r.value||0),0);
 }
-function computeWonValue(recs){ return recs.filter(r=>TERMINAL.has(r.stage)).reduce((s,r)=>s+(r.value||0),0); }
+function computeWonValue(recs){ return recs.filter(r=>isWonStage(r.stage)).reduce((s,r)=>s+(r.value||0),0); }
+function computeRejectedValue(recs){ return recs.filter(r=>r.stage===REJECTED_STAGE).reduce((s,r)=>s+(r.value||0),0); }
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('show'),2400);}
 // Returns a record, null (no match), or {ambiguous:true,candidates:[...]} when a member-name
 // tier matches more than one company — with common contact names, two different companies
@@ -1447,7 +1457,7 @@ function updateBadge(){
 function renderDashboard(){
   const recs=activeRecords(), stages=activeStages();
   const total=recs.length;
-  const won=recs.filter(r=>TERMINAL.has(r.stage));
+  const won=recs.filter(r=>isWonStage(r.stage));
   const active=recs.filter(r=>!TERMINAL.has(r.stage));
   updateBadge();
   const isEvents=state.pipeline==='events';
@@ -1466,12 +1476,17 @@ function renderDashboard(){
     const thresholdStage=pipelineValueThresholdStage(stages);
     const l1={partners:'Total partners',customers:'Total customers',investors:'Total investors'}[state.pipeline];
     const l3={partners:'Revenue partners',customers:'Active clients',investors:'Closed'}[state.pipeline];
-    const l4={partners:'Potential ARR',customers:'Pipeline value',investors:'Open raise'}[state.pipeline];
-    cards=[[l1,total,'All'],['In pipeline',active.length,'Active'],[l3,won.length,total?((won.length/total)*100).toFixed(0)+'% rate':'0%'],[l4,ff(pipeVal),thresholdStage+'+']];
+    cards=[[l1,total,'All'],['In pipeline',active.length,'Active'],[l3,won.length,total?((won.length/total)*100).toFixed(0)+'% rate':'0%'],['Open pipeline',ff(pipeVal),thresholdStage+'+']];
     const wonVal=computeWonValue(recs);
     if(isCust) cards.push(['MRR',ff(wonVal),'Active clients'],['ARR',ff(wonVal*12),'MRR × 12']);
     else if(state.pipeline==='partners') cards.push(['Signed ARR',ff(wonVal),'Revenue/Strategic partners']);
     else if(state.pipeline==='investors') cards.push(['Capital raised',ff(wonVal),'Closed deals']);
+    // Closed pipeline = value of every decided offer, won or lost (Rejected). Total pipeline
+    // folds that in alongside what's still open — the user explicitly chose to count rejected
+    // value toward the total rather than treat it as dead money excluded from it.
+    const rejectedVal=computeRejectedValue(recs);
+    const closedVal=wonVal+rejectedVal;
+    cards.push(['Closed pipeline',ff(closedVal),'Won + Rejected'],['Total pipeline',ff(closedVal+pipeVal),'Closed + Open']);
   }
   document.getElementById('stats-grid').innerHTML=cards.map(c=>`<div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-value">${c[1]}</div><div class="stat-delta">${c[2]}</div></div>`).join('');
 
@@ -2773,7 +2788,7 @@ window.addEventListener('resize',()=>{
 function barList(items,color){ if(!items.length) return `<div class="notes-body" style="padding:16px 20px;">No data yet.</div>`; const mx=Math.max(...items.map(i=>i.v),1); return items.map(i=>`<div class="bar-row"><div class="bar-name">${escHtml(i.name)}</div><div class="bar-bg"><div class="bar-fill" style="width:${(i.v/mx)*100}%;background:${i.color||color};"></div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${escHtml(i.extra)}</div>`:''}</div>`).join(''); }
 function renderAnalytics(){
   const recs=activeRecords(), stages=activeStages(), ac=PIPE_ACCENT[state.pipeline];
-  const won=recs.filter(r=>TERMINAL.has(r.stage)), active=recs.filter(r=>!TERMINAL.has(r.stage));
+  const won=recs.filter(r=>isWonStage(r.stage)), active=recs.filter(r=>!TERMINAL.has(r.stage));
   const isEvents=state.pipeline==='events';
   // KPIs
   let kpis;
@@ -2788,7 +2803,8 @@ function renderAnalytics(){
     const allVal=recs.reduce((s,r)=>s+(r.value||0),0),wonVal=won.reduce((s,r)=>s+(r.value||0),0);
     kpis=[['Total value',fv(allVal)],[{partners:'Signed ARR',customers:'MRR',investors:'Capital raised'}[state.pipeline],ff(wonVal)],['Avg deal',fv(recs.length?Math.round(allVal/recs.length):0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
     if(isCust) kpis.push(['ARR',ff(wonVal*12)]);
-    kpis.push(['Pipeline value',ff(computePipelineValue(stages,recs))]);
+    const pipeVal=computePipelineValue(stages,recs), rejectedVal=computeRejectedValue(recs), closedVal=wonVal+rejectedVal;
+    kpis.push(['Open pipeline',ff(pipeVal)],['Closed pipeline',ff(closedVal)],['Total pipeline',ff(closedVal+pipeVal)]);
   }
   document.getElementById('an-kpis').innerHTML=kpis.map(k=>`<div class="stat-card"><div class="stat-label">${k[0]}</div><div class="stat-value">${k[1]}</div><div class="stat-delta">${state.pipeline}</div></div>`).join('');
   // stage chart
@@ -3022,15 +3038,23 @@ function renderDetail(){
     document.getElementById('det-score-breakdown').innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">${scoreLine}</div><div style="font-size:12px;color:var(--gray-500);line-height:1.6;">${escHtml(r.clients||'')}</div>`;
   } else scoreCard.style.display='none';
 
-  // stage tracker
-  const si=stages.indexOf(r.stage);
-  document.getElementById('det-stages').innerHTML=`<div class="stages-list">${stages.map((s,i)=>{
+  // stage tracker — Rejected is excluded from the linear step sequence: it isn't a stage a
+  // deal passes *through* on the way to closing, it's a side exit any stage can end in. Keeping
+  // it out of `progressStages` avoids two bugs a naive "just append it" would cause: (1) a deal
+  // rejected early would show every earlier stage checked off (si lands on Rejected's own index,
+  // which is after everything else), and (2) every already-won record would get "→ Rejected"
+  // offered as its suggested *next* stage, since Rejected sat right after the real win stage.
+  const progressStages=stages.filter(s=>s!==REJECTED_STAGE);
+  const si=progressStages.indexOf(r.stage);
+  document.getElementById('det-stages').innerHTML=(r.stage===REJECTED_STAGE?`<div class="chip" style="background:var(--red-50);color:var(--red-400);font-size:11px;padding:5px 10px;margin-bottom:10px;">Rejected — click a stage below to move it back into the pipeline</div>`:'')+
+    `<div class="stages-list">${progressStages.map((s,i)=>{
     const cls=i<si?'done':i===si?'current':'';const lc=i<si?'done':'';
-    return `<div><div class="stage-step"><div class="stage-node ${cls}" onclick="requestStageChange(${r.id},'${s}');">${i<si?'✓':i+1}</div><div class="stage-step-name ${cls}">${s}</div></div>${i<stages.length-1?`<div class="stage-line ${lc}"></div>`:''}</div>`;
+    return `<div><div class="stage-step"><div class="stage-node ${cls}" onclick="requestStageChange(${r.id},'${s}');">${i<si?'✓':i+1}</div><div class="stage-step-name ${cls}">${s}</div></div>${i<progressStages.length-1?`<div class="stage-line ${lc}"></div>`:''}</div>`;
   }).join('')}</div>`;
   let btns='';
-  if(stages[si+1])btns+=`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;flex:1;" onclick="requestStageChange(${r.id},'${stages[si+1]}',true);">→ ${stages[si+1]}</button>`;
-  if(stages[si-1])btns+=`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="requestStageChange(${r.id},'${stages[si-1]}',true);">← Back</button>`;
+  if(progressStages[si+1])btns+=`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;flex:1;" onclick="requestStageChange(${r.id},'${progressStages[si+1]}',true);">→ ${progressStages[si+1]}</button>`;
+  if(progressStages[si-1])btns+=`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="requestStageChange(${r.id},'${progressStages[si-1]}',true);">← Back</button>`;
+  if(r.stage!==REJECTED_STAGE&&stages.includes(REJECTED_STAGE))btns+=`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;color:var(--red-400);border-color:rgba(226,75,74,0.3);" onclick="requestStageChange(${r.id},'${REJECTED_STAGE}',true);">Reject</button>`;
   document.getElementById('det-stage-actions').innerHTML=btns;
 
   const acts=r.activity.slice().reverse();
