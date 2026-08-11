@@ -634,7 +634,8 @@
         <input type="text" placeholder="Search competitors..." id="comp-search" oninput="renderCompetitors()">
       </div>
       <button class="btn btn-ghost" onclick="toggleFilterPanel('comp-filter-panel')">Filters</button>
-      <button class="btn btn-primary" style="margin-left:auto;" onclick="openAddCompetitorModal()">
+      <button class="btn btn-ghost" id="comp-check-all-btn" style="margin-left:auto;" onclick="checkAllCompetitorsNow()" title="Runs the same weekly scan on demand, for every competitor">Check all now</button>
+      <button class="btn btn-primary" onclick="openAddCompetitorModal()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Competitor
       </button>
@@ -3634,21 +3635,20 @@ async function dismissSignal(id){
   showToast('Signal dismissed');
 }
 // Triggers scripts/competitor_scan.py on demand (via api/trigger-competitor-scan.js ->
-// GitHub Actions workflow_dispatch) for just this one competitor, instead of waiting for
-// the weekly .github/workflows/competitor-scan.yml schedule. The scan runs on GitHub's
-// runners, not synchronously here, so this just queues it -- status/signals update in
-// the CRM a minute or two later once the run finishes.
-async function checkCompetitorNow(){
-  const c=competitors.find(x=>x.id===currentCompetitorId); if(!c)return;
+// GitHub Actions workflow_dispatch), instead of waiting for the weekly
+// .github/workflows/competitor-scan.yml schedule. The scan runs on GitHub's runners, not
+// synchronously here, so this just queues it -- status/signals update in the CRM a minute
+// or two later once the run finishes. Omitting competitorId (checkAllCompetitorsNow) runs
+// the same full scan the weekly cron does, just on demand.
+async function queueCompetitorScan(competitorId,btn,busyLabel,idleLabel){
   if(!sb){ showToast('Not available in local/demo mode'); return; }
-  const btn=document.getElementById('det-check-now-btn');
-  if(btn){ btn.disabled=true; btn.textContent='Queuing…'; }
+  if(btn){ btn.disabled=true; btn.textContent=busyLabel; }
   try{
     const {data:{session}}=await sb.auth.getSession();
     const res=await fetch('/api/trigger-competitor-scan',{
       method:'POST',
       headers:{'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}`},
-      body:JSON.stringify({competitorId:c.id})
+      body:JSON.stringify(competitorId?{competitorId}:{})
     });
     const data=await res.json();
     if(!res.ok) throw new Error(data.error||`Request failed (${res.status})`);
@@ -3656,8 +3656,15 @@ async function checkCompetitorNow(){
   }catch(e){
     showToast('Could not queue scan: '+e.message);
   }finally{
-    if(btn){ btn.disabled=false; btn.textContent='Check now'; }
+    if(btn){ btn.disabled=false; btn.textContent=idleLabel; }
   }
+}
+function checkCompetitorNow(){
+  const c=competitors.find(x=>x.id===currentCompetitorId); if(!c)return;
+  queueCompetitorScan(c.id,document.getElementById('det-check-now-btn'),'Queuing…','Check now');
+}
+function checkAllCompetitorsNow(){
+  queueCompetitorScan(null,document.getElementById('comp-check-all-btn'),'Queuing…','Check all now');
 }
 
 // ══════════════ DETAIL ══════════════
