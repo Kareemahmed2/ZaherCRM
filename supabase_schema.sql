@@ -635,3 +635,184 @@ drop policy if exists "zaher team read label_options" on label_options;
 create policy "zaher team read label_options" on label_options for select using (is_zaher_team());
 drop policy if exists "zaher team insert label_options" on label_options;
 create policy "zaher team insert label_options" on label_options for insert with check (is_zaher_team());
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Competitors (added 2026-08-11)
+-- A fifth segment, structurally different from partners/customers/investors/events: a flat
+-- competitive-intelligence monitoring directory, not a sales pipeline — no `stage` funnel, so
+-- it deliberately does NOT go through the pipeline/STAGES/TABLE_BY_PIPELINE machinery the four
+-- sales pipelines share. Seeded from ZaherAI_Competitor_Analysis_Arabic_GEO.md (Aug 2026).
+--
+-- `status` (is the site up) and `verified` (has a team member confirmed this is a real,
+-- operating company — LinkedIn page, funding record, working product, named customers) are
+-- deliberately separate fields, not one: Geoplex.ai below is simultaneously site-inaccessible
+-- AND unverified, which the source analysis treats as two different facts (it explicitly
+-- withdrew an earlier "HIGH threat" rating once verification failed, independent of the site
+-- being technically reachable or not at any given moment).
+--
+-- "sovereignModelCoverage" (do they track/optimise for Jais/Falcon, the Arabic-first sovereign
+-- models) is kept separate from "platformsCovered" (general engines like ChatGPT/Gemini) because
+-- the source analysis calls it out as the single most strategically important axis to watch for
+-- change on — every competitor reviewed scored "No" at the time of writing.
+-- ═══════════════════════════════════════════════════════════════════════
+
+create table if not exists competitors (
+  id                bigint generated always as identity primary key,
+  company           text not null unique,
+  website           text,
+  "newsUrl"         text,
+  "competitorType"  text not null check ("competitorType" in ('MENA/Regional','Generic/International')),
+  "deliveryModel"   text check ("deliveryModel" in ('Self-serve SaaS','Managed Service','Consulting','Suite Add-on')),
+  "threatLevel"     text check ("threatLevel" in ('High','Medium','Low')),
+  "sovereignModelCoverage" text not null default 'No' check ("sovereignModelCoverage" in ('Yes','No','Unverified')),
+  "arabicDepthNotes" text,
+  dialects          jsonb not null default '[]'::jsonb,
+  "platformsCovered" jsonb not null default '[]'::jsonb,
+  "menaLocalizationNotes" text,
+  "competitiveVerdict" text,
+  "featuresNotes"   text,
+  status            text not null default 'Unknown' check (status in ('Operational','Inactive','Unknown')),
+  verified          boolean not null default false,
+  "lastCheckedAt"   timestamptz,
+  notes             text,
+  labels            jsonb not null default '[]'::jsonb,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+drop trigger if exists competitors_set_updated_at on competitors;
+create trigger competitors_set_updated_at
+  before update on competitors
+  for each row execute function set_updated_at();
+
+alter table competitors enable row level security;
+
+drop policy if exists "zaher team read competitors" on competitors;
+create policy "zaher team read competitors" on competitors for select using (is_zaher_team());
+drop policy if exists "zaher team insert competitors" on competitors;
+create policy "zaher team insert competitors" on competitors for insert with check (is_zaher_team());
+drop policy if exists "zaher team update competitors" on competitors;
+create policy "zaher team update competitors" on competitors for update using (is_zaher_team()) with check (is_zaher_team());
+drop policy if exists "zaher team delete competitors" on competitors;
+create policy "zaher team delete competitors" on competitors for delete using (is_zaher_team());
+
+-- Real FK + cascade delete here — unlike tasks.record_id's deliberate polymorphic non-FK
+-- pattern (which has to support four different parent tables), a signal only ever belongs to
+-- one competitor, so there's no polymorphism to preserve and a normal FK is simpler and safer.
+create table if not exists competitor_signals (
+  id            bigint generated always as identity primary key,
+  competitor_id bigint not null references competitors(id) on delete cascade,
+  type          text not null check (type in ('Funding','M&A','Product','Management Change','News')),
+  description   text not null,
+  source_url    text,
+  occurred_on   date,
+  "detectedBy"  text not null default 'manual' check ("detectedBy" in ('manual','scraper')),
+  confirmed     boolean not null default true,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists competitor_signals_competitor_idx on competitor_signals(competitor_id);
+
+alter table competitor_signals enable row level security;
+
+drop policy if exists "zaher team read competitor_signals" on competitor_signals;
+create policy "zaher team read competitor_signals" on competitor_signals for select using (is_zaher_team());
+drop policy if exists "zaher team insert competitor_signals" on competitor_signals;
+create policy "zaher team insert competitor_signals" on competitor_signals for insert with check (is_zaher_team());
+drop policy if exists "zaher team update competitor_signals" on competitor_signals;
+create policy "zaher team update competitor_signals" on competitor_signals for update using (is_zaher_team()) with check (is_zaher_team());
+drop policy if exists "zaher team delete competitor_signals" on competitor_signals;
+create policy "zaher team delete competitor_signals" on competitor_signals for delete using (is_zaher_team());
+
+-- Team-editable option lists for the dialects/platformsCovered chip pickers — same pattern as
+-- next_step_options/event_type_options/label_options.
+create table if not exists dialect_options (
+  id         bigint generated always as identity primary key,
+  label      text not null unique,
+  created_at timestamptz not null default now()
+);
+insert into dialect_options (label) values
+  ('MSA'),('Gulf'),('Egyptian'),('Levantine'),('Maghrebi'),('Iraqi')
+on conflict (label) do nothing;
+alter table dialect_options enable row level security;
+drop policy if exists "zaher team read dialect_options" on dialect_options;
+create policy "zaher team read dialect_options" on dialect_options for select using (is_zaher_team());
+drop policy if exists "zaher team insert dialect_options" on dialect_options;
+create policy "zaher team insert dialect_options" on dialect_options for insert with check (is_zaher_team());
+
+create table if not exists platform_options (
+  id         bigint generated always as identity primary key,
+  label      text not null unique,
+  created_at timestamptz not null default now()
+);
+insert into platform_options (label) values
+  ('ChatGPT'),('Gemini'),('Perplexity'),('Copilot'),('Claude'),('Grok')
+on conflict (label) do nothing;
+alter table platform_options enable row level security;
+drop policy if exists "zaher team read platform_options" on platform_options;
+create policy "zaher team read platform_options" on platform_options for select using (is_zaher_team());
+drop policy if exists "zaher team insert platform_options" on platform_options;
+create policy "zaher team insert platform_options" on platform_options for insert with check (is_zaher_team());
+
+-- Seed: the 14 named competitors from ZaherAI_Competitor_Analysis_Arabic_GEO.md (Aug 2026).
+-- Only the URLs the document names explicitly are pre-filled (geoplex.ai, argeo.ai, peec.ai,
+-- standout.sa) plus two unambiguous major brands (semrush.com, ahrefs.com) — every other
+-- `website` is left blank rather than guessing a domain, since a wrong URL silently feeds the
+-- automated status/signal checks bad data. `on conflict (company) do nothing` makes this safe
+-- to re-run.
+insert into competitors (company, website, "competitorType", "deliveryModel", "threatLevel", "sovereignModelCoverage", status, verified, "competitiveVerdict", "menaLocalizationNotes") values
+  ('Geoplex.ai', 'geoplex.ai', 'MENA/Regional', 'Self-serve SaaS', null, 'No', 'Unknown', false,
+   'No independent footprint (no funding/team/reviews/listings); site inaccessible. Treat as an unconfirmed landing-page claim, not a shipping rival. Verify via LinkedIn company page, funding record, working product, and named customers before treating as a real competitor. An earlier draft rated this HIGH on the strength of its homepage alone — that rating is withdrawn pending verification.',
+   'Claims Saudi/UAE/Egypt coverage — no independent proof.'),
+  ('ARGEO', 'argeo.ai', 'MENA/Regional', 'Consulting', 'Medium', 'No', 'Unknown', false,
+   'Thought-leadership threat, not self-serve software — they set the intellectual agenda on Arabic GEO but cannot scale cheaply as bespoke consulting. Could even be a content/co-marketing ally.',
+   'Vertical query clusters (Islamic fintech, PropTech, MedTech), regional media, GITEX/LEAP event strategy — the most sophisticated regional Arabic-GEO framing found.'),
+  ('Magneto IT Solutions', null, 'MENA/Regional', 'Managed Service', 'Medium', 'No', 'Unknown', false,
+   'Largest of the five regional agencies; deep Magento/e-commerce engineering overlaps directly with our agentic-commerce sweet spot. Strongest channel-partner candidate of the five — could run ZaherAI as the GEO layer beneath their commerce work.',
+   'Strong GCC footprint (Riyadh, Dubai, Bahrain + global offices); 250+ deliveries; bilingual delivery but agency craft, not productised Arabic NLP.'),
+  ('upGrowth', null, 'MENA/Regional', 'Managed Service', 'Medium', 'No', 'Unknown', false,
+   'Most productised-feeling agency GEO offering — a phased programme opening with a 200+-variation AI-citation audit sold as a standalone deliverable. Delivered largely from India, which weakens their "MENA-native" claim vs ours.',
+   'Deepest regulatory layering found (CBUAE/SCA/MOHAP/DHA/RERA as authority signals); UAE-focused practice; 150+ clients.'),
+  ('Dfeelings', null, 'MENA/Regional', 'Managed Service', 'Medium', 'No', 'Unknown', false,
+   'Source analysis rates Low-Medium; stored as Medium here. 10+ years of regional client relationships and Arabic-content credibility, but managed-service content production rather than a repeatable engine.',
+   'Jordan-based, serving Jordan/UAE/Saudi/Qatar; explicitly names the region''s structured-Arabic-content shortage.'),
+  ('Stand Out', 'standout.sa', 'MENA/Regional', 'Managed Service', 'Low', 'No', 'Unknown', false,
+   'Low overlap — small Saudi studio where GEO is one service among many (web/app/automation). Notably honest: does not promise AI citations or rankings.',
+   'Riyadh/Saudi; technical-SEO-flavoured GEO (crawlability, schema, FAQs, citation-ready answers).'),
+  ('Maps of Arabia', null, 'MENA/Regional', 'Managed Service', 'Low', 'No', 'Unknown', false,
+   'Local/SMB-focused, the lightest of the five regional agencies — closer to SEO-plus-GEO for local businesses than a MENA-scale platform.',
+   'Arabic-search-focused; local businesses, service providers, e-commerce; results framed as "within weeks".'),
+  ('Peec AI', 'peec.ai', 'Generic/International', 'Self-serve SaaS', 'Medium', 'No', 'Unknown', false,
+   'The international "multilingual" claim we must directly counter: 115+ languages is breadth, not depth. They win on data methodology (UI-scraping), funding ($21M Series A), and agency infrastructure; we win Arabic depth and MENA fit.',
+   'No dialect/RTL/MENA calibration — Arabic is 1-of-115, handled generically.'),
+  ('Profound', null, 'Generic/International', 'Self-serve SaaS', 'Low', 'No', 'Unknown', false,
+   'Different league — $58.5M raised, 10+ engines, enterprise logos (MongoDB, Ramp, Figma). They own scale and data; we own Arabic. Minimal MENA overlap today; worth monitoring if they choose to localise.',
+   'English-centric by design; no Arabic specialisation.'),
+  ('Semrush AI Toolkit', 'semrush.com', 'Generic/International', 'Suite Add-on', 'Medium', 'No', 'Unknown', false,
+   'The real risk is inertia, not feature depth — MENA marketers already paying for Semrush may default to their bundled AI toolkit. We counter with Arabic depth and GEO-specificity (purpose-built vs bolt-on).',
+   'Minimal/generic Arabic; GEO features less sophisticated than purpose-built tools.'),
+  ('Ahrefs Brand Radar', 'ahrefs.com', 'Generic/International', 'Suite Add-on', 'Medium', 'No', 'Unknown', false,
+   'Same shape and risk as Semrush''s AI Toolkit — massive existing dataset and distribution, minimal Arabic depth.',
+   'Minimal/generic Arabic.'),
+  ('Otterly', null, 'Generic/International', 'Self-serve SaaS', 'Low', 'No', 'Unknown', false,
+   'Cheapest credible international tracker ($29/mo) but no meaningful Arabic capability — we win the region decisively against this tier.',
+   'English/US-first; none-to-weak Arabic support.'),
+  ('AthenaHQ', null, 'Generic/International', 'Self-serve SaaS', 'Low', 'No', 'Unknown', false,
+   'Owns revenue-attribution positioning and top agency ratings internationally; no MENA/Arabic depth.',
+   'English/US-first; none-to-weak Arabic support.'),
+  ('Scrunch', null, 'Generic/International', 'Self-serve SaaS', 'Low', 'No', 'Unknown', false,
+   'Leads on SOC 2 and content-delivery infrastructure; no MENA/Arabic depth.',
+   'English/US-first; none-to-weak Arabic support.')
+on conflict (company) do nothing;
+
+-- One illustrative seeded signal, tied to the verification finding above. competitor_signals
+-- has no natural unique key to hang ON CONFLICT off of, so re-run safety is a NOT EXISTS guard
+-- instead (matching the pattern other backfills in this file use where no unique constraint fits).
+insert into competitor_signals (competitor_id, type, description, "detectedBy", confirmed)
+select c.id, 'News', 'Site inaccessible / could not verify as an operating business (source: internal competitor analysis, Aug 2026).', 'manual', true
+from competitors c
+where c.company = 'Geoplex.ai'
+  and not exists (
+    select 1 from competitor_signals cs
+    where cs.competitor_id = c.id and cs.description like 'Site inaccessible%'
+  );

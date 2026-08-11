@@ -487,6 +487,15 @@
     </button>
     </nav>
   </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Intelligence</div>
+    <nav aria-label="Other">
+    <button type="button" class="nav-item" id="nav-competitors" onclick="showPage('competitors')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
+      <span>Competitors</span><span class="nav-badge" id="nav-competitors-badge" style="display:none;">0</span>
+    </button>
+    </nav>
+  </div>
   <div class="sidebar-footer">
     <div class="user-chip">
       <div class="user-av" id="user-av">?</div>
@@ -520,7 +529,7 @@
         </div>
       </div>
       <button class="btn btn-ghost" id="score-btn" onclick="openScorer()" style="display:none;">Score an agency</button>
-      <button class="btn btn-primary" onclick="openModal()">
+      <button class="btn btn-primary" id="topbar-add-btn" onclick="openModal()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span id="add-btn-label">Add Partner</span>
       </button>
@@ -613,6 +622,64 @@
     </div>
     <div class="card" id="an-extra-card"><div class="card-header"><span class="card-title" id="an-extra-title">By source</span></div><div id="an-extra" style="padding:8px 0;"></div></div>
     <div class="card" id="an-segment-card" style="display:none;margin-top:16px;"><div class="card-header"><span class="card-title">SaaS vs Enterprise</span></div><div id="an-segment" style="padding:8px 0;"></div></div>
+  </div>
+
+  <!-- COMPETITORS — a flat monitoring directory, not a sales pipeline: no stage funnel, so this
+       intentionally doesn't reuse the pipeline/records/STAGES machinery the four sales
+       pipelines share above. See supabase_schema.sql "Competitors" block for why. -->
+  <div class="page" id="page-competitors">
+    <div class="pipeline-controls">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search competitors..." id="comp-search" oninput="renderCompetitors()">
+      </div>
+      <button class="btn btn-ghost" onclick="toggleFilterPanel('comp-filter-panel')">Filters</button>
+      <button class="btn btn-primary" style="margin-left:auto;" onclick="openAddCompetitorModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Competitor
+      </button>
+    </div>
+    <div class="filter-panel" id="comp-filter-panel"></div>
+    <div class="card"><table class="leads-table"><thead id="comp-thead"></thead><tbody id="comp-body"></tbody></table></div>
+  </div>
+
+  <!-- COMPETITOR DETAIL -->
+  <div class="page" id="page-competitor-detail">
+    <button type="button" class="detail-back" onclick="showPage('competitors')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      <span>Back</span>
+    </button>
+    <div class="detail-grid">
+      <div>
+        <div class="detail-profile">
+          <div class="profile-hero">
+            <div class="profile-av" id="comp-det-av"></div>
+            <div><div class="profile-name" id="comp-det-name"></div><div class="profile-role" id="comp-det-role"></div><div class="profile-tags" id="comp-det-tags"></div></div>
+            <div class="profile-actions">
+              <button class="btn btn-danger" style="font-size:12px;padding:6px 12px;" onclick="confirmDeleteCompetitor()">Delete</button>
+              <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="openEditCompetitorModal()">✎ Update</button>
+              <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="checkCompetitorNow()">Check now</button>
+            </div>
+          </div>
+          <div class="fields-grid" id="comp-det-fields"></div>
+        </div>
+        <div class="notes-card">
+          <div class="card-header"><span class="card-title">Dialects</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openChipModal('dialects')">+ Add dialect</button></div>
+          <div id="comp-det-dialects"></div>
+        </div>
+        <div class="notes-card">
+          <div class="card-header"><span class="card-title">Platforms Covered</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openChipModal('platformsCovered')">+ Add platform</button></div>
+          <div id="comp-det-platforms"></div>
+        </div>
+        <div class="notes-card">
+          <div class="card-header"><span class="card-title">Labels</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openChipModal('labels')">+ Add label</button></div>
+          <div id="comp-det-labels"></div>
+        </div>
+      </div>
+      <div>
+        <div class="card"><div class="card-header"><span class="card-title">Signals</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openAddSignalModal()">+ Add signal</button></div><div id="comp-det-signals"></div></div>
+      </div>
+    </div>
   </div>
 
   <!-- DETAIL -->
@@ -760,6 +827,80 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeLabelModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveLabelModal()">Add label</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPETITOR CHIP MODAL — generic add-one-value-to-an-array modal, reused for a
+     competitor's dialects, platformsCovered, and labels (see openChipModal(field)). -->
+<div class="modal-overlay" id="chip-modal">
+  <div class="modal" style="width:360px;" role="dialog" aria-modal="true" aria-labelledby="chip-modal-title">
+    <div class="modal-header"><span class="modal-title" id="chip-modal-title">Add</span>
+      <button class="modal-close" aria-label="Close" onclick="closeChipModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label" id="chip-modal-label">Value</label>
+        <input class="form-input" id="chip-input" onkeydown="if(event.key==='Enter'){event.preventDefault();saveChipModal();}">
+        <datalist id="chip-options-datalist"></datalist>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeChipModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveChipModal()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPETITOR MODAL (add/edit) -->
+<div class="modal-overlay" id="competitor-modal">
+  <div class="modal" style="width:520px;" role="dialog" aria-modal="true" aria-labelledby="competitor-modal-title">
+    <div class="modal-header"><span class="modal-title" id="competitor-modal-title">Add competitor</span>
+      <button class="modal-close" aria-label="Close" onclick="closeCompetitorModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Company *</label><input class="form-input" id="comp-f-company" placeholder="e.g. Peec AI"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="comp-f-website" placeholder="example.com"></div>
+        <div class="form-group"><label class="form-label">News / press page</label><input class="form-input" id="comp-f-newsurl" placeholder="Optional — used for signal detection"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Type *</label><select class="form-input" id="comp-f-type"><option value="MENA/Regional">MENA/Regional (Direct)</option><option value="Generic/International">Generic/International (Indirect)</option></select></div>
+        <div class="form-group"><label class="form-label">Delivery model</label><select class="form-input" id="comp-f-delivery"><option value="">—</option><option>Self-serve SaaS</option><option>Managed Service</option><option>Consulting</option><option>Suite Add-on</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Threat level</label><select class="form-input" id="comp-f-threat"><option value="">—</option><option>High</option><option>Medium</option><option>Low</option></select></div>
+        <div class="form-group"><label class="form-label">Sovereign models (Jais/Falcon)</label><select class="form-input" id="comp-f-sovereign"><option value="No">No</option><option value="Yes">Yes</option><option value="Unverified">Unverified/Claimed</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Arabic depth & dialect notes</label><textarea class="form-input" id="comp-f-arabicdepth" rows="2"></textarea></div>
+      <div class="form-group"><label class="form-label">MENA localization notes</label><textarea class="form-input" id="comp-f-menanotes" rows="2"></textarea></div>
+      <div class="form-group"><label class="form-label">Competitive verdict</label><textarea class="form-input" id="comp-f-verdict" rows="2" placeholder="Where they beat us / where we beat them"></textarea></div>
+      <div class="form-group"><label class="form-label">Features notes</label><textarea class="form-input" id="comp-f-features" rows="2"></textarea></div>
+      <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="comp-f-notes" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCompetitorModal()">Cancel</button>
+      <button class="btn btn-primary" id="competitor-modal-submit-btn" onclick="saveCompetitorModal()">Add competitor</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIGNAL MODAL (add a competitive signal) -->
+<div class="modal-overlay" id="signal-modal">
+  <div class="modal" style="width:420px;" role="dialog" aria-modal="true" aria-labelledby="signal-modal-title">
+    <div class="modal-header"><span class="modal-title" id="signal-modal-title">Add signal</span>
+      <button class="modal-close" aria-label="Close" onclick="closeSignalModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Type *</label><select class="form-input" id="signal-f-type"><option>Funding</option><option>M&A</option><option>Product</option><option>Management Change</option><option>News</option></select></div>
+        <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="signal-f-date"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Description *</label><textarea class="form-input" id="signal-f-desc" rows="3" placeholder="What happened"></textarea></div>
+      <div class="form-group"><label class="form-label">Source URL</label><input class="form-input" id="signal-f-source" placeholder="Optional"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSignalModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSignalModal()">Add signal</button>
     </div>
   </div>
 </div>
@@ -1013,17 +1154,46 @@ const SEED_TASKS = [
   {id:5,pipeline:'investors',record_id:60,title:'Send MRR trajectory + retention cohorts',description:'Algebra Ventures asked for this after the pitch deck.',status:'Pending',deadline:'2026-08-08',priority:'Medium'},
   {id:6,pipeline:'events',record_id:80,title:'Finalize webinar deck',description:'Lock slides before promo emails go out.',status:'Needs to be Done',deadline:'2026-08-09',priority:'High'}
 ];
+// ══════════════ COMPETITORS (seed) ══════════════
+// Mirrors the supabase_schema.sql seed block — the 14 competitors named in
+// ZaherAI_Competitor_Analysis_Arabic_GEO.md (Aug 2026). Kept in sync manually since this is a
+// one-time historical seed, not something either side regenerates from the other.
+const SEED_COMPETITORS = [
+  {id:1,company:'Geoplex.ai',website:'geoplex.ai',newsUrl:'',competitorType:'MENA/Regional',deliveryModel:'Self-serve SaaS',threatLevel:null,sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'Claims Saudi/UAE/Egypt coverage — no independent proof.',competitiveVerdict:'No independent footprint (no funding/team/reviews/listings); site inaccessible. Treat as an unconfirmed landing-page claim, not a shipping rival. Verify via LinkedIn company page, funding record, working product, and named customers before treating as a real competitor. An earlier draft rated this HIGH on the strength of its homepage alone — that rating is withdrawn pending verification.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:2,company:'ARGEO',website:'argeo.ai',newsUrl:'',competitorType:'MENA/Regional',deliveryModel:'Consulting',threatLevel:'Medium',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'Vertical query clusters (Islamic fintech, PropTech, MedTech), regional media, GITEX/LEAP event strategy — the most sophisticated regional Arabic-GEO framing found.',competitiveVerdict:'Thought-leadership threat, not self-serve software — they set the intellectual agenda on Arabic GEO but cannot scale cheaply as bespoke consulting. Could even be a content/co-marketing ally.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:3,company:'Magneto IT Solutions',website:'',newsUrl:'',competitorType:'MENA/Regional',deliveryModel:'Managed Service',threatLevel:'Medium',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'Strong GCC footprint (Riyadh, Dubai, Bahrain + global offices); 250+ deliveries; bilingual delivery but agency craft, not productised Arabic NLP.',competitiveVerdict:'Largest of the five regional agencies; deep Magento/e-commerce engineering overlaps directly with our agentic-commerce sweet spot. Strongest channel-partner candidate of the five — could run ZaherAI as the GEO layer beneath their commerce work.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:4,company:'upGrowth',website:'',newsUrl:'',competitorType:'MENA/Regional',deliveryModel:'Managed Service',threatLevel:'Medium',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'Deepest regulatory layering found (CBUAE/SCA/MOHAP/DHA/RERA as authority signals); UAE-focused practice; 150+ clients.',competitiveVerdict:'Most productised-feeling agency GEO offering — a phased programme opening with a 200+-variation AI-citation audit sold as a standalone deliverable. Delivered largely from India, which weakens their "MENA-native" claim vs ours.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:5,company:'Dfeelings',website:'',newsUrl:'',competitorType:'MENA/Regional',deliveryModel:'Managed Service',threatLevel:'Medium',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'Jordan-based, serving Jordan/UAE/Saudi/Qatar; explicitly names the region\'s structured-Arabic-content shortage.',competitiveVerdict:'Source analysis rates Low-Medium; stored as Medium here. 10+ years of regional client relationships and Arabic-content credibility, but managed-service content production rather than a repeatable engine.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:6,company:'Stand Out',website:'standout.sa',newsUrl:'',competitorType:'MENA/Regional',deliveryModel:'Managed Service',threatLevel:'Low',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'Riyadh/Saudi; technical-SEO-flavoured GEO (crawlability, schema, FAQs, citation-ready answers).',competitiveVerdict:'Low overlap — small Saudi studio where GEO is one service among many (web/app/automation). Notably honest: does not promise AI citations or rankings.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:7,company:'Maps of Arabia',website:'',newsUrl:'',competitorType:'MENA/Regional',deliveryModel:'Managed Service',threatLevel:'Low',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'Arabic-search-focused; local businesses, service providers, e-commerce; results framed as "within weeks".',competitiveVerdict:'Local/SMB-focused, the lightest of the five regional agencies — closer to SEO-plus-GEO for local businesses than a MENA-scale platform.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:8,company:'Peec AI',website:'peec.ai',newsUrl:'',competitorType:'Generic/International',deliveryModel:'Self-serve SaaS',threatLevel:'Medium',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'No dialect/RTL/MENA calibration — Arabic is 1-of-115, handled generically.',competitiveVerdict:'The international "multilingual" claim we must directly counter: 115+ languages is breadth, not depth. They win on data methodology (UI-scraping), funding ($21M Series A), and agency infrastructure; we win Arabic depth and MENA fit.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:9,company:'Profound',website:'',newsUrl:'',competitorType:'Generic/International',deliveryModel:'Self-serve SaaS',threatLevel:'Low',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'English-centric by design; no Arabic specialisation.',competitiveVerdict:'Different league — $58.5M raised, 10+ engines, enterprise logos (MongoDB, Ramp, Figma). They own scale and data; we own Arabic. Minimal MENA overlap today; worth monitoring if they choose to localise.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:10,company:'Semrush AI Toolkit',website:'semrush.com',newsUrl:'',competitorType:'Generic/International',deliveryModel:'Suite Add-on',threatLevel:'Medium',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'Minimal/generic Arabic; GEO features less sophisticated than purpose-built tools.',competitiveVerdict:'The real risk is inertia, not feature depth — MENA marketers already paying for Semrush may default to their bundled AI toolkit. We counter with Arabic depth and GEO-specificity (purpose-built vs bolt-on).',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:11,company:'Ahrefs Brand Radar',website:'ahrefs.com',newsUrl:'',competitorType:'Generic/International',deliveryModel:'Suite Add-on',threatLevel:'Medium',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'Minimal/generic Arabic.',competitiveVerdict:'Same shape and risk as Semrush\'s AI Toolkit — massive existing dataset and distribution, minimal Arabic depth.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:12,company:'Otterly',website:'',newsUrl:'',competitorType:'Generic/International',deliveryModel:'Self-serve SaaS',threatLevel:'Low',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'English/US-first; none-to-weak Arabic support.',competitiveVerdict:'Cheapest credible international tracker ($29/mo) but no meaningful Arabic capability — we win the region decisively against this tier.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:13,company:'AthenaHQ',website:'',newsUrl:'',competitorType:'Generic/International',deliveryModel:'Self-serve SaaS',threatLevel:'Low',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'English/US-first; none-to-weak Arabic support.',competitiveVerdict:'Owns revenue-attribution positioning and top agency ratings internationally; no MENA/Arabic depth.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]},
+  {id:14,company:'Scrunch',website:'',newsUrl:'',competitorType:'Generic/International',deliveryModel:'Self-serve SaaS',threatLevel:'Low',sovereignModelCoverage:'No',arabicDepthNotes:'',dialects:[],platformsCovered:[],menaLocalizationNotes:'English/US-first; none-to-weak Arabic support.',competitiveVerdict:'Leads on SOC 2 and content-delivery infrastructure; no MENA/Arabic depth.',featuresNotes:'',status:'Unknown',verified:false,lastCheckedAt:null,notes:'',labels:[]}
+];
+const SEED_COMPETITOR_SIGNALS = [
+  {id:1,competitor_id:1,type:'News',description:'Site inaccessible / could not verify as an operating business (source: internal competitor analysis, Aug 2026).',source_url:'',occurred_on:null,detectedBy:'manual',confirmed:true}
+];
 let records = [];
 let tasks = [];
+let competitors = [];
+let competitorSignals = [];
+let dialectOptions = [];
+let platformOptions = [];
 let nextId=100;
 let nextTaskId=1000;
+let nextCompetitorId=100;
+let nextSignalId=100;
 let lastImportUndo=null;
 let teamMembers = [];
 let notifications = [];
 let currentUserEmail='', currentUserName='';
 
 // ══════════════ STATE ══════════════
-let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),calColorMode:'type'};
+let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),calColorMode:'type',compFilters:{},compSort:null};
 let currentId=null,currentPipeline=null,prevPage='pipeline';
 // Directory bulk-select: ids of checked rows in the currently active pipeline's Directory
 // table. Scoped to state.pipeline (cleared on switch) — same reasoning as every other
@@ -1259,6 +1429,105 @@ async function deleteTasksForRecordRemote(pipeline, recordId){
   if(error){ console.error(error); showToast('Sync failed — orphaned tasks kept locally only'); return false; }
   return true;
 }
+
+// ══════════════ COMPETITORS ══════════════
+async function loadCompetitors(){
+  if(!sb){ competitors = SEED_COMPETITORS.slice(); nextCompetitorId = Math.max(100, ...competitors.map(c=>c.id||0)); return; }
+  const {data, error} = await sb.from('competitors').select('*').order('company');
+  if(error) console.error(error);
+  competitors = (data && data.length) ? data : SEED_COMPETITORS.slice();
+  nextCompetitorId = Math.max(100, ...competitors.map(c=>c.id||0));
+}
+async function loadCompetitorSignals(){
+  if(!sb){ competitorSignals = SEED_COMPETITOR_SIGNALS.slice(); nextSignalId = Math.max(100, ...competitorSignals.map(s=>s.id||0)); return; }
+  const {data, error} = await sb.from('competitor_signals').select('*').order('occurred_on',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false});
+  if(error) console.error(error);
+  competitorSignals = data || [];
+  nextSignalId = Math.max(100, ...competitorSignals.map(s=>s.id||0));
+}
+async function saveCompetitor(c){
+  c.updated_at = new Date().toISOString();
+  if(!sb) return true;
+  const {id, ...payload} = c;
+  const {error} = await sb.from('competitors').update(payload).eq('id', id);
+  if(error){ console.error(error); showToast('Sync failed — change kept locally only'); return false; }
+  return true;
+}
+async function createCompetitor(c){
+  c.updated_at = new Date().toISOString();
+  c.created_at = c.updated_at;
+  if(!sb){ c.id = ++nextCompetitorId; return true; }
+  const {id, ...payload} = c;
+  const {data, error} = await sb.from('competitors').insert(payload).select().single();
+  if(error){ console.error(error); showToast('Sync failed — competitor kept locally only'); c.id = ++nextCompetitorId; return false; }
+  c.id = data.id;
+  return true;
+}
+// competitor_signals has a real FK (on delete cascade) unlike tasks, so the DB cleans up
+// signal rows on its own — this only needs to drop the local array's copies to match.
+async function deleteCompetitorRemote(id){
+  if(!sb) return true;
+  const {error} = await sb.from('competitors').delete().eq('id', id);
+  if(error){ console.error(error); showToast('Sync failed — delete kept locally only'); return false; }
+  return true;
+}
+async function createSignal(s){
+  if(!sb){ s.id = ++nextSignalId; return true; }
+  const {id, ...payload} = s;
+  const {data, error} = await sb.from('competitor_signals').insert(payload).select().single();
+  if(error){ console.error(error); showToast('Sync failed — signal kept locally only'); s.id = ++nextSignalId; return false; }
+  s.id = data.id;
+  return true;
+}
+async function saveSignal(s){
+  if(!sb) return true;
+  const {id, ...payload} = s;
+  const {error} = await sb.from('competitor_signals').update(payload).eq('id', id);
+  if(error){ console.error(error); showToast('Sync failed — change kept locally only'); return false; }
+  return true;
+}
+async function deleteSignalRemote(id){
+  if(!sb) return true;
+  const {error} = await sb.from('competitor_signals').delete().eq('id', id);
+  if(error){ console.error(error); showToast('Sync failed — delete kept locally only'); return false; }
+  return true;
+}
+async function addDialectOption(label){
+  label=(label||'').trim(); if(!label) return null;
+  if(!dialectOptions.includes(label)){
+    dialectOptions.push(label); dialectOptions.sort();
+    if(sb){ const {error}=await sb.from('dialect_options').insert({label}); if(error && error.code!=='23505') console.error(error); }
+  }
+  return label;
+}
+async function addPlatformOption(label){
+  label=(label||'').trim(); if(!label) return null;
+  if(!platformOptions.includes(label)){
+    platformOptions.push(label); platformOptions.sort();
+    if(sb){ const {error}=await sb.from('platform_options').insert({label}); if(error && error.code!=='23505') console.error(error); }
+  }
+  return label;
+}
+async function loadDialectOptions(){
+  if(!sb){ dialectOptions=['MSA','Gulf','Egyptian','Levantine','Maghrebi','Iraqi']; return; }
+  const {data,error}=await sb.from('dialect_options').select('*').order('label');
+  if(!error && data) dialectOptions=data.map(o=>o.label);
+}
+async function loadPlatformOptions(){
+  if(!sb){ platformOptions=['ChatGPT','Gemini','Perplexity','Copilot','Claude','Grok']; return; }
+  const {data,error}=await sb.from('platform_options').select('*').order('label');
+  if(!error && data) platformOptions=data.map(o=>o.label);
+}
+function signalsFor(competitorId){ return competitorSignals.filter(s=>s.competitor_id===competitorId); }
+function findCompetitor(q){
+  if(q==null)return null;
+  if(typeof q==='number'||/^\d+$/.test(q)) return competitors.find(c=>c.id===Number(q));
+  const s=(''+q).toLowerCase();
+  return competitors.find(c=>c.company.toLowerCase()===s) || competitors.find(c=>c.company.toLowerCase().includes(s)) || null;
+}
+// Derived, not stored — see supabase_schema.sql: Direct/Indirect is implied by competitorType,
+// kept out of the schema entirely to avoid two fields that could drift out of sync.
+function competitorRelationship(c){ return c.competitorType==='MENA/Regional' ? 'Direct' : 'Indirect'; }
 
 // ══════════════ TEAM MEMBERS (task assignment) ══════════════
 async function loadTeamMembers(){
@@ -1554,17 +1823,34 @@ function closeSidebar(){ document.querySelector('.sidebar').classList.remove('si
 function showPage(page){
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  ['dashboard','pipeline','directory','tasks','analytics'].forEach(n=>document.getElementById('nav-'+n).classList.toggle('active',n===page));
+  ['dashboard','pipeline','directory','tasks','analytics','competitors'].forEach(n=>document.getElementById('nav-'+n).classList.toggle('active',n===page));
   document.getElementById('page-'+page).classList.add('active');
   const rec=records.find(r=>r.id===currentId&&r.pipeline===currentPipeline);
   const pipelineTitles={investors:'Deal Flow',events:'Schedule'};
-  const titles={dashboard:'Dashboard',pipeline:pipelineTitles[state.pipeline]||'Pipeline',directory:{partners:'Directory',customers:'Contacts',investors:'Investors',events:'Events'}[state.pipeline],tasks:'Tasks',analytics:'Analytics',detail:rec?rec.name:'Detail'};
+  const titles={dashboard:'Dashboard',pipeline:pipelineTitles[state.pipeline]||'Pipeline',directory:{partners:'Directory',customers:'Contacts',investors:'Investors',events:'Events'}[state.pipeline],tasks:'Tasks',analytics:'Analytics',competitors:'Competitors',detail:rec?rec.name:'Detail'};
   document.getElementById('topbar-title').textContent=titles[page]||page;
+  // Competitors isn't pipeline-scoped — the global +Add button otherwise still says
+  // "Add Partner"/etc. and would open the wrong modal, since getting here doesn't go through
+  // setPipeline(). Swap it to the competitor flow while this page is active, restore on leaving.
+  const addBtn=document.getElementById('topbar-add-btn');
+  if(page==='competitors'){
+    document.getElementById('portfolio-toggle').style.display='none';
+    document.getElementById('score-btn').style.display='none';
+    document.getElementById('add-btn-label').textContent='Add Competitor';
+    addBtn.onclick=()=>openAddCompetitorModal();
+  } else {
+    const isPartners=state.pipeline==='partners';
+    document.getElementById('portfolio-toggle').style.display=isPartners?'':'none';
+    document.getElementById('score-btn').style.display=isPartners?'':'none';
+    document.getElementById('add-btn-label').textContent={partners:'Add Partner',customers:'Add Customer',investors:'Add Investor',events:'Add Event'}[state.pipeline];
+    addBtn.onclick=()=>openModal();
+  }
   if(page==='dashboard')renderDashboard();
   if(page==='pipeline'){renderFilterPanel('pipeline-filter-panel');renderPipeline();}
   if(page==='directory'){renderFilterPanel('dir-filter-panel');renderDirectory();}
   if(page==='tasks')renderTasks();
   if(page==='analytics')renderAnalytics();
+  if(page==='competitors'){renderCompetitorFilterPanel();renderCompetitors();}
 }
 function goBack(){ showPage(prevPage); }
 function updateBadge(){
@@ -3010,6 +3296,338 @@ function renderAnalytics(){
   } else segCard.style.display='none';
 }
 
+// ══════════════ COMPETITORS UI ══════════════
+function competitorStatusColor(s){ return {Operational:'#639922',Inactive:'#E24B4A',Unknown:'#888780'}[s]||'#888780'; }
+function competitorThreatColor(t){ return {High:'#E24B4A',Medium:'#EF9F27',Low:'#639922'}[t]||'#888780'; }
+function competitorPill(text,color){ return `<span class="chip" style="background:${color}1F;color:${color};">${escHtml(text)}</span>`; }
+
+function renderCompetitorFilterPanel(){
+  const panel=document.getElementById('comp-filter-panel'); if(!panel)return;
+  const fields=[
+    {key:'competitorType',label:'Type',vals:['MENA/Regional','Generic/International']},
+    {key:'deliveryModel',label:'Delivery',vals:[...new Set(competitors.map(c=>c.deliveryModel).filter(Boolean))].sort()},
+    {key:'threatLevel',label:'Threat',vals:['High','Medium','Low']},
+    {key:'sovereignModelCoverage',label:'Sovereign coverage',vals:['Yes','No','Unverified']},
+    {key:'status',label:'Status',vals:['Operational','Inactive','Unknown']},
+    {key:'verified',label:'Verified',vals:['true','false']}
+  ];
+  panel.innerHTML=fields.map(f=>{
+    const cur=state.compFilters[f.key]!=null?(''+state.compFilters[f.key]):'';
+    return `<div class="form-group"><label class="form-label">${f.label}</label>
+      <select class="form-input" onchange="setCompFilter('${f.key}',this.value)">
+        <option value="">All</option>
+        ${f.vals.map(v=>`<option value="${escAttr(v)}" ${(''+v)===cur?'selected':''}>${f.key==='verified'?(v==='true'?'Verified':'Unverified'):escHtml(v)}</option>`).join('')}
+      </select></div>`;
+  }).join('')+`<div class="form-group" style="display:flex;align-items:flex-end;min-width:auto;"><button class="btn btn-ghost" style="font-size:12px;padding:7px 10px;" onclick="clearCompFilters()">Clear filters</button></div>`;
+  wireFormLabels(panel);
+}
+function setCompFilter(key,v){ if(v==='')delete state.compFilters[key]; else state.compFilters[key]=v; renderCompetitors(); }
+function clearCompFilters(){ state.compFilters={}; renderCompetitorFilterPanel(); renderCompetitors(); }
+function applyCompFilters(list){
+  const entries=Object.entries(state.compFilters); if(!entries.length)return list;
+  return list.filter(c=>entries.every(([k,v])=>{
+    if(k==='verified') return (''+!!c.verified)===v;
+    return (''+c[k])===v;
+  }));
+}
+// Mirrors sortableHead/setDirSort but against its own state.compSort — setDirSort is hardcoded
+// to call renderDirectory(), so it can't be reused directly for a second sortable table.
+function compSortableHead(labels){
+  return '<tr>'+labels.map((l,i)=>{
+    const active=state.compSort&&state.compSort.key===i;
+    const arrow=active?(state.compSort.dir===1?' ▲':' ▼'):'';
+    return `<th onclick="setCompSort(${i})" style="cursor:pointer;user-select:none;white-space:nowrap;">${escHtml(l)}${arrow}</th>`;
+  }).join('')+'</tr>';
+}
+function setCompSort(index){
+  if(state.compSort&&state.compSort.key===index) state.compSort={key:index,dir:state.compSort.dir*-1};
+  else state.compSort={key:index,dir:1};
+  renderCompetitors();
+}
+function updateCompetitorsBadge(){
+  const badge=document.getElementById('nav-competitors-badge'); if(!badge)return;
+  const count=competitorSignals.filter(s=>!s.confirmed).length;
+  badge.textContent=count;
+  badge.style.display=count?'':'none';
+}
+function renderCompetitors(){
+  updateCompetitorsBadge();
+  const q=(document.getElementById('comp-search')||{value:''}).value.toLowerCase();
+  let list=q?competitors.filter(c=>c.company.toLowerCase().includes(q)||(c.website||'').toLowerCase().includes(q)):competitors.slice();
+  list=applyCompFilters(list);
+  if(state.compSort){
+    const sortKeys=[c=>c.company||'',c=>competitorRelationship(c),c=>c.deliveryModel||'',c=>({High:3,Medium:2,Low:1})[c.threatLevel]||0,c=>c.sovereignModelCoverage||'',c=>c.status||'',c=>c.verified?1:0,c=>c.lastCheckedAt||''];
+    const {key,dir}=state.compSort;
+    list=list.slice().sort((a,b)=>{ const av=sortKeys[key](a),bv=sortKeys[key](b); return av<bv?-1*dir:av>bv?1*dir:0; });
+  }
+  document.getElementById('comp-thead').innerHTML=compSortableHead(['Company','Type','Delivery','Threat','Sovereign','Status','Verified','Last Checked']);
+  document.getElementById('comp-body').innerHTML=list.length?list.map(c=>`
+    <tr style="cursor:pointer;" onclick="openCompetitorDetail(${c.id})">
+      <td><div class="lead-name-cell"><div class="av ${avc(c.id)}">${ini(c.company)}</div><div><div class="ln">${escHtml(c.company)}</div><div class="lc">${escHtml(c.website||'—')}</div></div></div></td>
+      <td>${competitorPill(competitorRelationship(c),competitorRelationship(c)==='Direct'?'#E24B4A':'#378ADD')}</td>
+      <td style="font-size:12px;color:var(--gray-700);">${escHtml(c.deliveryModel||'—')}</td>
+      <td>${c.threatLevel?competitorPill(c.threatLevel,competitorThreatColor(c.threatLevel)):'<span class="lc">—</span>'}</td>
+      <td>${competitorPill(c.sovereignModelCoverage,c.sovereignModelCoverage==='Yes'?'#639922':c.sovereignModelCoverage==='Unverified'?'#EF9F27':'#888780')}</td>
+      <td>${competitorPill(c.status,competitorStatusColor(c.status))}</td>
+      <td>${c.verified?'<span style="color:var(--green-600);">✓</span>':'<span class="lc">—</span>'}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${escHtml(timeAgo(c.lastCheckedAt))}</td>
+    </tr>`).join(''):`<tr><td colspan="8"><div class="notes-body">No competitors match.</div></td></tr>`;
+}
+
+let currentCompetitorId=null;
+function openCompetitorDetail(id){
+  currentCompetitorId=id;
+  const c=competitors.find(x=>x.id===id); if(!c)return;
+  renderCompetitorDetail();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-competitor-detail').classList.add('active');
+  document.getElementById('topbar-title').textContent=c.company;
+}
+function chipListHtml(arr,field,useLabelColor){
+  arr=arr||[];
+  if(!arr.length) return '<div class="notes-body">None yet.</div>';
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:14px 20px;">${arr.map((v,i)=>{
+    const color=useLabelColor?labelColor(v):PALETTE[strHashIdx(v,PALETTE.length)];
+    return `<span class="chip" style="background:${color}1F;color:${color};font-size:11px;padding:4px 6px 4px 9px;display:inline-flex;align-items:center;gap:5px;">${escHtml(v)}<button type="button" onclick="removeChip('${field}',${i})" style="background:none;border:none;cursor:pointer;color:inherit;font-size:12px;line-height:1;padding:0 2px;" title="Remove" aria-label="Remove ${escHtml(v)}">✕</button></span>`;
+  }).join('')}</div>`;
+}
+function signalRowHtml(s){
+  const color={Funding:'#639922','M&A':'#7F77DD',Product:'#378ADD','Management Change':'#EF9F27',News:'#888780'}[s.type]||'#888780';
+  return `<div class="field-item" style="border-right:none;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+      <div>${competitorPill(s.type,color)} <span style="font-size:12px;color:var(--gray-500);">${s.occurred_on?fmtDeadline(s.occurred_on):timeAgo(s.created_at)}</span></div>
+      <button class="modal-close" style="flex-shrink:0;" onclick="confirmDeleteSignal(${s.id})" title="Delete signal" aria-label="Delete signal">✕</button>
+    </div>
+    <div class="field-val" style="margin-top:6px;">${escHtml(s.description)}</div>
+    ${s.source_url?`<div style="margin-top:4px;">${linkHtml(s.source_url)}</div>`:''}
+    ${!s.confirmed?`<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" onclick="confirmSignal(${s.id})">Confirm</button><button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" onclick="dismissSignal(${s.id})">Dismiss</button></div>`:''}
+  </div>`;
+}
+function renderCompetitorDetail(){
+  const c=competitors.find(x=>x.id===currentCompetitorId); if(!c)return;
+  document.getElementById('comp-det-av').className='profile-av '+avc(c.id);
+  document.getElementById('comp-det-av').textContent=ini(c.company);
+  document.getElementById('comp-det-name').textContent=c.company;
+  document.getElementById('comp-det-role').textContent=c.website||'—';
+  document.getElementById('comp-det-tags').innerHTML=
+    competitorPill(competitorRelationship(c),competitorRelationship(c)==='Direct'?'#E24B4A':'#378ADD')+
+    (c.threatLevel?competitorPill(c.threatLevel+' threat',competitorThreatColor(c.threatLevel)):'')+
+    competitorPill(c.status,competitorStatusColor(c.status))+
+    (c.verified?competitorPill('Verified','#639922'):competitorPill('Unverified','#888780'));
+
+  const fields=[
+    ['Delivery model', c.deliveryModel||'—'],
+    ['Sovereign models (Jais/Falcon)', c.sovereignModelCoverage],
+    ['News/press page', c.newsUrl||'—'],
+    ['Last checked', c.lastCheckedAt?fmtTs(c.lastCheckedAt):'Never'],
+    ['Arabic depth & dialect notes', c.arabicDepthNotes||'—'],
+    ['MENA localization notes', c.menaLocalizationNotes||'—'],
+    ['Competitive verdict', c.competitiveVerdict||'—'],
+    ['Features notes', c.featuresNotes||'—'],
+    ['Notes', c.notes||'—']
+  ];
+  document.getElementById('comp-det-fields').innerHTML=fields.map(([k,v])=>`<div class="field-item"><div class="field-key">${escHtml(k)}</div><div class="field-val">${escHtml(v)}</div></div>`).join('');
+
+  document.getElementById('comp-det-dialects').innerHTML=chipListHtml(c.dialects,'dialects');
+  document.getElementById('comp-det-platforms').innerHTML=chipListHtml(c.platformsCovered,'platformsCovered');
+  document.getElementById('comp-det-labels').innerHTML=chipListHtml(c.labels,'labels',true);
+
+  const sigs=signalsFor(c.id).slice().sort((a,b)=>(''+(b.occurred_on||b.created_at||'')).localeCompare(''+(a.occurred_on||a.created_at||'')));
+  const needsReview=sigs.filter(s=>!s.confirmed);
+  const confirmedSigs=sigs.filter(s=>s.confirmed);
+  let html='';
+  if(needsReview.length){
+    html+=`<div style="padding:10px 20px;background:var(--amber-50);border-bottom:1px solid var(--border);"><div style="font-size:11px;font-weight:600;color:var(--amber-600);margin-bottom:6px;">NEEDS REVIEW</div>${needsReview.map(signalRowHtml).join('')}</div>`;
+  }
+  html+= confirmedSigs.length? confirmedSigs.map(signalRowHtml).join('') : (needsReview.length?'':'<div class="notes-body">No signals yet.</div>');
+  document.getElementById('comp-det-signals').innerHTML=html;
+  updateCompetitorsBadge();
+}
+
+// ══════════════ COMPETITOR ADD/EDIT MODAL ══════════════
+let editCompetitorId=null;
+function openAddCompetitorModal(){
+  editCompetitorId=null;
+  ['company','website','newsurl','arabicdepth','menanotes','verdict','features','notes'].forEach(f=>{const el=document.getElementById('comp-f-'+f); if(el)el.value='';});
+  document.getElementById('comp-f-type').value='MENA/Regional';
+  document.getElementById('comp-f-delivery').value='';
+  document.getElementById('comp-f-threat').value='';
+  document.getElementById('comp-f-sovereign').value='No';
+  document.getElementById('competitor-modal-title').textContent='Add competitor';
+  document.getElementById('competitor-modal-submit-btn').textContent='Add competitor';
+  document.getElementById('competitor-modal').classList.add('open');
+}
+function openEditCompetitorModal(){
+  const c=competitors.find(x=>x.id===currentCompetitorId); if(!c)return;
+  editCompetitorId=c.id;
+  document.getElementById('comp-f-company').value=c.company||'';
+  document.getElementById('comp-f-website').value=c.website||'';
+  document.getElementById('comp-f-newsurl').value=c.newsUrl||'';
+  document.getElementById('comp-f-type').value=c.competitorType||'MENA/Regional';
+  document.getElementById('comp-f-delivery').value=c.deliveryModel||'';
+  document.getElementById('comp-f-threat').value=c.threatLevel||'';
+  document.getElementById('comp-f-sovereign').value=c.sovereignModelCoverage||'No';
+  document.getElementById('comp-f-arabicdepth').value=c.arabicDepthNotes||'';
+  document.getElementById('comp-f-menanotes').value=c.menaLocalizationNotes||'';
+  document.getElementById('comp-f-verdict').value=c.competitiveVerdict||'';
+  document.getElementById('comp-f-features').value=c.featuresNotes||'';
+  document.getElementById('comp-f-notes').value=c.notes||'';
+  document.getElementById('competitor-modal-title').textContent='Edit competitor';
+  document.getElementById('competitor-modal-submit-btn').textContent='Save changes';
+  document.getElementById('competitor-modal').classList.add('open');
+}
+function closeCompetitorModal(){ document.getElementById('competitor-modal').classList.remove('open'); editCompetitorId=null; }
+async function saveCompetitorModal(){
+  const company=val('comp-f-company'); if(!company){showToast('Company name is required');return;}
+  const payload={
+    company,
+    website: val('comp-f-website'),
+    newsUrl: val('comp-f-newsurl'),
+    competitorType: val('comp-f-type')||'MENA/Regional',
+    deliveryModel: val('comp-f-delivery')||null,
+    threatLevel: val('comp-f-threat')||null,
+    sovereignModelCoverage: val('comp-f-sovereign')||'No',
+    arabicDepthNotes: val('comp-f-arabicdepth'),
+    menaLocalizationNotes: val('comp-f-menanotes'),
+    competitiveVerdict: val('comp-f-verdict'),
+    featuresNotes: val('comp-f-features'),
+    notes: val('comp-f-notes')
+  };
+  if(editCompetitorId==null){
+    const c={...payload, status:'Unknown', verified:false, lastCheckedAt:null, dialects:[], platformsCovered:[], labels:[]};
+    const ok=await createCompetitor(c);
+    competitors.push(c);
+    closeCompetitorModal(); renderCompetitors(); showToast(`${company} added${syncNote(ok)}`);
+  } else {
+    const c=competitors.find(x=>x.id===editCompetitorId); if(!c)return;
+    Object.assign(c,payload);
+    const ok=await saveCompetitor(c);
+    closeCompetitorModal();
+    if(currentCompetitorId===c.id) renderCompetitorDetail();
+    renderCompetitors();
+    showToast(`${company} updated${syncNote(ok)}`);
+  }
+}
+let deleteCompetitorTargetId=null;
+function confirmDeleteCompetitor(){
+  const c=competitors.find(x=>x.id===currentCompetitorId); if(!c)return;
+  deleteCompetitorTargetId=c.id;
+  document.getElementById('confirm-title').textContent='Delete this competitor?';
+  document.getElementById('confirm-msg').textContent=`This removes "${c.company}" and all its signals. This can't be undone.`;
+  document.getElementById('confirm-delete-btn').onclick=execDeleteCompetitor;
+  document.getElementById('confirm-delete-btn').disabled=false;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+async function execDeleteCompetitor(){
+  const id=deleteCompetitorTargetId; if(id==null)return;
+  const c=competitors.find(x=>x.id===id);
+  competitors=competitors.filter(x=>x.id!==id);
+  competitorSignals=competitorSignals.filter(s=>s.competitor_id!==id);
+  await deleteCompetitorRemote(id);
+  closeConfirm();
+  showToast(`${c?c.company:'Competitor'} deleted`);
+  showPage('competitors');
+}
+
+// ══════════════ COMPETITOR CHIP MODAL (dialects/platforms/labels) ══════════════
+const CHIP_FIELD_META={
+  labels:{title:'Add label', options:()=>labelOptions, ensure:addLabelOption},
+  dialects:{title:'Add dialect', options:()=>dialectOptions, ensure:addDialectOption},
+  platformsCovered:{title:'Add platform', options:()=>platformOptions, ensure:addPlatformOption}
+};
+let chipModalTarget=null;
+function openChipModal(field){
+  chipModalTarget=field;
+  const meta=CHIP_FIELD_META[field];
+  document.getElementById('chip-modal-title').textContent=meta.title;
+  document.getElementById('chip-modal-label').textContent=meta.title.replace('Add ','');
+  document.getElementById('chip-input').value='';
+  document.getElementById('chip-options-datalist').innerHTML=meta.options().map(l=>`<option value="${escAttr(l)}">`).join('');
+  document.getElementById('chip-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('chip-input').focus(),0);
+}
+function closeChipModal(){ document.getElementById('chip-modal').classList.remove('open'); chipModalTarget=null; }
+async function saveChipModal(){
+  const c=competitors.find(x=>x.id===currentCompetitorId); if(!c||!chipModalTarget)return;
+  const value=val('chip-input'); if(!value){showToast('Enter a value');return;}
+  const field=chipModalTarget;
+  c[field]=c[field]||[];
+  if(c[field].some(v=>v.toLowerCase()===value.toLowerCase())){ showToast('Already added'); closeChipModal(); return; }
+  c[field].push(value);
+  await CHIP_FIELD_META[field].ensure(value);
+  closeChipModal();
+  saveCompetitor(c); renderCompetitorDetail(); showToast(`"${value}" added`);
+}
+function removeChip(field,i){
+  const c=competitors.find(x=>x.id===currentCompetitorId); if(!c)return;
+  const removed=(c[field]||[])[i]; if(removed==null)return;
+  c[field].splice(i,1);
+  saveCompetitor(c); renderCompetitorDetail(); showToast(`"${removed}" removed`);
+}
+
+// ══════════════ COMPETITOR SIGNALS ══════════════
+function openAddSignalModal(){
+  document.getElementById('signal-f-type').value='News';
+  document.getElementById('signal-f-date').value='';
+  document.getElementById('signal-f-desc').value='';
+  document.getElementById('signal-f-source').value='';
+  document.getElementById('signal-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('signal-f-desc').focus(),0);
+}
+function closeSignalModal(){ document.getElementById('signal-modal').classList.remove('open'); }
+async function saveSignalModal(){
+  const c=competitors.find(x=>x.id===currentCompetitorId); if(!c)return;
+  const description=val('signal-f-desc'); if(!description){showToast('Description is required');return;}
+  const s={competitor_id:c.id,type:val('signal-f-type')||'News',description,source_url:val('signal-f-source'),occurred_on:val('signal-f-date')||null,detectedBy:'manual',confirmed:true};
+  const ok=await createSignal(s);
+  competitorSignals.push(s);
+  closeSignalModal();
+  renderCompetitorDetail();
+  updateCompetitorsBadge();
+  showToast(`Signal added${syncNote(ok)}`);
+}
+let deleteSignalTargetId=null;
+function confirmDeleteSignal(id){
+  deleteSignalTargetId=id;
+  document.getElementById('confirm-title').textContent='Delete this signal?';
+  document.getElementById('confirm-msg').textContent=`This can't be undone.`;
+  document.getElementById('confirm-delete-btn').onclick=execDeleteSignal;
+  document.getElementById('confirm-delete-btn').disabled=false;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+async function execDeleteSignal(){
+  const id=deleteSignalTargetId; if(id==null)return;
+  competitorSignals=competitorSignals.filter(s=>s.id!==id);
+  await deleteSignalRemote(id);
+  closeConfirm();
+  renderCompetitorDetail();
+  updateCompetitorsBadge();
+  showToast('Signal deleted');
+}
+async function confirmSignal(id){
+  const s=competitorSignals.find(x=>x.id===id); if(!s)return;
+  s.confirmed=true;
+  await saveSignal(s);
+  renderCompetitorDetail();
+  updateCompetitorsBadge();
+  showToast('Signal confirmed');
+}
+async function dismissSignal(id){
+  const s=competitorSignals.find(x=>x.id===id); if(!s)return;
+  competitorSignals=competitorSignals.filter(x=>x.id!==id);
+  await deleteSignalRemote(id);
+  renderCompetitorDetail();
+  updateCompetitorsBadge();
+  showToast('Signal dismissed');
+}
+// Stub for Phase 2/3 (see the Competitors plan) — the Scrapling-backed status/signal-detection
+// endpoints don't exist yet; this button is wired up now so no further UI change is needed once
+// they ship, but for now it just tells the user that.
+function checkCompetitorNow(){
+  showToast('Automated checks aren\'t built yet — status/verified stay manual for now.');
+}
+
 // ══════════════ DETAIL ══════════════
 // `pipeline` disambiguates the lookup: each pipeline is a separate Supabase table with its
 // own identity sequence, so ids are only unique WITHIN a pipeline — id 12 in partners and id
@@ -3940,6 +4558,11 @@ async function startApp(){
   await loadNextStepOptions();
   await loadEventTypeOptions();
   await loadLabelOptions();
+  await loadCompetitors();
+  await loadCompetitorSignals();
+  await loadDialectOptions();
+  await loadPlatformOptions();
+  updateCompetitorsBadge();
   await loadTeamMembers();
   await loadNotifications();
   updateNotifBadge();
@@ -4005,7 +4628,7 @@ window.addEventListener('click',e=>{if(e.target.id==='stage-note-modal'){cancelS
 // Each modal-overlay/confirm-overlay's real close function (not just classList.remove('open'))
 // so Escape also clears the state a plain class toggle wouldn't — e.g. cancelStageChange()
 // clearing `pendingStage`, closeModal() clearing editId/editPipeline.
-const MODAL_CLOSERS={modal:closeModal,scorer:closeScorer,'member-modal':closeMemberModal,'label-modal':closeLabelModal,'task-modal':closeTaskModal,'stage-note-modal':cancelStageChange,'add-note-modal':cancelAddNote,'confirm-overlay':closeConfirm};
+const MODAL_CLOSERS={modal:closeModal,scorer:closeScorer,'member-modal':closeMemberModal,'label-modal':closeLabelModal,'task-modal':closeTaskModal,'stage-note-modal':cancelStageChange,'add-note-modal':cancelAddNote,'confirm-overlay':closeConfirm,'chip-modal':closeChipModal,'competitor-modal':closeCompetitorModal,'signal-modal':closeSignalModal};
 function getOpenDialogEl(){
   for(const id in MODAL_CLOSERS){ const el=document.getElementById(id); if(el&&el.classList.contains('open')) return el.querySelector(':scope > div'); }
   return null;
