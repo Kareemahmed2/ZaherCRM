@@ -603,3 +603,35 @@ alter table partners add column if not exists tag text;
 alter table customers add column if not exists tag text;
 alter table investors add column if not exists tag text;
 alter table events add column if not exists tag text;
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Custom labels (added 2026-08-11)
+-- Free-form, multi-value labels a team member can attach to any record in any of the four
+-- pipelines — distinct from `tag` above (a fixed two-value enum set only from the kanban card)
+-- and from `category`/`sector`/etc (fixed per-pipeline classification fields). Labels are
+-- arbitrary and shared across all four pipelines, so they need their own array column rather
+-- than reusing any existing field.
+--
+-- `label_options` is a team-editable canonical list (mirrors next_step_options/
+-- event_type_options) so the same label reads identically everywhere it's used instead of
+-- drifting into near-duplicate free-text variants — important since labels are meant to power
+-- filtering, and a typo'd label silently splits a filter into two.
+-- ═══════════════════════════════════════════════════════════════════════
+
+alter table partners add column if not exists labels jsonb not null default '[]'::jsonb;
+alter table customers add column if not exists labels jsonb not null default '[]'::jsonb;
+alter table investors add column if not exists labels jsonb not null default '[]'::jsonb;
+alter table events add column if not exists labels jsonb not null default '[]'::jsonb;
+
+create table if not exists label_options (
+  id         bigint generated always as identity primary key,
+  label      text not null unique,
+  created_at timestamptz not null default now()
+);
+
+alter table label_options enable row level security;
+
+drop policy if exists "zaher team read label_options" on label_options;
+create policy "zaher team read label_options" on label_options for select using (is_zaher_team());
+drop policy if exists "zaher team insert label_options" on label_options;
+create policy "zaher team insert label_options" on label_options for insert with check (is_zaher_team());

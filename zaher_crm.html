@@ -653,6 +653,10 @@
           <div id="det-members-list"></div>
         </div>
         <div class="notes-card">
+          <div class="card-header"><span class="card-title">Labels</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openLabelModal()">+ Add label</button></div>
+          <div id="det-labels-list"></div>
+        </div>
+        <div class="notes-card">
           <div class="card-header"><span class="card-title">Notes</span><button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openAddNote()">+ Add note</button></div>
           <div class="timeline" id="det-note-trail"></div>
         </div>
@@ -737,6 +741,25 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeMemberModal()">Cancel</button>
       <button class="btn btn-primary" id="member-modal-submit-btn" onclick="saveMemberModal()">Add member</button>
+    </div>
+  </div>
+</div>
+
+<!-- LABEL MODAL -->
+<div class="modal-overlay" id="label-modal">
+  <div class="modal" style="width:360px;" role="dialog" aria-modal="true" aria-labelledby="label-modal-title">
+    <div class="modal-header"><span class="modal-title" id="label-modal-title">Add label</span>
+      <button class="modal-close" aria-label="Close" onclick="closeLabelModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Label</label>
+        <input class="form-input" id="label-input" placeholder="e.g. Strategic, Warm intro" onkeydown="if(event.key==='Enter'){event.preventDefault();saveLabelModal();}">
+        <datalist id="label-options-datalist"></datalist>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeLabelModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLabelModal()">Add label</button>
     </div>
   </div>
 </div>
@@ -1346,6 +1369,55 @@ async function handleEventTypeChange(sel){
 function timezoneSelectHtml(selected){
   return TIMEZONES.map(tz=>`<option ${tz===selected?'selected':''}>${tz}</option>`).join('');
 }
+
+// ══════════════ LABELS (all four pipelines) ══════════════
+// Free-form, multi-value, shared across partners/customers/investors/events — unlike every
+// other options list in this file (next steps, event types), a label isn't scoped to one
+// pipeline, so there's one flat labelOptions list. label_options is just the canonical spelling
+// registry (for the filter dropdown and to keep everyone typing the same thing); which labels
+// are actually ON a record lives in that record's own `labels` array.
+let labelOptions=[];
+async function loadLabelOptions(){
+  if(!sb) return;
+  const {data,error}=await sb.from('label_options').select('*').order('label');
+  if(!error && data) labelOptions=data.map(o=>o.label);
+}
+async function addLabelOption(label){
+  label=(label||'').trim(); if(!label) return null;
+  if(!labelOptions.some(l=>l.toLowerCase()===label.toLowerCase())){
+    labelOptions.push(label); labelOptions.sort();
+    if(sb){ const {error}=await sb.from('label_options').insert({label}); if(error && error.code!=='23505') console.error(error); }
+  }
+  return label;
+}
+// Deterministic color per label string (same hashing trick as calendar event-type colors) so a
+// label reads as the same color everywhere without anyone having to configure one.
+function labelColor(l){ return PALETTE[strHashIdx(l||'',PALETTE.length)]; }
+function labelChip(l){ return `<span class="chip" style="background:${labelColor(l)}1F;color:${labelColor(l)};">${escHtml(l)}</span>`; }
+function openLabelModal(){
+  document.getElementById('label-input').value='';
+  document.getElementById('label-input').setAttribute('list','label-options-datalist');
+  document.getElementById('label-options-datalist').innerHTML=labelOptions.map(l=>`<option value="${escAttr(l)}">`).join('');
+  document.getElementById('label-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('label-input').focus(),0);
+}
+function closeLabelModal(){ document.getElementById('label-modal').classList.remove('open'); }
+async function saveLabelModal(){
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
+  const label=val('label-input'); if(!label){showToast('Enter a label');return;}
+  r.labels=r.labels||[];
+  if(r.labels.some(l=>l.toLowerCase()===label.toLowerCase())){ showToast(`Already labeled "${label}"`); closeLabelModal(); return; }
+  r.labels.push(label);
+  await addLabelOption(label);
+  closeLabelModal();
+  saveRecord(r); renderDetail(); showToast(`Label "${label}" added`);
+}
+function removeLabel(i){
+  const r=records.find(x=>x.id===currentId&&x.pipeline===currentPipeline); if(!r)return;
+  const lbl=(r.labels||[])[i]; if(lbl==null)return;
+  r.labels.splice(i,1);
+  saveRecord(r); renderDetail(); showToast(`"${lbl}" removed`);
+}
 function toggleEventLocationFields(format){
   document.getElementById('f-virtual-group').style.display=format==='Virtual'?'':'none';
   document.getElementById('f-inperson-group').style.display=format==='In-Person'?'':'none';
@@ -1614,6 +1686,7 @@ function buildCard(r){
   const pm=primaryMember(r);
   const cardPrimary=escHtml(r.company);
   const cardSecondary=state.pipeline==='events'?(r.format==='In-Person'?escHtml(r.venueName||r.address||'In-Person'):'Virtual'):(pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—');
+  const labelsHtml=(r.labels||[]).length?`<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap;">${r.labels.map(labelChip).join('')}</div>`:'';
   return `<div class="k-card" id="kcard-${r.id}" data-id="${r.id}"
     onmousedown="dragStart(event,${r.id})"
     onclick="if(!window._wasDrag)openDetail(${r.id},'${r.pipeline}');window._wasDrag=false;">
@@ -1622,7 +1695,7 @@ function buildCard(r){
       <div class="k-card-info"><div class="kn">${cardPrimary}</div><div class="kc">${cardSecondary}</div></div>
     </div>
     ${tagSelectHtml(r)}
-    ${extra}${bottom}
+    ${extra}${labelsHtml}${bottom}
     <div class="k-card-footer"><span class="k-card-source">${escHtml(state.pipeline==='events'?(r.timezone||''):(r.model||r.source))}</span><span class="k-card-date">${escHtml(r.date)}</span></div>
   </div>`;
 }
@@ -1751,13 +1824,13 @@ function confirmAddNote(){
 // ══════════════ FILTERS ══════════════
 function filterFieldsFor(p){
   if(p==='partners'){
-    const fields=[{key:'category',label:'Category'},{key:'model',label:'Model'},{key:'region',label:'Region'},{key:'stage',label:'Stage'},{key:'source',label:'Source'}];
+    const fields=[{key:'category',label:'Category'},{key:'model',label:'Model'},{key:'region',label:'Region'},{key:'stage',label:'Stage'},{key:'source',label:'Source'},{key:'labels',label:'Label'}];
     if(!isP2()) fields.splice(1,0,{key:'tier',label:'Tier'});
     return fields;
   }
-  if(p==='customers') return [{key:'sector',label:'Sector'},{key:'segment',label:'Segment'},{key:'leadSource',label:'Lead source'},{key:'stage',label:'Stage'}];
-  if(p==='events') return [{key:'eventType',label:'Event type'},{key:'format',label:'Format'},{key:'timezone',label:'Timezone'},{key:'stage',label:'Status'}];
-  return [{key:'thesis',label:'Thesis'},{key:'fundSize',label:'Fund size'},{key:'stage',label:'Stage'},{key:'source',label:'Source'}];
+  if(p==='customers') return [{key:'sector',label:'Sector'},{key:'segment',label:'Segment'},{key:'leadSource',label:'Lead source'},{key:'stage',label:'Stage'},{key:'labels',label:'Label'}];
+  if(p==='events') return [{key:'eventType',label:'Event type'},{key:'format',label:'Format'},{key:'timezone',label:'Timezone'},{key:'stage',label:'Status'},{key:'labels',label:'Label'}];
+  return [{key:'thesis',label:'Thesis'},{key:'fundSize',label:'Fund size'},{key:'stage',label:'Stage'},{key:'source',label:'Source'},{key:'labels',label:'Label'}];
 }
 function toggleFilterPanel(id){ document.getElementById(id).classList.toggle('open'); }
 // Pairs every `.form-label` with its field via a real `for`/`id`, instead of relying on
@@ -1784,7 +1857,9 @@ function renderFilterPanel(panelId){
   const fields=filterFieldsFor(state.pipeline);
   const recs=activeRecords();
   let html=fields.map(f=>{
-    const vals=[...new Set(recs.map(r=>r[f.key]).filter(v=>v!=null&&v!==''))].sort();
+    const vals=f.key==='labels'
+      ? [...new Set(recs.flatMap(r=>r.labels||[]))].sort()
+      : [...new Set(recs.map(r=>r[f.key]).filter(v=>v!=null&&v!==''))].sort();
     const cur=state.filters[f.key]!=null?(''+state.filters[f.key]):'';
     return `<div class="form-group"><label class="form-label">${f.label}</label>
       <select class="form-input" onchange="setFilter('${f.key}',this.value)">
@@ -1813,6 +1888,7 @@ function applyFilters(list){
   return list.filter(r=>entries.every(([k,v])=>{
     if(k==='valueMin')return (r.value||0)>=Number(v);
     if(k==='valueMax')return (r.value||0)<=Number(v);
+    if(k==='labels')return (r.labels||[]).includes(v);
     return (''+r[k])===(''+v);
   }));
 }
@@ -2937,6 +3013,9 @@ function renderDetail(){
   else if(state.pipeline==='customers'&&r.sector){ tags=`<span class="tag">${escHtml(r.sector)}</span>`+tags; }
   else if(state.pipeline==='events'&&r.eventType){ tags=`<span class="tag">${escHtml(r.eventType)}</span>`+tags; }
   document.getElementById('det-tags').innerHTML=tags+tagSelectHtml(r);
+  const recLabels=r.labels||[];
+  document.getElementById('det-labels-list').innerHTML=recLabels.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;padding:14px 20px;">${recLabels.map((l,i)=>`
+    <span class="chip" style="background:${labelColor(l)}1F;color:${labelColor(l)};font-size:11px;padding:4px 6px 4px 9px;display:inline-flex;align-items:center;gap:5px;">${escHtml(l)}<button type="button" onclick="removeLabel(${i})" style="background:none;border:none;cursor:pointer;color:inherit;font-size:12px;line-height:1;padding:0 2px;" title="Remove label" aria-label="Remove ${escHtml(l)}">✕</button></span>`).join('')}</div>`:`<div class="notes-body">No labels yet.</div>`;
   // Breadcrumb of every note on the record, most recent first — same vertical-trace
   // styling as the Activity timeline. Every explicit a.note (stage moves, and any
   // record created/imported after this feature shipped) is included as-is; records
@@ -3785,6 +3864,7 @@ async function startApp(){
   await loadTasks();
   await loadNextStepOptions();
   await loadEventTypeOptions();
+  await loadLabelOptions();
   await loadTeamMembers();
   await loadNotifications();
   updateNotifBadge();
@@ -3850,7 +3930,7 @@ window.addEventListener('click',e=>{if(e.target.id==='stage-note-modal'){cancelS
 // Each modal-overlay/confirm-overlay's real close function (not just classList.remove('open'))
 // so Escape also clears the state a plain class toggle wouldn't — e.g. cancelStageChange()
 // clearing `pendingStage`, closeModal() clearing editId/editPipeline.
-const MODAL_CLOSERS={modal:closeModal,scorer:closeScorer,'member-modal':closeMemberModal,'task-modal':closeTaskModal,'stage-note-modal':cancelStageChange,'add-note-modal':cancelAddNote,'confirm-overlay':closeConfirm};
+const MODAL_CLOSERS={modal:closeModal,scorer:closeScorer,'member-modal':closeMemberModal,'label-modal':closeLabelModal,'task-modal':closeTaskModal,'stage-note-modal':cancelStageChange,'add-note-modal':cancelAddNote,'confirm-overlay':closeConfirm};
 function getOpenDialogEl(){
   for(const id in MODAL_CLOSERS){ const el=document.getElementById(id); if(el&&el.classList.contains('open')) return el.querySelector(':scope > div'); }
   return null;
