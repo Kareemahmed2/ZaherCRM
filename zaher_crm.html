@@ -31,6 +31,7 @@
   body.pl-customers { --accent:#3B6D11; --accent-hover:#2C5210; --accent-bg:#EAF3DE; }
   body.pl-investors { --accent:#0E7474; --accent-hover:#085858; --accent-bg:#E0F4F4; }
   body.pl-events    { --accent:#854F0B; --accent-hover:#6B3D08; --accent-bg:#FAEEDA; }
+  body.pl-competitors { --accent:#6E3FA3; --accent-hover:#55317F; --accent-bg:#F1E7FB; }
   body { font-family:var(--font); background:var(--gray-50); color:var(--gray-900); min-height:100vh; display:flex; font-size:14px; line-height:1.5; user-select:none; }
 
   /* ── SIDEBAR ── */
@@ -1855,12 +1856,20 @@ function showPage(page){
     document.getElementById('score-btn').style.display='none';
     document.getElementById('add-btn-label').textContent='Add Competitor';
     addBtn.onclick=()=>openAddCompetitorModal();
+    // Competitors gets its own accent color and isn't tied to any of the four sales
+    // pipelines, so the Partners/Customers/Investors/Events switcher above the sidebar
+    // shouldn't show any of them as "active" while it's open.
+    document.body.className='pl-competitors';
+    document.querySelectorAll('.pl-btn').forEach(b=>b.classList.remove('active'));
   } else {
     const isPartners=state.pipeline==='partners';
     document.getElementById('portfolio-toggle').style.display=isPartners?'':'none';
     document.getElementById('score-btn').style.display=isPartners?'':'none';
     document.getElementById('add-btn-label').textContent={partners:'Add Partner',customers:'Add Customer',investors:'Add Investor',events:'Add Event'}[state.pipeline];
     addBtn.onclick=()=>openModal();
+    // Restore whichever pipeline's theme/highlight was active before Competitors overrode it.
+    document.body.className='pl-'+state.pipeline;
+    document.querySelectorAll('.pl-btn').forEach(b=>b.classList.toggle('active',b.dataset.pl===state.pipeline));
   }
   if(page==='dashboard')renderDashboard();
   if(page==='pipeline'){renderFilterPanel('pipeline-filter-panel');renderPipeline();}
