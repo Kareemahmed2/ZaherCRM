@@ -3925,32 +3925,13 @@ function toggleSubscriptionFields(segment){
   document.getElementById('f-subperiod-group').style.display=segment==='Enterprise'?'':'none';
   document.getElementById('f-subdate-group').style.display=segment==='SaaS'?'':'none';
 }
-// Mirrors stageNeedsSegment for the Add/Edit form: if Stage is set directly to Active
-// Client here — e.g. backfilling an existing client instead of walking it through every
-// earlier stage first — Segment needs to become editable right in this form too, since it
-// won't get a second chance via the stage-change modal (that only fires on a stage
-// TRANSITION, not on initial creation or an edit that jumps straight to Active Client).
-// The select rendered by extraFieldsHtml because the record already has a real r.segment
-// is marked data-permanent — it stays editable no matter what Stage is picked here — so
-// only a select this function created itself gets reverted when Stage moves back off
-// Active Client before the form is submitted.
-function toggleAddFormSegment(newStage){
-  const el=document.getElementById('f-segment'); if(!el)return;
-  if(newStage==='Active Client'){
-    if(el.tagName!=='SELECT'){
-      const sel=document.createElement('select');
-      sel.className='form-input'; sel.id='f-segment';
-      sel.innerHTML='<option value="" selected disabled>Select SaaS or Enterprise…</option><option value="Enterprise">Enterprise</option><option value="SaaS">SaaS</option>';
-      sel.onchange=function(){ toggleSubscriptionFields(this.value); };
-      el.replaceWith(sel);
-    }
-  } else if(el.tagName==='SELECT'&&!el.dataset.permanent){
-    const inp=document.createElement('input');
-    inp.className='form-input'; inp.id='f-segment'; inp.value='— set at Active Client'; inp.disabled=true;
-    el.replaceWith(inp);
-    document.getElementById('f-subperiod-group').style.display='none';
-    document.getElementById('f-subdate-group').style.display='none';
-  }
+// Every segment value already in use across customers (plus the two baseline types), so a
+// value set via import/chat — which can write any free text to r.segment — stays pickable
+// here instead of being clobbered back to just SaaS/Enterprise.
+function customerSegmentOptions(){
+  const vals=new Set(['SaaS','Enterprise']);
+  records.forEach(r=>{ if(r.pipeline==='customers'&&r.segment) vals.add(r.segment); });
+  return [...vals].sort();
 }
 function extraFieldsHtml(p,r){
   if(p==='partners'){
@@ -3969,15 +3950,11 @@ function extraFieldsHtml(p,r){
         <option value="3" ${r&&r.tier===3?'selected':''}>Tier 3</option>
       </select></div>`;
   } else if(p==='customers'){
-    // Segment (SaaS/Enterprise) isn't known until the deal actually closes — it's decided
-    // when terms are discussed, not up front — so it stays null through every stage before
-    // Active Client, and is only ever set from the stage-change modal at that transition
-    // (see stageNeedsSegment). Here it's just a read-only indicator until then; once it's
-    // been set, it becomes editable again for corrections.
+    // Segment is editable at any stage (moving a customer to Active Client outside this form
+    // still separately prompts for it via the stage-change modal — see stageNeedsSegment).
+    // Options come from customerSegmentOptions so a value set via import/chat stays pickable.
     const seg=r?r.segment:null;
-    const segField=seg
-      ? `<select class="form-input" id="f-segment" data-permanent="1" onchange="toggleSubscriptionFields(this.value)"><option value="Enterprise" ${seg==='Enterprise'?'selected':''}>Enterprise</option><option value="SaaS" ${seg==='SaaS'?'selected':''}>SaaS</option></select>`
-      : `<input class="form-input" id="f-segment" value="— set at Active Client" disabled>`;
+    const segField=`<select class="form-input" id="f-segment" onchange="toggleSubscriptionFields(this.value)"><option value="" ${!seg?'selected':''}>Not set</option>${customerSegmentOptions().map(s=>`<option value="${escAttr(s)}" ${seg===s?'selected':''}>${escHtml(s)}</option>`).join('')}</select>`;
     return `<div class="form-row"><div class="form-group"><label class="form-label">Sector</label><input class="form-input" id="f-sector" placeholder="E-Commerce" value="${escAttr(r?r.sector:'')}"></div>
       <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="f-website" placeholder="company.com" value="${escAttr(r?r.website:'')}"></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" min="0" id="f-value" placeholder="12000" value="${r&&r.value?r.value:''}"></div>
@@ -4020,7 +3997,7 @@ function renderModalForm(p,r,stage){
   const curStage=r?r.stage:stage;
   const stageOpts=stages.map(s=>`<option ${s===curStage?'selected':''}>${s}</option>`).join('');
   const stageSourceRow = (p==='customers'||p==='events')
-    ? `<div class="form-group"><label class="form-label">${p==='events'?'Status':'Stage'}</label><select class="form-input" id="f-stage" onchange="toggleAddFormSegment(this.value)">${stageOpts}</select></div>`
+    ? `<div class="form-group"><label class="form-label">${p==='events'?'Status':'Stage'}</label><select class="form-input" id="f-stage">${stageOpts}</select></div>`
     : `<div class="form-row"><div class="form-group"><label class="form-label">Stage</label><select class="form-input" id="f-stage">${stageOpts}</select></div>
     <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="f-source" placeholder="LinkedIn" value="${escAttr(r?r.source:'')}"></div></div>`;
   const importRow = r?'':`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
@@ -4040,7 +4017,6 @@ function renderModalForm(p,r,stage){
     ${extraFieldsHtml(p,r)}
     ${stageSourceRow}
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="f-notes" rows="2" placeholder="Context...">${r?escHtml(r.notes||''):''}</textarea></div>`;
-  if(p==='customers')toggleAddFormSegment(curStage);
   wireFormLabels(document.getElementById('modal-body'));
   document.getElementById('modal').classList.add('open');
 }
@@ -4093,11 +4069,7 @@ async function addRecord(){
   const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:notesVal,value:nonNegativeNum('f-value'),activity:[addedEntry]};
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.website=val('f-website');r.region=val('f-region');r.tier=val('f-tier')?Number(val('f-tier')):null;r.score=null;if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){
-    const segEl=document.getElementById('f-segment');
-    if(segEl&&segEl.tagName==='SELECT'){
-      if(!segEl.value){showToast('Pick SaaS or Enterprise — required for an Active Client');return;}
-      r.segment=segEl.value;
-    } else r.segment=null;
+    r.segment=val('f-segment')||null;
     r.sector=val('f-sector')||'General';r.website=val('f-website');r.leadSource=val('f-leadsource')||'Manual';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
     r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
@@ -4121,23 +4093,13 @@ function saveEditedRecord(){
   const r=records.find(x=>x.id===editId&&x.pipeline===editPipeline); if(!r)return;
   const company=val('f-company'); const p=r.pipeline;
   if(!company){showToast((p==='events'?'Event title':'Organisation name')+' is required');return;}
-  // Validated (and read) before any mutation of the live record — bailing out after
-  // r.stage was already set to Active Client would leave the in-memory record stuck at a
-  // stage that implies a segment it doesn't have, with nothing persisted to back it up.
-  let segEl=null;
-  if(p==='customers'){
-    segEl=document.getElementById('f-segment');
-    if(segEl&&segEl.tagName==='SELECT'&&!segEl.value){showToast('Pick SaaS or Enterprise — required for an Active Client');return;}
-  }
   r.company=company; r.name=company; r.stage=val('f-stage'); r.notes=val('f-notes');
   if(p!=='events') r.value=nonNegativeNum('f-value');
   if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); r.website=val('f-website'); r.region=val('f-region'); r.tier=val('f-tier')?Number(val('f-tier')):null; }
   else if(p==='customers'){
-    if(segEl&&segEl.tagName==='SELECT'){
-      r.segment=segEl.value;
-      r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
-      r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
-    }
+    r.segment=val('f-segment')||null;
+    r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
+    r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
     r.sector=val('f-sector')||'General'; r.website=val('f-website'); r.leadSource=val('f-leadsource')||r.leadSource; r.nextStep=val('f-nextstep')||r.nextStep;
   }
   else if(p==='events'){
