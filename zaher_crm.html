@@ -1885,6 +1885,15 @@ function updateBadge(){
 }
 
 // ══════════════ DASHBOARD ══════════════
+// Last-edited timestamp for a record = the d of its most recent activity entry (every
+// mutation — stage move, note, field update, member/task change — pushes one). Falls back
+// to 0 (sorts last) when a record somehow has no activity yet.
+function lastEditedTs(r){
+  const acts=r.activity;
+  if(!acts||!acts.length) return 0;
+  const t=new Date(acts[acts.length-1].d).getTime();
+  return isNaN(t)?0:t;
+}
 function renderDashboard(){
   const recs=activeRecords(), stages=activeStages();
   const total=recs.length;
@@ -1944,7 +1953,8 @@ function renderDashboard(){
   const valCol=isP2()?'Founders':(state.pipeline==='investors'?'Target':'Value');
   const isCustDash=state.pipeline==='customers';
   document.getElementById('dash-thead').innerHTML=`<tr><th>Name</th><th>${state.pipeline==='partners'?'Category':isCustDash?'Sector':'Firm'}</th><th>Website</th><th>${valCol}</th><th>Stage</th></tr>`;
-  document.getElementById('recent-body').innerHTML=recs.length?recs.slice(0,7).map(r=>{
+  const recentRecs=recs.slice().sort((a,b)=>lastEditedTs(b)-lastEditedTs(a));
+  document.getElementById('recent-body').innerHTML=recentRecs.length?recentRecs.slice(0,7).map(r=>{
     const pm=primaryMember(r);
     const primary=escHtml(r.company);
     const secondary=pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—';
