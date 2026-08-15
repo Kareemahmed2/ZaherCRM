@@ -1685,6 +1685,42 @@ async function handleEventTypeChange(sel){
     else sel.value=eventTypeOptions[0]||'';
   }
 }
+
+// ══════════════ SECTORS (customers) ══════════════
+const DEFAULT_SECTORS=['General','E-Commerce','SaaS Platform','Real Estate','Logistics','Grocery Delivery','Ride-hailing','Job Platform'];
+let sectorOptions=DEFAULT_SECTORS.slice();
+async function loadSectorOptions(){
+  if(!sb) return;
+  const {data,error}=await sb.from('sector_options').select('*').order('id');
+  if(!error && data && data.length) sectorOptions=data.map(o=>o.label);
+}
+async function addSectorOption(label){
+  label=(label||'').trim(); if(!label) return null;
+  if(!sectorOptions.includes(label)){
+    sectorOptions.push(label);
+    if(sb){ const {error}=await sb.from('sector_options').insert({label}); if(error) console.error(error); }
+  }
+  return label;
+}
+// sector_options is the team-editable canonical list, but customer records can already carry
+// free-text sector values from CSV import/chat that were never added through this picker —
+// union those in too so an existing value always stays selectable instead of silently
+// reverting to the first option when its record is opened for edit.
+function sectorSelectOptions(){
+  const vals=new Set(sectorOptions);
+  records.forEach(r=>{ if(r.pipeline==='customers'&&r.sector) vals.add(r.sector); });
+  return [...vals];
+}
+function sectorSelectHtml(selected){
+  return sectorSelectOptions().map(o=>`<option ${o===selected?'selected':''}>${escHtml(o)}</option>`).join('')+'<option value="__add__">+ Add new...</option>';
+}
+async function handleSectorChange(sel){
+  if(sel.value==='__add__'){
+    const label=prompt('New sector:');
+    if(label){ await addSectorOption(label); sel.innerHTML=sectorSelectHtml(label); }
+    else sel.value=sectorOptions[0]||'';
+  }
+}
 function timezoneSelectHtml(selected){
   return TIMEZONES.map(tz=>`<option ${tz===selected?'selected':''}>${tz}</option>`).join('');
 }
@@ -3955,7 +3991,7 @@ function extraFieldsHtml(p,r){
     // Options come from customerSegmentOptions so a value set via import/chat stays pickable.
     const seg=r?r.segment:null;
     const segField=`<select class="form-input" id="f-segment" onchange="toggleSubscriptionFields(this.value)"><option value="" ${!seg?'selected':''}>Not set</option>${customerSegmentOptions().map(s=>`<option value="${escAttr(s)}" ${seg===s?'selected':''}>${escHtml(s)}</option>`).join('')}</select>`;
-    return `<div class="form-row"><div class="form-group"><label class="form-label">Sector</label><input class="form-input" id="f-sector" placeholder="E-Commerce" value="${escAttr(r?r.sector:'')}"></div>
+    return `<div class="form-row"><div class="form-group"><label class="form-label">Sector</label><select class="form-input" id="f-sector" onchange="handleSectorChange(this)">${sectorSelectHtml(r?r.sector:sectorOptions[0])}</select></div>
       <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="f-website" placeholder="company.com" value="${escAttr(r?r.website:'')}"></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" min="0" id="f-value" placeholder="12000" value="${r&&r.value?r.value:''}"></div>
       <div class="form-group"><label class="form-label">Segment</label>${segField}</div></div>
@@ -4615,6 +4651,7 @@ async function startApp(){
   await loadTasks();
   await loadNextStepOptions();
   await loadEventTypeOptions();
+  await loadSectorOptions();
   await loadLabelOptions();
   await loadCompetitors();
   await loadCompetitorSignals();

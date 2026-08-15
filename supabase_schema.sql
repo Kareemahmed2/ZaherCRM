@@ -480,6 +480,32 @@ create policy "zaher team read event_type_options" on event_type_options for sel
 drop policy if exists "zaher team insert event_type_options" on event_type_options;
 create policy "zaher team insert event_type_options" on event_type_options for insert with check (is_zaher_team());
 
+-- Sector options (mirrors next_step_options/event_type_options above) — an extensible,
+-- team-editable list of customer sectors, seeded with the values already seen in practice.
+create table if not exists sector_options (
+  id         bigint generated always as identity primary key,
+  label      text not null unique,
+  created_at timestamptz not null default now()
+);
+
+insert into sector_options (label) values
+  ('General'),
+  ('E-Commerce'),
+  ('SaaS Platform'),
+  ('Real Estate'),
+  ('Logistics'),
+  ('Grocery Delivery'),
+  ('Ride-hailing'),
+  ('Job Platform')
+on conflict (label) do nothing;
+
+alter table sector_options enable row level security;
+
+drop policy if exists "zaher team read sector_options" on sector_options;
+create policy "zaher team read sector_options" on sector_options for select using (is_zaher_team());
+drop policy if exists "zaher team insert sector_options" on sector_options;
+create policy "zaher team insert sector_options" on sector_options for insert with check (is_zaher_team());
+
 -- ═══════════════════════════════════════════════════════════════════════
 -- Tasks (added 2026-08-04)
 -- Discrete to-dos attached to a company record in any pipeline — distinct
