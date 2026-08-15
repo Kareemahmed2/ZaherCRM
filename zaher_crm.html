@@ -340,6 +340,11 @@
   /* ── ANALYTICS ── */
   .analytics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
   .an-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+
+  /* ── COMPETITOR RADAR GRID ── */
+  .comp-radar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;}
+  .comp-radar-card{padding:16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;transition:box-shadow .15s;}
+  .comp-radar-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.08);}
   .chart-wrap{padding:20px;} canvas{display:block;}
   .bar-row{display:flex;align-items:center;gap:10px;padding:8px 20px;border-bottom:1px solid var(--border);}
   .bar-row:last-child{border-bottom:none;}
@@ -642,7 +647,11 @@
       </button>
     </div>
     <div class="filter-panel" id="comp-filter-panel"></div>
-    <div class="card"><table class="leads-table"><thead id="comp-thead"></thead><tbody id="comp-body"></tbody></table></div>
+    <!-- Table view kept for a possible future toggle back — see renderCompetitorsTable() in
+         JS, which still builds this markup but isn't called right now. renderCompetitors()
+         currently renders the radar-chart grid below instead. -->
+    <div class="card" id="comp-table-wrap" style="display:none;"><table class="leads-table"><thead id="comp-thead"></thead><tbody id="comp-body"></tbody></table></div>
+    <div class="comp-radar-grid" id="comp-grid"></div>
   </div>
 
   <!-- COMPETITOR DETAIL -->
@@ -3427,6 +3436,12 @@ function renderCompetitors(){
   const q=(document.getElementById('comp-search')||{value:''}).value.toLowerCase();
   let list=q?competitors.filter(c=>c.company.toLowerCase().includes(q)||(c.website||'').toLowerCase().includes(q)):competitors.slice();
   list=applyCompFilters(list);
+  renderCompetitorsGrid(list);
+}
+// Table-based render, superseded by the radar-chart grid below (renderCompetitorsGrid) but
+// kept intact and callable — flip #comp-table-wrap/#comp-grid display and call this from
+// renderCompetitors() instead to toggle back.
+function renderCompetitorsTable(list){
   if(state.compSort){
     const sortKeys=[c=>c.company||'',c=>competitorRelationship(c),c=>c.deliveryModel||'',c=>({High:3,Medium:2,Low:1})[c.threatLevel]||0,c=>c.sovereignModelCoverage||'',c=>c.status||'',c=>c.verified?1:0,c=>c.lastCheckedAt||''];
     const {key,dir}=state.compSort;
@@ -3444,6 +3459,49 @@ function renderCompetitors(){
       <td>${c.verified?'<span style="color:var(--green-600);">✓</span>':'<span class="lc">—</span>'}</td>
       <td style="font-size:12px;color:var(--gray-500);">${escHtml(timeAgo(c.lastCheckedAt))}</td>
     </tr>`).join(''):`<tr><td colspan="8"><div class="notes-body">No competitors match.</div></td></tr>`;
+}
+
+// Radar metrics — placeholder set until the real 8 metrics are specified (see conversation
+// 2026-08-16). Swap COMPETITOR_RADAR_METRICS and competitorRadarValues() below once that
+// spec lands; radarChartSvg()/renderCompetitorsGrid() are generic over however many axes are
+// passed in, so nothing else needs to change.
+const COMPETITOR_RADAR_METRICS=['Metric 1','Metric 2','Metric 3','Metric 4','Metric 5','Metric 6','Metric 7','Metric 8'];
+// Deterministic pseudo-random 20-99 spread per competitor+metric, purely so the placeholder
+// charts look distinct from each other instead of all rendering as identical octagons.
+function competitorRadarValues(c){
+  return COMPETITOR_RADAR_METRICS.map((_,i)=>20+strHashIdx(c.company+'::'+i,80));
+}
+// Generic n-axis radar/spider chart as an inline SVG — no charting library needed. values are
+// 0-100, one per label; labels is optional (omit to skip the axis text).
+function radarChartSvg(values,labels,opts){
+  opts=opts||{};
+  const size=opts.size||180, color=opts.color||'#378ADD', pad=opts.pad||30;
+  const n=values.length, cx=size/2, cy=size/2, R=size/2-pad;
+  const angle=i=>(-Math.PI/2)+i*(2*Math.PI/n);
+  const pt=(i,frac)=>{ const a=angle(i); return [cx+Math.cos(a)*R*frac,cy+Math.sin(a)*R*frac]; };
+  const rings=[0.25,0.5,0.75,1].map(f=>`<polygon points="${Array.from({length:n},(_,i)=>pt(i,f).join(',')).join(' ')}" fill="none" stroke="var(--border)" stroke-width="1"/>`).join('');
+  const axes=Array.from({length:n},(_,i)=>{ const [x,y]=pt(i,1); return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`; }).join('');
+  const labelEls=labels?labels.map((lb,i)=>{
+    const [x,y]=pt(i,1.14), a=angle(i), cos=Math.cos(a);
+    const anchor=cos>0.3?'start':cos<-0.3?'end':'middle';
+    return `<text x="${x}" y="${y}" font-size="7.5" fill="var(--gray-500)" text-anchor="${anchor}" dominant-baseline="middle">${escHtml(lb)}</text>`;
+  }).join(''):'';
+  const clamped=values.map(v=>Math.max(0,Math.min(100,v)));
+  const poly=clamped.map((v,i)=>pt(i,v/100).join(',')).join(' ');
+  const dots=clamped.map((v,i)=>{ const [x,y]=pt(i,v/100); return `<circle cx="${x}" cy="${y}" r="2.5" fill="${color}"/>`; }).join('');
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${rings}${axes}${labelEls}<polygon points="${poly}" fill="${color}33" stroke="${color}" stroke-width="2"/>${dots}</svg>`;
+}
+function renderCompetitorsGrid(list){
+  const grid=document.getElementById('comp-grid'); if(!grid)return;
+  grid.innerHTML=list.length?list.map(c=>`
+    <div class="card comp-radar-card" onclick="openCompetitorDetail(${c.id})">
+      <div class="av ${avc(c.id)}" style="width:36px;height:36px;font-size:13px;">${ini(c.company)}</div>
+      <div style="text-align:center;">
+        <div class="ln" style="font-size:13px;">${escHtml(c.company)}</div>
+        <div style="display:flex;gap:4px;justify-content:center;margin-top:4px;flex-wrap:wrap;">${competitorPill(competitorRelationship(c),competitorRelationship(c)==='Direct'?'#E24B4A':'#378ADD')}${c.threatLevel?competitorPill(c.threatLevel,competitorThreatColor(c.threatLevel)):''}</div>
+      </div>
+      ${radarChartSvg(competitorRadarValues(c),COMPETITOR_RADAR_METRICS,{color:avcHex(c.id)})}
+    </div>`).join(''):'<div class="notes-body">No competitors match.</div>';
 }
 
 let currentCompetitorId=null;
