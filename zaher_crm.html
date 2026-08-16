@@ -3846,16 +3846,25 @@ function competitorRadarValues(c){
 // axis text).
 function radarChartSvg(values,labels,opts){
   opts=opts||{};
-  const size=opts.size||180, color=opts.color||'#378ADD', pad=opts.pad||30;
+  // size/pad were tuned for short placeholder labels ("Metric 1"); the real two-word axis
+  // names (e.g. "Dialect Coverage") are long enough at the old 180/30 that anchor="start"/"end"
+  // text ran past the viewBox edge and got clipped by SVG's default overflow:hidden — hence
+  // "half wiped" names. More canvas + more padding buys real margin around the octagon.
+  const size=opts.size||240, color=opts.color||'#378ADD', pad=opts.pad||60;
   const n=values.length, cx=size/2, cy=size/2, R=size/2-pad;
   const angle=i=>(-Math.PI/2)+i*(2*Math.PI/n);
   const pt=(i,frac)=>{ const a=angle(i); return [cx+Math.cos(a)*R*frac,cy+Math.sin(a)*R*frac]; };
   const rings=[0.25,0.5,0.75,1].map(f=>`<polygon points="${Array.from({length:n},(_,i)=>pt(i,f).join(',')).join(' ')}" fill="none" stroke="var(--border)" stroke-width="1"/>`).join('');
   const axes=Array.from({length:n},(_,i)=>{ const [x,y]=pt(i,1); return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`; }).join('');
+  // Also wraps a two-word label ("Sovereign Models") onto two lines instead of one long run —
+  // halves the worst-case line width on top of the extra margin above.
   const labelEls=labels?labels.map((lb,i)=>{
     const [x,y]=pt(i,1.14), a=angle(i), cos=Math.cos(a);
     const anchor=cos>0.3?'start':cos<-0.3?'end':'middle';
-    return `<text x="${x}" y="${y}" font-size="7.5" fill="var(--gray-500)" text-anchor="${anchor}" dominant-baseline="middle">${escHtml(lb)}</text>`;
+    const lines=lb.split(' ');
+    const lineHeight=8.5, startDy=-((lines.length-1)*lineHeight)/2;
+    const tspans=lines.map((line,li)=>`<tspan x="${x}" dy="${li===0?startDy:lineHeight}">${escHtml(line)}</tspan>`).join('');
+    return `<text y="${y}" font-size="7.5" fill="var(--gray-500)" text-anchor="${anchor}" dominant-baseline="middle">${tspans}</text>`;
   }).join(''):'';
   const frac=v=>(v===null?0:Math.max(0,Math.min(100,v)))/100;
   const poly=values.map((v,i)=>pt(i,frac(v)).join(',')).join(' ');
