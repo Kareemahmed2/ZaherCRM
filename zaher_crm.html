@@ -645,6 +645,8 @@
         <button class="btn" id="comp-view-table-btn" onclick="setCompView('table')" title="Table view">Table</button>
       </div>
       <div style="display:flex;gap:8px;margin-left:auto;">
+        <input type="file" id="comp-import-file" accept=".csv,.xlsx,.xls" style="display:none;" onchange="handleCompetitorImportFile(event)">
+        <button class="btn btn-ghost" onclick="document.getElementById('comp-import-file').click()" title="Import competitors from CSV/Excel">Import</button>
         <button class="btn btn-ghost" onclick="exportCompetitors('csv')" title="Export current view to CSV">Export CSV</button>
         <button class="btn btn-ghost" onclick="exportCompetitors('xlsx')" title="Export current view to Excel">Export Excel</button>
       </div>
@@ -3194,6 +3196,146 @@ async function handleImportFile(ev){
   ev.target.value='';
   refreshView();
 }
+
+// Competitor import — same file-reading/blank-cell-normalizing approach as handleImportFile
+// above, but scoped down since competitors are a flat directory (own `competitors` array,
+// own createCompetitor/saveCompetitor) rather than a pipeline: no members/stage/portfolio
+// concept, and no undo bar (that's wired to `records`+TABLE_BY_PIPELINE specifically).
+const IMPORT_FIELD_MAP_COMPETITORS={
+  company:['company','name','competitor','competitor name'],
+  website:['website','url'],
+  competitorType:['type','competitor type','competitortype','relationship type'],
+  deliveryModel:['delivery model','deliverymodel','delivery'],
+  threatLevel:['threat','threat level','threatlevel'],
+  sovereignModelCoverage:['sovereign','sovereign coverage','sovereign model coverage','sovereignmodelcoverage','jais/falcon'],
+  status:['status'],
+  verified:['verified'],
+  newsUrl:['news url','newsurl','news/press page','press page'],
+  arabicDepthNotes:['arabic depth notes','arabicdepthnotes','arabic depth','dialect notes'],
+  menaLocalizationNotes:['mena localization notes','menalocalizationnotes','mena notes','localization notes'],
+  executionScope:['execution scope','executionscope','execution'],
+  proofNotes:['proof notes','proofnotes','proof of execution/monitoring','proof'],
+  reviewSources:['review sources','reviewsources'],
+  reviewSummary:['review summary','reviewsummary'],
+  arrEstimate:['arr estimate','arrestimate','arr'],
+  entryPrice:['entry price','entryprice'],
+  pricingModel:['pricing model','pricingmodel','pricing'],
+  positioningClaim:['positioning claim','positioningclaim','positioning'],
+  competitiveVerdict:['verdict vs zaher ai','competitiveverdict','competitive verdict','verdict'],
+  featuresNotes:['features notes','featuresnotes','features'],
+  notes:['notes'],
+  dialects:['dialects'],
+  platformsCovered:['platforms covered','platformscovered','platforms'],
+  labels:['labels','label']
+};
+function mapCompetitorHeaders(headerRow){
+  const norm=h=>(h==null?'':h.toString()).trim().toLowerCase();
+  const idx={};
+  (headerRow||[]).forEach((h,i)=>{
+    const nh=norm(h);
+    for(const [field,aliases] of Object.entries(IMPORT_FIELD_MAP_COMPETITORS)){
+      if(aliases.includes(nh)) idx[field]=i;
+    }
+  });
+  return idx;
+}
+async function handleCompetitorImportFile(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  showImportLoading();
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const newCompetitors=[];
+    const touched=new Set();
+    let skippedCount=0;
+    let sawDataRows=false, sawHeaderMatch=false;
+    for(const sheetName of wb.SheetNames){
+      const sheet=wb.Sheets[sheetName];
+      const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+      if(!rows||rows.length<2)continue;
+      sawDataRows=true;
+      const idx=mapCompetitorHeaders(rows[0]);
+      if(idx.company===undefined)continue;
+      sawHeaderMatch=true;
+      for(let i=1;i<rows.length;i++){
+        const row=rows[i]; if(!row||!row.length)continue;
+        // Mirrors handleImportFile's get(): blank/placeholder cells ("-", "N/A", ...) read as
+        // undefined so they never overwrite real data or get imported as literal text.
+        const get=f=>{
+          if(idx[f]===undefined)return undefined;
+          const v=row[idx[f]];
+          if(v==null)return undefined;
+          const s=(''+v).trim();
+          if(!s||/^[-—]+$/.test(s)||/^n\/?a$/i.test(s))return undefined;
+          return v;
+        };
+        const company=(get('company')||'').toString().trim(); if(!company)continue;
+        const splitList=v=>v===undefined?[]:(''+v).split(/[;,]/).map(s=>s.trim()).filter(Boolean);
+        const isTruthy=v=>/^(yes|true|1)$/i.test((''+(v||'')).trim());
+
+        const existing=competitors.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase())
+          || newCompetitors.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase());
+        if(existing){
+          // Same "only fill what's still blank" rule as the pipeline import — a re-import can
+          // complete a record's missing info but never overwrites or rolls back a value that's
+          // already there (verified only ever flips false→true, never back down).
+          const fillStr=(field,raw)=>{ if((existing[field]==null||existing[field]==='')&&raw!==undefined&&(''+raw).trim()!==''){ existing[field]=(''+raw).toString(); return true; } return false; };
+          let changed=false;
+          ['website','newsUrl','deliveryModel','arabicDepthNotes','menaLocalizationNotes','executionScope','proofNotes','reviewSources','reviewSummary','arrEstimate','entryPrice','pricingModel','positioningClaim','competitiveVerdict','featuresNotes','notes'].forEach(f=>{ changed=fillStr(f,get(f))||changed; });
+          const matchedType=matchInList(['MENA/Regional','Generic/International'],get('competitorType'));
+          if(matchedType&&!existing.competitorType){ existing.competitorType=matchedType; changed=true; }
+          const matchedThreat=matchInList(['High','Medium','Low'],get('threatLevel'));
+          if(matchedThreat&&!existing.threatLevel){ existing.threatLevel=matchedThreat; changed=true; }
+          const matchedSovereign=matchInList(['Yes','No','Unverified'],get('sovereignModelCoverage'));
+          if(matchedSovereign&&(!existing.sovereignModelCoverage||existing.sovereignModelCoverage==='No')){ existing.sovereignModelCoverage=matchedSovereign; changed=true; }
+          const matchedStatus=matchInList(['Operational','Inactive','Unknown'],get('status'));
+          if(matchedStatus&&(!existing.status||existing.status==='Unknown')){ existing.status=matchedStatus; changed=true; }
+          if(!existing.verified&&isTruthy(get('verified'))){ existing.verified=true; changed=true; }
+          ['dialects','platformsCovered','labels'].forEach(f=>{
+            const add=splitList(get(f)).filter(v=>!(existing[f]||[]).includes(v));
+            if(add.length){ existing[f]=[...(existing[f]||[]),...add]; changed=true; }
+          });
+          if(changed) touched.add(existing); else skippedCount++;
+          continue;
+        }
+
+        newCompetitors.push({
+          company, website:(get('website')||'').toString(), newsUrl:(get('newsUrl')||'').toString(),
+          competitorType: matchInList(['MENA/Regional','Generic/International'],get('competitorType'))||'MENA/Regional',
+          deliveryModel:(get('deliveryModel')||'').toString(), threatLevel: matchInList(['High','Medium','Low'],get('threatLevel')),
+          sovereignModelCoverage: matchInList(['Yes','No','Unverified'],get('sovereignModelCoverage'))||'No',
+          arabicDepthNotes:(get('arabicDepthNotes')||'').toString(), menaLocalizationNotes:(get('menaLocalizationNotes')||'').toString(),
+          executionScope:(get('executionScope')||'').toString(), proofNotes:(get('proofNotes')||'').toString(),
+          reviewSources:(get('reviewSources')||'').toString(), reviewSummary:(get('reviewSummary')||'').toString(),
+          arrEstimate:(get('arrEstimate')||'').toString(), entryPrice:(get('entryPrice')||'').toString(),
+          pricingModel:(get('pricingModel')||'').toString(), positioningClaim:(get('positioningClaim')||'').toString(),
+          competitiveVerdict:(get('competitiveVerdict')||'').toString(), featuresNotes:(get('featuresNotes')||'').toString(),
+          notes:(get('notes')||'').toString(),
+          status: matchInList(['Operational','Inactive','Unknown'],get('status'))||'Unknown',
+          verified: isTruthy(get('verified')), lastCheckedAt:null,
+          dialects: splitList(get('dialects')), platformsCovered: splitList(get('platformsCovered')), labels: splitList(get('labels'))
+        });
+      }
+    }
+    if(!sawDataRows){showToast('No data rows found in file');ev.target.value='';return;}
+    if(!sawHeaderMatch){showToast('Could not find a Company column in the header row');ev.target.value='';return;}
+    if(!newCompetitors.length&&!touched.size){
+      showToast(skippedCount?`All ${skippedCount} row${skippedCount===1?'':'s'} matched existing competitors with nothing new to add`:'No valid rows found to import');
+      ev.target.value='';return;
+    }
+    for(const c of newCompetitors){ await createCompetitor(c); competitors.push(c); }
+    for(const c of touched){ await saveCompetitor(c); }
+    const parts=[];
+    if(newCompetitors.length)parts.push(`${newCompetitors.length} new`);
+    if(touched.size)parts.push(`${touched.size} existing updated`);
+    if(skippedCount)parts.push(`${skippedCount} skipped (no new info)`);
+    showToast(`Import: ${parts.join(', ')||'nothing to do'}`);
+  }catch(e){ console.error(e); showToast('Import failed: '+e.message); }
+  finally{ hideImportLoading(); }
+  ev.target.value='';
+  renderCompetitors();
+}
+
 function exportRecords(fmt){
   const recs=activeRecords();
   if(!recs.length){showToast('Nothing to export in this view');return;}
