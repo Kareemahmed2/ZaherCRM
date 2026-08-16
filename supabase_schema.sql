@@ -710,6 +710,15 @@ create table if not exists competitors (
   "lastCheckedAt"   timestamptz,
   notes             text,
   labels            jsonb not null default '[]'::jsonb,
+  "radarArabicCitation"  smallint check ("radarArabicCitation" between 0 and 10),
+  "radarContentDepth"    smallint check ("radarContentDepth" between 0 and 10),
+  "radarDialectCoverage" smallint check ("radarDialectCoverage" between 0 and 10),
+  "radarSovereignModels" smallint check ("radarSovereignModels" between 0 and 10),
+  "radarSurfaceCoverage" smallint check ("radarSurfaceCoverage" between 0 and 10),
+  "radarTechnicalGeo"    smallint check ("radarTechnicalGeo" between 0 and 10),
+  "radarAdoptionAccess"  smallint check ("radarAdoptionAccess" between 0 and 10),
+  "radarProvenOutcomes"  smallint check ("radarProvenOutcomes" between 0 and 10),
+  "radarScoredAt"   timestamptz,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
@@ -870,3 +879,18 @@ alter table competitors add column if not exists "arrEstimate" text;
 alter table competitors add column if not exists "pricingModel" text;
 alter table competitors add column if not exists "entryPrice" text;
 alter table competitors add column if not exists "positioningClaim" text;
+
+-- Radar chart scores (2026-08-16) — 8 axes, each a 0-10 research score, plus when they were
+-- last scored. Deliberately no default: an un-researched axis (e.g. radarArabicCitation isn't
+-- desk-researchable for most competitors) must read as null, not 0 — a stored 0 would misreport
+-- "scored zero" instead of "not yet scored". Same backfill-onto-live-table reasoning as above;
+-- also inline in the `create table` for fresh installs.
+alter table competitors add column if not exists "radarArabicCitation" smallint check ("radarArabicCitation" between 0 and 10);
+alter table competitors add column if not exists "radarContentDepth" smallint check ("radarContentDepth" between 0 and 10);
+alter table competitors add column if not exists "radarDialectCoverage" smallint check ("radarDialectCoverage" between 0 and 10);
+alter table competitors add column if not exists "radarSovereignModels" smallint check ("radarSovereignModels" between 0 and 10);
+alter table competitors add column if not exists "radarSurfaceCoverage" smallint check ("radarSurfaceCoverage" between 0 and 10);
+alter table competitors add column if not exists "radarTechnicalGeo" smallint check ("radarTechnicalGeo" between 0 and 10);
+alter table competitors add column if not exists "radarAdoptionAccess" smallint check ("radarAdoptionAccess" between 0 and 10);
+alter table competitors add column if not exists "radarProvenOutcomes" smallint check ("radarProvenOutcomes" between 0 and 10);
+alter table competitors add column if not exists "radarScoredAt" timestamptz;

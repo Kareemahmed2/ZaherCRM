@@ -1482,21 +1482,34 @@ async function loadCompetitorSignals(){
   competitorSignals = data || [];
   nextSignalId = Math.max(100, ...competitorSignals.map(s=>s.id||0));
 }
-async function saveCompetitor(c){
+// Every real column on the competitors table — used to strip any non-column key (e.g. a
+// future client-only field) off the object before it's sent to PostgREST. Without this, one
+// stray key makes the whole request fail with PGRST204 and takes the entire row down with it.
+const COMPETITOR_COLUMNS=['company','website','newsUrl','competitorType','deliveryModel','threatLevel','sovereignModelCoverage',
+  'arabicDepthNotes','dialects','platformsCovered','menaLocalizationNotes','competitiveVerdict','featuresNotes','executionScope',
+  'proofNotes','reviewSources','reviewSummary','arrEstimate','pricingModel','entryPrice','positioningClaim','status','verified',
+  'lastCheckedAt','notes','labels','radarArabicCitation','radarContentDepth','radarDialectCoverage','radarSovereignModels',
+  'radarSurfaceCoverage','radarTechnicalGeo','radarAdoptionAccess','radarProvenOutcomes','radarScoredAt','created_at','updated_at'];
+function pickCompetitorColumns(c){
+  const out={};
+  COMPETITOR_COLUMNS.forEach(k=>{ if(c[k]!==undefined) out[k]=c[k]; });
+  return out;
+}
+// silent suppresses the per-row toast — used by the bulk importer, which reports one summary
+// toast at the end instead of one per row (see handleCompetitorImportFile).
+async function saveCompetitor(c,silent){
   c.updated_at = new Date().toISOString();
   if(!sb) return true;
-  const {id, ...payload} = c;
-  const {error} = await sb.from('competitors').update(payload).eq('id', id);
-  if(error){ console.error(error); showToast('Sync failed — change kept locally only'); return false; }
+  const {error} = await sb.from('competitors').update(pickCompetitorColumns(c)).eq('id', c.id);
+  if(error){ console.error(error); if(!silent) showToast('Sync failed — change kept locally only'); return false; }
   return true;
 }
-async function createCompetitor(c){
+async function createCompetitor(c,silent){
   c.updated_at = new Date().toISOString();
   c.created_at = c.updated_at;
   if(!sb){ c.id = ++nextCompetitorId; return true; }
-  const {id, ...payload} = c;
-  const {data, error} = await sb.from('competitors').insert(payload).select().single();
-  if(error){ console.error(error); showToast('Sync failed — competitor kept locally only'); c.id = ++nextCompetitorId; return false; }
+  const {data, error} = await sb.from('competitors').insert(pickCompetitorColumns(c)).select().single();
+  if(error){ console.error(error); if(!silent) showToast('Sync failed — competitor kept locally only'); c.id = ++nextCompetitorId; return false; }
   c.id = data.id;
   return true;
 }
@@ -3200,11 +3213,19 @@ async function handleImportFile(ev){
 // Competitor import — same file-reading/blank-cell-normalizing approach as handleImportFile
 // above, but scoped down since competitors are a flat directory (own `competitors` array,
 // own createCompetitor/saveCompetitor) rather than a pipeline: no members/stage/portfolio
-// concept, and no undo bar (that's wired to `records`+TABLE_BY_PIPELINE specifically).
+// concept. Runs in OVERWRITE mode: any non-blank cell replaces the stored value (this file is
+// the product of a fresh research pass per row), a blank/placeholder cell means "not
+// researched this pass" and leaves the field alone. Because overwrite is destructive, existing
+// rows are gated behind a confirm() before anything is written (see below) — the closest thing
+// to an undo bar without wiring one against `records`+TABLE_BY_PIPELINE, which this isn't.
 const IMPORT_FIELD_MAP_COMPETITORS={
   company:['company','name','competitor','competitor name'],
   website:['website','url'],
-  competitorType:['type','competitor type','competitortype','relationship type'],
+  // 'relationship type' deliberately isn't an alias here: `relationship` (Direct/Indirect,
+  // exported by exportCompetitors) is derived from competitorType by competitorRelationship(),
+  // not the same axis — feeding "Direct"/"Indirect" through would fail the enum match and, on
+  // a new row, silently fall back to competitorType's MENA/Regional default.
+  competitorType:['type','competitor type','competitortype'],
   deliveryModel:['delivery model','deliverymodel','delivery'],
   threatLevel:['threat','threat level','threatlevel'],
   sovereignModelCoverage:['sovereign','sovereign coverage','sovereign model coverage','sovereignmodelcoverage','jais/falcon'],
@@ -3226,7 +3247,17 @@ const IMPORT_FIELD_MAP_COMPETITORS={
   notes:['notes'],
   dialects:['dialects'],
   platformsCovered:['platforms covered','platformscovered','platforms'],
-  labels:['labels','label']
+  labels:['labels','label'],
+  lastCheckedAt:['last checked','lastcheckedat','last checked at'],
+  radarArabicCitation:['radararabiccitation','radar arabic citation'],
+  radarContentDepth:['radarcontentdepth','radar content depth'],
+  radarDialectCoverage:['radardialectcoverage','radar dialect coverage'],
+  radarSovereignModels:['radarsovereignmodels','radar sovereign models'],
+  radarSurfaceCoverage:['radarsurfacecoverage','radar surface coverage'],
+  radarTechnicalGeo:['radartechnicalgeo','radar technical geo'],
+  radarAdoptionAccess:['radaradoptionaccess','radar adoption access'],
+  radarProvenOutcomes:['radarprovenoutcomes','radar proven outcomes'],
+  radarScoredAt:['radarscoredat','radar scored at']
 };
 function mapCompetitorHeaders(headerRow){
   const norm=h=>(h==null?'':h.toString()).trim().toLowerCase();
@@ -3239,6 +3270,59 @@ function mapCompetitorHeaders(headerRow){
   });
   return idx;
 }
+// These six columns are Postgres CHECK constraints (see supabase_schema.sql) — validated here
+// with an exact, case-sensitive, trimmed match against the literal allowed values, mirroring
+// the DB exactly, rather than the shared matchInList() (kept as-is; it's deliberately
+// fuzzy/case-insensitive with a substring fallback for the pipeline importer, and this doesn't
+// change that globally). A close-but-wrong value like "Managed service" (wrong case) must be
+// caught here as unrecognised, not silently passed through only to fail the DB write later
+// with no explanation the user can see. Returns undefined for a blank cell (field left
+// untouched), null for a non-blank value that matched nothing (unrecognised — reported in the
+// completion toast, field still left untouched), or the exact matched string.
+const COMPETITOR_ENUM_VALUES={
+  competitorType:['MENA/Regional','Generic/International'],
+  deliveryModel:['Self-serve SaaS','Managed Service','Consulting','Suite Add-on'],
+  threatLevel:['High','Medium','Low'],
+  sovereignModelCoverage:['Yes','No','Unverified'],
+  executionScope:['Monitoring only','Monitoring + Execution'],
+  status:['Operational','Inactive','Unknown']
+};
+function matchCompetitorEnum(field,raw){
+  if(raw===undefined)return undefined;
+  const s=(''+raw).trim();
+  return COMPETITOR_ENUM_VALUES[field].includes(s)?s:null;
+}
+// Widened truthy/falsy sets (a checkmark or "Verified" should count) with an explicit
+// unrecognised outcome (null) — the old version treated anything not yes/true/1 as false,
+// which meant an unrecognised token like "✓" silently flipped an already-verified competitor
+// back to unverified instead of being reported.
+function matchCompetitorBool(raw){
+  if(raw===undefined)return undefined;
+  const s=(''+raw).trim().toLowerCase();
+  if(['yes','true','1','y','✓','verified'].includes(s))return true;
+  if(['no','false','0','n','✗','unverified'].includes(s))return false;
+  return null;
+}
+// 0-10 research score. Blank stays untouched (undefined); a non-numeric cell is unrecognised
+// (null — reported, field left untouched) — never coerced to 0, since 0 is a real "scored
+// zero" value and several axes (e.g. radarArabicCitation) are legitimately blank for most rows.
+function parseRadarScore(raw){
+  if(raw===undefined)return undefined;
+  const n=Number(raw);
+  if(isNaN(n))return null;
+  return Math.max(0,Math.min(10,Math.round(n)));
+}
+// undefined = blank cell; null = a value was provided but isn't a parseable date (unrecognised).
+function parseCompetitorDate(raw){
+  if(raw===undefined)return undefined;
+  const d=new Date(raw);
+  return isNaN(d)?null:d.toISOString();
+}
+const COMPETITOR_STRING_FIELDS=['website','newsUrl','arabicDepthNotes','menaLocalizationNotes','proofNotes','reviewSources',
+  'reviewSummary','arrEstimate','entryPrice','pricingModel','positioningClaim','competitiveVerdict','featuresNotes','notes'];
+const COMPETITOR_ENUM_FIELDS=['competitorType','deliveryModel','threatLevel','sovereignModelCoverage','executionScope','status'];
+const COMPETITOR_RADAR_FIELDS=['radarArabicCitation','radarContentDepth','radarDialectCoverage','radarSovereignModels',
+  'radarSurfaceCoverage','radarTechnicalGeo','radarAdoptionAccess','radarProvenOutcomes'];
 async function handleCompetitorImportFile(ev){
   const file=ev.target.files[0]; if(!file)return;
   showImportLoading();
@@ -3246,9 +3330,11 @@ async function handleCompetitorImportFile(ev){
     const buf=await file.arrayBuffer();
     const wb=XLSX.read(buf,{type:'array'});
     const newCompetitors=[];
-    const touched=new Set();
-    let skippedCount=0;
+    const pendingByRecord=new Map(); // existing competitor object -> accumulated field changes, not yet applied
+    let skippedCount=0, unrecognisedCount=0;
     let sawDataRows=false, sawHeaderMatch=false;
+    const warn=(company,field,raw)=>{ unrecognisedCount++; console.warn(`Competitor import: unrecognised value for "${field}" on "${company}": ${JSON.stringify(raw)}`); };
+
     for(const sheetName of wb.SheetNames){
       const sheet=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
@@ -3270,68 +3356,151 @@ async function handleCompetitorImportFile(ev){
           return v;
         };
         const company=(get('company')||'').toString().trim(); if(!company)continue;
-        const splitList=v=>v===undefined?[]:(''+v).split(/[;,]/).map(s=>s.trim()).filter(Boolean);
-        const isTruthy=v=>/^(yes|true|1)$/i.test((''+(v||'')).trim());
+        // Splits on ';' or '|' only — both the CRM's own export and hand-authored sheets join
+        // lists with '; ', and a comma legitimately appears inside a single list item (a label
+        // like "acquired, repackaged", a platform like "Claude (custom prompts, API)").
+        const splitList=v=>v===undefined?[]:(''+v).split(/[;|]/).map(s=>s.trim()).filter(Boolean);
 
-        const existing=competitors.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase())
-          || newCompetitors.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase());
+        const existing=competitors.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase());
+        const newlyBuilt=!existing&&newCompetitors.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase());
+
         if(existing){
-          // Overwrite mode, not fill-blank: this file is the product of a fresh research pass
-          // per row, so any field the row actually provides replaces whatever was there before
-          // (including flipping verified back to false, and replacing dialects/platforms/labels
-          // outright rather than merging). A field is only left untouched when the cell itself
-          // is blank/placeholder — get() already normalizes those to undefined — since a blank
-          // cell means "not researched this pass", not "clear this field".
-          const setStr=(field,raw)=>{ if(raw!==undefined&&(''+raw).trim()!==''){ existing[field]=(''+raw).toString(); return true; } return false; };
-          let changed=false;
-          ['website','newsUrl','deliveryModel','arabicDepthNotes','menaLocalizationNotes','executionScope','proofNotes','reviewSources','reviewSummary','arrEstimate','entryPrice','pricingModel','positioningClaim','competitiveVerdict','featuresNotes','notes'].forEach(f=>{ changed=setStr(f,get(f))||changed; });
-          const matchedType=matchInList(['MENA/Regional','Generic/International'],get('competitorType'));
-          if(matchedType){ existing.competitorType=matchedType; changed=true; }
-          const matchedThreat=matchInList(['High','Medium','Low'],get('threatLevel'));
-          if(matchedThreat){ existing.threatLevel=matchedThreat; changed=true; }
-          const matchedSovereign=matchInList(['Yes','No','Unverified'],get('sovereignModelCoverage'));
-          if(matchedSovereign){ existing.sovereignModelCoverage=matchedSovereign; changed=true; }
-          const matchedStatus=matchInList(['Operational','Inactive','Unknown'],get('status'));
-          if(matchedStatus){ existing.status=matchedStatus; changed=true; }
-          if(get('verified')!==undefined){ existing.verified=isTruthy(get('verified')); changed=true; }
-          ['dialects','platformsCovered','labels'].forEach(f=>{
-            const list=splitList(get(f));
-            if(list.length){ existing[f]=list; changed=true; }
-          });
-          if(changed) touched.add(existing); else skippedCount++;
+          // Existing rows aren't mutated here — changes accumulate in pendingByRecord and are
+          // only applied/persisted after the user confirms the overwrite, further down, so
+          // nothing destructive happens before that gate.
+          let changes=pendingByRecord.get(existing);
+          if(!changes){ changes={}; pendingByRecord.set(existing,changes); }
+          COMPETITOR_STRING_FIELDS.forEach(f=>{ const raw=get(f); if(raw!==undefined&&(''+raw).trim()!==''){ changes[f]=(''+raw).toString(); } });
+          COMPETITOR_ENUM_FIELDS.forEach(f=>{ const m=matchCompetitorEnum(f,get(f)); if(m===null) warn(company,f,get(f)); else if(m!==undefined) changes[f]=m; });
+          const vb=matchCompetitorBool(get('verified')); if(vb===null) warn(company,'verified',get('verified')); else if(vb!==undefined) changes.verified=vb;
+          ['dialects','platformsCovered','labels'].forEach(f=>{ const list=splitList(get(f)); if(list.length) changes[f]=list; });
+          COMPETITOR_RADAR_FIELDS.forEach(f=>{ const raw=get(f); if(raw===undefined)return; const v=parseRadarScore(raw); if(v===null) warn(company,f,raw); else changes[f]=v; });
+          const lc=get('lastCheckedAt'); if(lc!==undefined){ const d=parseCompetitorDate(lc); if(d===null) warn(company,'lastCheckedAt',lc); else changes.lastCheckedAt=d; }
+          const rsa=get('radarScoredAt'); if(rsa!==undefined){ const d=parseCompetitorDate(rsa); if(d===null) warn(company,'radarScoredAt',rsa); else changes.radarScoredAt=d; }
           continue;
         }
 
-        newCompetitors.push({
+        if(newlyBuilt){
+          // A second row for the same brand-new company later in this same file — same
+          // overwrite semantics, applied directly since nothing's persisted yet.
+          COMPETITOR_STRING_FIELDS.forEach(f=>{ const raw=get(f); if(raw!==undefined&&(''+raw).trim()!==''){ newlyBuilt[f]=(''+raw).toString(); } });
+          COMPETITOR_ENUM_FIELDS.forEach(f=>{ const m=matchCompetitorEnum(f,get(f)); if(m===null) warn(company,f,get(f)); else if(m!==undefined) newlyBuilt[f]=m; });
+          const vb=matchCompetitorBool(get('verified')); if(vb===null) warn(company,'verified',get('verified')); else if(vb!==undefined) newlyBuilt.verified=vb;
+          ['dialects','platformsCovered','labels'].forEach(f=>{ const list=splitList(get(f)); if(list.length) newlyBuilt[f]=list; });
+          COMPETITOR_RADAR_FIELDS.forEach(f=>{ const raw=get(f); if(raw===undefined)return; const v=parseRadarScore(raw); if(v===null) warn(company,f,raw); else newlyBuilt[f]=v; });
+          const lc=get('lastCheckedAt'); if(lc!==undefined){ const d=parseCompetitorDate(lc); if(d===null) warn(company,'lastCheckedAt',lc); else newlyBuilt.lastCheckedAt=d; }
+          const rsa=get('radarScoredAt'); if(rsa!==undefined){ const d=parseCompetitorDate(rsa); if(d===null) warn(company,'radarScoredAt',rsa); else newlyBuilt.radarScoredAt=d; }
+          continue;
+        }
+
+        const mCompetitorType=matchCompetitorEnum('competitorType',get('competitorType'));
+        const mDeliveryModel=matchCompetitorEnum('deliveryModel',get('deliveryModel'));
+        const mThreatLevel=matchCompetitorEnum('threatLevel',get('threatLevel'));
+        const mSovereign=matchCompetitorEnum('sovereignModelCoverage',get('sovereignModelCoverage'));
+        const mExecutionScope=matchCompetitorEnum('executionScope',get('executionScope'));
+        const mStatus=matchCompetitorEnum('status',get('status'));
+        const mVerified=matchCompetitorBool(get('verified'));
+        [['competitorType',mCompetitorType],['deliveryModel',mDeliveryModel],['threatLevel',mThreatLevel],
+         ['sovereignModelCoverage',mSovereign],['executionScope',mExecutionScope],['status',mStatus],['verified',mVerified]]
+          .forEach(([f,m])=>{ if(m===null) warn(company,f,get(f)); });
+        const lcRaw=get('lastCheckedAt'); const lcParsed=parseCompetitorDate(lcRaw);
+        if(lcParsed===null) warn(company,'lastCheckedAt',lcRaw);
+
+        const c={
           company, website:(get('website')||'').toString(), newsUrl:(get('newsUrl')||'').toString(),
-          competitorType: matchInList(['MENA/Regional','Generic/International'],get('competitorType'))||'MENA/Regional',
-          deliveryModel:(get('deliveryModel')||'').toString(), threatLevel: matchInList(['High','Medium','Low'],get('threatLevel')),
-          sovereignModelCoverage: matchInList(['Yes','No','Unverified'],get('sovereignModelCoverage'))||'No',
+          competitorType: mCompetitorType||'MENA/Regional',
+          deliveryModel: mDeliveryModel||null,
+          threatLevel: mThreatLevel||null,
+          sovereignModelCoverage: mSovereign||'No',
           arabicDepthNotes:(get('arabicDepthNotes')||'').toString(), menaLocalizationNotes:(get('menaLocalizationNotes')||'').toString(),
-          executionScope:(get('executionScope')||'').toString(), proofNotes:(get('proofNotes')||'').toString(),
+          executionScope: mExecutionScope||null,
+          proofNotes:(get('proofNotes')||'').toString(),
           reviewSources:(get('reviewSources')||'').toString(), reviewSummary:(get('reviewSummary')||'').toString(),
           arrEstimate:(get('arrEstimate')||'').toString(), entryPrice:(get('entryPrice')||'').toString(),
           pricingModel:(get('pricingModel')||'').toString(), positioningClaim:(get('positioningClaim')||'').toString(),
           competitiveVerdict:(get('competitiveVerdict')||'').toString(), featuresNotes:(get('featuresNotes')||'').toString(),
           notes:(get('notes')||'').toString(),
-          status: matchInList(['Operational','Inactive','Unknown'],get('status'))||'Unknown',
-          verified: isTruthy(get('verified')), lastCheckedAt:null,
+          status: mStatus||'Unknown',
+          verified: mVerified||false,
+          // A CSV import is itself a research/confirmation event, so a row with no explicit
+          // lastCheckedAt still gets "now" rather than staying null forever (unlike existing
+          // rows, which only get bumped if something else about them changed — see below).
+          lastCheckedAt: lcParsed||new Date().toISOString(),
           dialects: splitList(get('dialects')), platformsCovered: splitList(get('platformsCovered')), labels: splitList(get('labels'))
-        });
+        };
+        COMPETITOR_RADAR_FIELDS.forEach(f=>{ const raw=get(f); if(raw===undefined)return; const v=parseRadarScore(raw); if(v===null) warn(company,f,raw); else c[f]=v; });
+        const rsaNew=get('radarScoredAt'); if(rsaNew!==undefined){ const d=parseCompetitorDate(rsaNew); if(d===null) warn(company,'radarScoredAt',rsaNew); else c.radarScoredAt=d; }
+        newCompetitors.push(c);
       }
     }
     if(!sawDataRows){showToast('No data rows found in file');ev.target.value='';return;}
     if(!sawHeaderMatch){showToast('Could not find a Company column in the header row');ev.target.value='';return;}
-    if(!newCompetitors.length&&!touched.size){
-      showToast(skippedCount?`All ${skippedCount} row${skippedCount===1?'':'s'} matched existing competitors with nothing new to add`:'No valid rows found to import');
+
+    // Any existing row that's otherwise touched gets lastCheckedAt bumped to now if the file
+    // didn't supply one — a CSV import is by definition a fresh research pass. A row with
+    // literally no non-blank, recognised cell beyond company is a genuine no-op and stays
+    // skipped rather than being force-touched just to update a timestamp.
+    const touchedList=[];
+    for(const [existing,changes] of pendingByRecord){
+      if(!Object.keys(changes).length){ skippedCount++; continue; }
+      if(changes.lastCheckedAt===undefined) changes.lastCheckedAt=new Date().toISOString();
+      touchedList.push({existing,changes});
+    }
+
+    if(!newCompetitors.length&&!touchedList.length){
+      showToast(unrecognisedCount?`No valid changes found — ${unrecognisedCount} cell${unrecognisedCount===1?'':'s'} had unrecognised values`
+        :(skippedCount?`All ${skippedCount} row${skippedCount===1?'':'s'} matched existing competitors with nothing new to add`:'No valid rows found to import'));
       ev.target.value='';return;
     }
-    for(const c of newCompetitors){ await createCompetitor(c); competitors.push(c); }
-    for(const c of touched){ await saveCompetitor(c); }
+
+    // Overwrite is destructive — confirm before writing anything, naming the count and a few
+    // affected companies. New rows aren't destructive (nothing existing to lose), so they don't
+    // gate this; only existing-row changes do.
+    if(touchedList.length){
+      const names=touchedList.slice(0,3).map(t=>t.existing.company).join(', ');
+      const more=touchedList.length>3?` and ${touchedList.length-3} more`:'';
+      if(!confirm(`This will overwrite fields on ${touchedList.length} existing competitor${touchedList.length===1?'':'s'} (${names}${more}). Continue?`)){
+        showToast('Import cancelled'); ev.target.value=''; return;
+      }
+    }
+
+    let insertedOk=0, insertFailed=0, updatedOk=0, updatedFailed=0;
+    if(newCompetitors.length){
+      if(!sb){
+        newCompetitors.forEach(c=>{ c.id=++nextCompetitorId; competitors.push(c); });
+        insertedOk=newCompetitors.length;
+      } else {
+        // Single batched insert (mirrors handleImportFile's own pipeline-record insert above)
+        // instead of one createCompetitor() round trip per row. Every row was already validated
+        // against the same enum/range rules the DB enforces, so this should only fail on
+        // something client-side validation can't see (network, RLS, a genuine race on the
+        // unique company constraint) — in which case none of these rows synced, so none are
+        // pushed into `competitors`, and the failure is reported rather than shown as success.
+        const payloads=newCompetitors.map(c=>{ c.updated_at=new Date().toISOString(); c.created_at=c.updated_at; return pickCompetitorColumns(c); });
+        const {data,error}=await sb.from('competitors').insert(payloads).select();
+        if(error){
+          console.error(error); insertFailed=newCompetitors.length;
+        } else {
+          data.forEach((row,i)=>{ newCompetitors[i].id=row.id; competitors.push(newCompetitors[i]); });
+          insertedOk=data.length;
+        }
+      }
+    }
+    // Updates stay per-row (unlike the batched insert above) so one bad row's failure doesn't
+    // get misreported against every other legitimately-updated competitor in the same file.
+    for(const {existing,changes} of touchedList){
+      Object.assign(existing,changes);
+      const ok=await saveCompetitor(existing,true);
+      if(ok) updatedOk++; else updatedFailed++;
+    }
+
     const parts=[];
-    if(newCompetitors.length)parts.push(`${newCompetitors.length} new`);
-    if(touched.size)parts.push(`${touched.size} existing updated`);
+    if(insertedOk)parts.push(`${insertedOk} new`);
+    if(insertFailed)parts.push(`${insertFailed} failed to sync (see console)`);
+    if(updatedOk)parts.push(`${updatedOk} existing updated`);
+    if(updatedFailed)parts.push(`${updatedFailed} updates failed to sync (see console)`);
     if(skippedCount)parts.push(`${skippedCount} skipped (no new info)`);
+    if(unrecognisedCount)parts.push(`${unrecognisedCount} cell${unrecognisedCount===1?'':'s'} had unrecognised values and were skipped`);
     showToast(`Import: ${parts.join(', ')||'nothing to do'}`);
   }catch(e){ console.error(e); showToast('Import failed: '+e.message); }
   finally{ hideImportLoading(); }
@@ -3381,6 +3550,12 @@ function exportCompetitors(fmt){
     arrEstimate:c.arrEstimate||'', entryPrice:c.entryPrice||'', pricingModel:c.pricingModel||'', positioningClaim:c.positioningClaim||'',
     competitiveVerdict:c.competitiveVerdict||'', featuresNotes:c.featuresNotes||'', notes:c.notes||'',
     dialects:(c.dialects||[]).join('; '), platformsCovered:(c.platformsCovered||[]).join('; '), labels:(c.labels||[]).join('; '),
+    // ?? not || : a real score of 0 must round-trip as 0, not get flattened to blank like a
+    // genuinely unscored (null) axis — see the radar column comments in supabase_schema.sql.
+    radarArabicCitation:c.radarArabicCitation??'', radarContentDepth:c.radarContentDepth??'', radarDialectCoverage:c.radarDialectCoverage??'',
+    radarSovereignModels:c.radarSovereignModels??'', radarSurfaceCoverage:c.radarSurfaceCoverage??'', radarTechnicalGeo:c.radarTechnicalGeo??'',
+    radarAdoptionAccess:c.radarAdoptionAccess??'', radarProvenOutcomes:c.radarProvenOutcomes??'',
+    radarScoredAt:c.radarScoredAt?fmtTs(c.radarScoredAt):'',
     date_entered:fmtTs(c.created_at), date_modified:fmtTs(c.updated_at)
   }));
   const ws=XLSX.utils.json_to_sheet(rows);
