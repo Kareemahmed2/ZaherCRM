@@ -1252,9 +1252,13 @@ const avcHex=id=>AVC_HEX[avc(id)];
 // deterministic hash into PALETTE, so it still gets a stable color without a code change.
 const EVENT_TYPE_COLOR={'Webinar':'#378ADD','Trade Show':'#854F0B','Product Demo':'#639922','1-on-1 Meeting':'#7F77DD','Conference':'#0E7474'};
 const FORMAT_COLOR={'Virtual':'#378ADD','In-Person':'#639922'};
+const REGION_COLOR={'Egypt':'#639922','Outside Egypt':'#EF9F27'};
 function strHashIdx(s,len){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; return Math.abs(h)%len; }
 function eventTypeColor(t){ if(!t) return '#888780'; return EVENT_TYPE_COLOR[t]||PALETTE[strHashIdx(t,PALETTE.length)]; }
 function calEventColor(r){ return state.calColorMode==='format'?(FORMAT_COLOR[r.format]||'#888780'):eventTypeColor(r.eventType); }
+// Standard colored-pill treatment (background:${c}1F / color:${c}) matching
+// stagePill/competitorPill/catChip elsewhere, for events' Egypt vs Outside Egypt field.
+function regionPill(v){ const c=REGION_COLOR[v]||'#888780'; return `<span class="chip" style="background:${c}1F;color:${c};">${escHtml(v||'—')}</span>`; }
 function setCalColorMode(mode){ if(state.calColorMode===mode)return; state.calColorMode=mode; renderPipeline(); }
 // Both format the sign separately (rather than letting it ride along inside the number) so a
 // negative value reads as "-$500", not "$-500" — v>=1000 etc. all short-circuit on a negative
@@ -2103,7 +2107,7 @@ function buildCard(r){
   else if(isP2()) extra=`<div style="margin-bottom:8px;">${catChip(r.category)}</div>`;
   else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment)}</span>`:''}${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.nextStep)}</span>`:''}</div>`;
   else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${escHtml(r.fundSize||'')} · ${escHtml(r.thesis||'')}</div>`;
-  else if(state.pipeline==='events') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${r.eventType?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.eventType)}</span>`:''}${r.format?`<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format)}</span>`:''}</div>`;
+  else if(state.pipeline==='events') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${r.eventType?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.eventType)}</span>`:''}${r.format?`<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format)}</span>`:''}${regionPill(r.outsideEgypt||'Egypt')}</div>`;
   const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:state.pipeline==='events'?`<div class="k-card-value" style="font-size:12px;">${fmtDateTime(r.startAt,r.timezone)}</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
   const pm=primaryMember(r);
   const cardPrimary=escHtml(r.company);
@@ -2251,7 +2255,7 @@ function filterFieldsFor(p){
     return fields;
   }
   if(p==='customers') return [{key:'sector',label:'Sector'},{key:'segment',label:'Segment'},{key:'leadSource',label:'Lead source'},{key:'stage',label:'Stage'},{key:'labels',label:'Label'}];
-  if(p==='events') return [{key:'eventType',label:'Event type'},{key:'format',label:'Format'},{key:'timezone',label:'Timezone'},{key:'stage',label:'Status'},{key:'labels',label:'Label'}];
+  if(p==='events') return [{key:'eventType',label:'Event type'},{key:'format',label:'Format'},{key:'outsideEgypt',label:'Region'},{key:'timezone',label:'Timezone'},{key:'stage',label:'Status'},{key:'labels',label:'Label'}];
   return [{key:'thesis',label:'Thesis'},{key:'fundSize',label:'Fund size'},{key:'stage',label:'Stage'},{key:'source',label:'Source'},{key:'labels',label:'Label'}];
 }
 function toggleFilterPanel(id){ document.getElementById(id).classList.toggle('open'); }
@@ -2588,12 +2592,13 @@ function renderDirectory(){
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else if(state.pipeline==='events'){
-    head=sortableHead(['Title','Type','Format','Location','Start','End','Timezone','Status','Added','Updated']);
-    sortKeys=[r=>r.company||'',r=>r.eventType||'',r=>r.format||'',r=>(r.format==='In-Person'?(r.venueName||r.address||''):(r.meetingUrl||'')),r=>r.startAt||'',r=>r.endAt||'',r=>r.timezone||'',r=>r.stage||'',r=>r.created_at||'',r=>r.updated_at||''];
+    head=sortableHead(['Title','Type','Format','Region','Location','Start','End','Timezone','Status','Added','Updated']);
+    sortKeys=[r=>r.company||'',r=>r.eventType||'',r=>r.format||'',r=>r.outsideEgypt||'',r=>(r.format==='In-Person'?(r.venueName||r.address||''):(r.meetingUrl||'')),r=>r.startAt||'',r=>r.endAt||'',r=>r.timezone||'',r=>r.stage||'',r=>r.created_at||'',r=>r.updated_at||''];
     rowFn=r=>{ const loc=r.format==='In-Person'?(r.venueName||r.address||'—'):(r.meetingUrl||'Virtual');
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${escHtml(r.eventType||'—')}</td>
       <td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format||'—')}</span></td>
+      <td>${regionPill(r.outsideEgypt||'Egypt')}</td>
       <td style="font-size:12px;color:var(--gray-500);">${r.format==='In-Person'?escHtml(loc):(linkHtml(loc)||'—')}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.startAt,r.timezone)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtDateTime(r.endAt,r.timezone)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.timezone||'—')}</td>
@@ -2859,7 +2864,7 @@ const IMPORT_FIELD_MAP_EXTRA={
   investors:{fundSize:['fund size','fundsize'], thesis:['thesis'], website:['website']},
   events:{eventType:['event type','eventtype','type'], description:['description'],
     startAt:['start','start date','start time','startat'], endAt:['end','end date','end time','endat'],
-    timezone:['timezone','time zone'], format:['format'],
+    timezone:['timezone','time zone'], format:['format'], outsideEgypt:['region','outside egypt','outsideegypt','egypt'],
     meetingUrl:['meeting url','meetingurl','meeting link','url'], meetingPasscode:['meeting passcode','passcode'], dialIn:['dial in','dial-in','dialin'],
     venueName:['venue','venue name','venuename'], address:['address'], mapUrl:['map url','map link','mapurl','coordinates'], capacity:['capacity']}
 };
@@ -2919,7 +2924,7 @@ function importUndoSnapshot(pipeline,rec){
   const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes, tag:rec.tag, stage:rec.stage};
   if(pipeline==='partners') Object.assign(snap,{category:rec.category,model:rec.model,tier:rec.tier,score:rec.score,website:rec.website,region:rec.region,clients:rec.clients,workshops:rec.workshops,founders:rec.founders});
   else if(pipeline==='customers') Object.assign(snap,{sector:rec.sector,website:rec.website,package:rec.package,aiScore:rec.aiScore,leadSource:rec.leadSource,segment:rec.segment,nextStep:rec.nextStep,subscriptionPeriod:rec.subscriptionPeriod,subscriptionDate:rec.subscriptionDate});
-  else if(pipeline==='events') Object.assign(snap,{eventType:rec.eventType,description:rec.description,startAt:rec.startAt,endAt:rec.endAt,timezone:rec.timezone,format:rec.format,meetingUrl:rec.meetingUrl,meetingPasscode:rec.meetingPasscode,dialIn:rec.dialIn,venueName:rec.venueName,address:rec.address,mapUrl:rec.mapUrl,capacity:rec.capacity});
+  else if(pipeline==='events') Object.assign(snap,{eventType:rec.eventType,description:rec.description,startAt:rec.startAt,endAt:rec.endAt,timezone:rec.timezone,format:rec.format,outsideEgypt:rec.outsideEgypt,meetingUrl:rec.meetingUrl,meetingPasscode:rec.meetingPasscode,dialIn:rec.dialIn,venueName:rec.venueName,address:rec.address,mapUrl:rec.mapUrl,capacity:rec.capacity});
   else Object.assign(snap,{fundSize:rec.fundSize,thesis:rec.thesis,website:rec.website});
   return snap;
 }
@@ -3096,6 +3101,8 @@ async function handleImportFile(ev){
           fieldsFilled=fillStr('endAt',get('endAt'))||fieldsFilled;
           fieldsFilled=fillStr('timezone',get('timezone'))||fieldsFilled;
           fieldsFilled=fillStr('format',get('format'))||fieldsFilled;
+          const matchedRegion=matchInList(['Egypt','Outside Egypt'],get('outsideEgypt'));
+          if(matchedRegion&&existing.outsideEgypt!=='Outside Egypt'){ existing.outsideEgypt=matchedRegion; fieldsFilled=true; }
           fieldsFilled=fillStr('meetingUrl',get('meetingUrl'))||fieldsFilled;
           fieldsFilled=fillStr('meetingPasscode',get('meetingPasscode'))||fieldsFilled;
           fieldsFilled=fillStr('dialIn',get('dialIn'))||fieldsFilled;
@@ -3162,6 +3169,7 @@ async function handleImportFile(ev){
         r.endAt=rawEnd?(isNaN(new Date(rawEnd))?null:new Date(rawEnd).toISOString()):null;
         r.timezone=(get('timezone')||'UTC').toString();
         r.format=matchInList(['Virtual','In-Person'],get('format'))||'Virtual';
+        r.outsideEgypt=matchInList(['Egypt','Outside Egypt'],get('outsideEgypt'))||'Egypt';
         r.meetingUrl=r.format==='Virtual'?(get('meetingUrl')||'').toString():'';
         r.meetingPasscode=r.format==='Virtual'?(get('meetingPasscode')||'').toString():'';
         r.dialIn=r.format==='Virtual'?(get('dialIn')||'').toString():'';
@@ -3519,7 +3527,7 @@ function exportRecords(fmt){
     subscriptionPeriod:r.subscriptionPeriod||'', subscriptionDate:r.subscriptionDate||'',
     members:(r.members||[]).map(m=>`${m.name}${m.title?' ('+m.title+')':''}${m.email?' <'+m.email+'>':''}`).join('; '),
     fundSize:r.fundSize||'', thesis:r.thesis||'',
-    eventType:r.eventType||'', description:r.description||'', startAt:r.startAt||'', endAt:r.endAt||'', timezone:r.timezone||'', format:r.format||'',
+    eventType:r.eventType||'', description:r.description||'', startAt:r.startAt||'', endAt:r.endAt||'', timezone:r.timezone||'', format:r.format||'', outsideEgypt:r.outsideEgypt||'',
     meetingUrl:r.meetingUrl||'', meetingPasscode:r.meetingPasscode||'', dialIn:r.dialIn||'',
     venueName:r.venueName||'', address:r.address||'', mapUrl:r.mapUrl||'', capacity:r.capacity!=null?r.capacity:'',
     'Reachout Priority':r.tag||'',
@@ -4295,7 +4303,7 @@ function renderDetail(){
     if(r.segment==='Enterprise')fields.push(['Subscription period',r.subscriptionPeriod||'—',false]);
     else if(r.segment==='SaaS')fields.push(['Subscription date',r.subscriptionDate||'—',false]);
   } else if(state.pipeline==='events'){
-    fields.push(['Format',r.format||'—',false],['Start',fmtDateTime(r.startAt,r.timezone),false],['End',fmtDateTime(r.endAt,r.timezone),false],['Timezone',r.timezone||'—',false]);
+    fields.push(['Format',r.format||'—',false],['Region',r.outsideEgypt||'Egypt',false],['Start',fmtDateTime(r.startAt,r.timezone),false],['End',fmtDateTime(r.endAt,r.timezone),false],['Timezone',r.timezone||'—',false]);
     if(r.format==='Virtual'){
       if(r.meetingUrl)fields.push(['Meeting link',r.meetingUrl,true]);
       fields.push(['Passcode',r.meetingPasscode||'—',false],['Dial-in',r.dialIn||'—',false]);
@@ -4449,13 +4457,15 @@ function extraFieldsHtml(p,r){
       <div class="form-group"><label class="form-label">Next step</label><select class="form-input" id="f-nextstep" onchange="handleNextStepChange(this)">${nextStepSelectHtml(r?r.nextStep:nextStepOptions[0])}</select></div>`;
   } else if(p==='events'){
     const format=r?(r.format||'Virtual'):'Virtual';
+    const outsideEgypt=r?(r.outsideEgypt||'Egypt'):'Egypt';
     const tz=r?(r.timezone||'Asia/Riyadh'):'Asia/Riyadh';
     return `<div class="form-group"><label class="form-label">Event type</label><select class="form-input" id="f-eventtype" onchange="handleEventTypeChange(this)">${eventTypeSelectHtml(r?r.eventType:eventTypeOptions[0])}</select></div>
       <div class="form-group"><label class="form-label">Description</label><textarea class="form-input" id="f-description" rows="2" placeholder="What's this event about...">${r?escHtml(r.description||''):''}</textarea></div>
       <div class="form-row"><div class="form-group"><label class="form-label">Start</label><input class="form-input" type="datetime-local" id="f-start" value="${r?toDatetimeLocal(r.startAt):''}"></div>
       <div class="form-group"><label class="form-label">End</label><input class="form-input" type="datetime-local" id="f-end" value="${r?toDatetimeLocal(r.endAt):''}"></div></div>
       <div class="form-group"><label class="form-label">Timezone</label><select class="form-input" id="f-timezone">${timezoneSelectHtml(tz)}</select></div>
-      <div class="form-group"><label class="form-label">Format</label><select class="form-input" id="f-format" onchange="toggleEventLocationFields(this.value)"><option value="Virtual" ${format==='Virtual'?'selected':''}>Virtual</option><option value="In-Person" ${format==='In-Person'?'selected':''}>In-Person</option></select></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Format</label><select class="form-input" id="f-format" onchange="toggleEventLocationFields(this.value)"><option value="Virtual" ${format==='Virtual'?'selected':''}>Virtual</option><option value="In-Person" ${format==='In-Person'?'selected':''}>In-Person</option></select></div>
+      <div class="form-group"><label class="form-label">Region</label><select class="form-input" id="f-outsideegypt"><option value="Egypt" ${outsideEgypt==='Egypt'?'selected':''}>Egypt</option><option value="Outside Egypt" ${outsideEgypt==='Outside Egypt'?'selected':''}>Outside Egypt</option></select></div></div>
       <div id="f-virtual-group" style="display:${format==='Virtual'?'':'none'};">
         <div class="form-row"><div class="form-group"><label class="form-label">Meeting URL</label><input class="form-input" id="f-meetingurl" placeholder="https://zoom.us/j/..." value="${escAttr(r?r.meetingUrl:'')}"></div>
         <div class="form-group"><label class="form-label">Passcode</label><input class="form-input" id="f-meetingpasscode" placeholder="123456" value="${escAttr(r?r.meetingPasscode:'')}"></div></div>
@@ -4560,6 +4570,7 @@ async function addRecord(){
     r.eventType=val('f-eventtype')||eventTypeOptions[0]||'';r.description=val('f-description');
     r.startAt=fromDatetimeLocal(val('f-start'));r.endAt=fromDatetimeLocal(val('f-end'));r.timezone=val('f-timezone')||'UTC';
     r.format=val('f-format')||'Virtual';
+    r.outsideEgypt=val('f-outsideegypt')||'Egypt';
     r.meetingUrl=r.format==='Virtual'?val('f-meetingurl'):'';r.meetingPasscode=r.format==='Virtual'?val('f-meetingpasscode'):'';r.dialIn=r.format==='Virtual'?val('f-dialin'):'';
     r.venueName=r.format==='In-Person'?val('f-venuename'):'';r.address=r.format==='In-Person'?val('f-address'):'';r.mapUrl=r.format==='In-Person'?val('f-mapurl'):'';
     r.capacity=r.format==='In-Person'&&val('f-capacity')!==''?Math.max(0,Number(val('f-capacity'))||0):null;
@@ -4588,6 +4599,7 @@ function saveEditedRecord(){
     r.eventType=val('f-eventtype')||r.eventType;r.description=val('f-description');
     r.startAt=fromDatetimeLocal(val('f-start'));r.endAt=fromDatetimeLocal(val('f-end'));r.timezone=val('f-timezone')||r.timezone;
     r.format=val('f-format')||r.format;
+    r.outsideEgypt=val('f-outsideegypt')||r.outsideEgypt;
     r.meetingUrl=r.format==='Virtual'?val('f-meetingurl'):'';r.meetingPasscode=r.format==='Virtual'?val('f-meetingpasscode'):'';r.dialIn=r.format==='Virtual'?val('f-dialin'):'';
     r.venueName=r.format==='In-Person'?val('f-venuename'):'';r.address=r.format==='In-Person'?val('f-address'):'';r.mapUrl=r.format==='In-Person'?val('f-mapurl'):'';
     r.capacity=r.format==='In-Person'&&val('f-capacity')!==''?Math.max(0,Number(val('f-capacity'))||0):null;
@@ -4880,7 +4892,7 @@ function snapshotRecord(r){
     if(r.referredBy){const p=records.find(x=>x.id===r.referredBy&&x.pipeline==='customers');o.referredBy=p?p.company:null;}
   }
   else if(r.pipeline==='events'){
-    o.title=r.company;o.eventType=r.eventType;o.description=(r.description||'').slice(0,140);o.startAt=r.startAt;o.endAt=r.endAt;o.timezone=r.timezone;o.format=r.format;
+    o.title=r.company;o.eventType=r.eventType;o.description=(r.description||'').slice(0,140);o.startAt=r.startAt;o.endAt=r.endAt;o.timezone=r.timezone;o.format=r.format;o.outsideEgypt=r.outsideEgypt;
     if(r.format==='Virtual'){o.meetingUrl=r.meetingUrl;o.dialIn=r.dialIn;}
     else {o.venueName=r.venueName;o.address=r.address;o.capacity=r.capacity;}
     delete o.members;

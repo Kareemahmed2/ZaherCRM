@@ -437,6 +437,7 @@ create table if not exists events (
   date             text,
   notes            text,
   activity         jsonb not null default '[]'::jsonb,
+  "outsideEgypt"   text not null default 'Egypt' check ("outsideEgypt" in ('Egypt','Outside Egypt')),
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
@@ -648,6 +649,12 @@ alter table partners add column if not exists labels jsonb not null default '[]'
 alter table customers add column if not exists labels jsonb not null default '[]'::jsonb;
 alter table investors add column if not exists labels jsonb not null default '[]'::jsonb;
 alter table events add column if not exists labels jsonb not null default '[]'::jsonb;
+
+-- Whether an event is inside or outside Egypt (2026-08-16) -- mirrors the format column
+-- (text + check constraint + a default) rather than a boolean, so it plugs into the existing
+-- generic filter/table/export machinery (which reads/displays raw field values) without any
+-- boolean-to-label special-casing.
+alter table events add column if not exists "outsideEgypt" text not null default 'Egypt' check ("outsideEgypt" in ('Egypt','Outside Egypt'));
 
 create table if not exists label_options (
   id         bigint generated always as identity primary key,
