@@ -3276,24 +3276,27 @@ async function handleCompetitorImportFile(ev){
         const existing=competitors.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase())
           || newCompetitors.find(x=>(x.company||'').trim().toLowerCase()===company.toLowerCase());
         if(existing){
-          // Same "only fill what's still blank" rule as the pipeline import — a re-import can
-          // complete a record's missing info but never overwrites or rolls back a value that's
-          // already there (verified only ever flips false→true, never back down).
-          const fillStr=(field,raw)=>{ if((existing[field]==null||existing[field]==='')&&raw!==undefined&&(''+raw).trim()!==''){ existing[field]=(''+raw).toString(); return true; } return false; };
+          // Overwrite mode, not fill-blank: this file is the product of a fresh research pass
+          // per row, so any field the row actually provides replaces whatever was there before
+          // (including flipping verified back to false, and replacing dialects/platforms/labels
+          // outright rather than merging). A field is only left untouched when the cell itself
+          // is blank/placeholder — get() already normalizes those to undefined — since a blank
+          // cell means "not researched this pass", not "clear this field".
+          const setStr=(field,raw)=>{ if(raw!==undefined&&(''+raw).trim()!==''){ existing[field]=(''+raw).toString(); return true; } return false; };
           let changed=false;
-          ['website','newsUrl','deliveryModel','arabicDepthNotes','menaLocalizationNotes','executionScope','proofNotes','reviewSources','reviewSummary','arrEstimate','entryPrice','pricingModel','positioningClaim','competitiveVerdict','featuresNotes','notes'].forEach(f=>{ changed=fillStr(f,get(f))||changed; });
+          ['website','newsUrl','deliveryModel','arabicDepthNotes','menaLocalizationNotes','executionScope','proofNotes','reviewSources','reviewSummary','arrEstimate','entryPrice','pricingModel','positioningClaim','competitiveVerdict','featuresNotes','notes'].forEach(f=>{ changed=setStr(f,get(f))||changed; });
           const matchedType=matchInList(['MENA/Regional','Generic/International'],get('competitorType'));
-          if(matchedType&&!existing.competitorType){ existing.competitorType=matchedType; changed=true; }
+          if(matchedType){ existing.competitorType=matchedType; changed=true; }
           const matchedThreat=matchInList(['High','Medium','Low'],get('threatLevel'));
-          if(matchedThreat&&!existing.threatLevel){ existing.threatLevel=matchedThreat; changed=true; }
+          if(matchedThreat){ existing.threatLevel=matchedThreat; changed=true; }
           const matchedSovereign=matchInList(['Yes','No','Unverified'],get('sovereignModelCoverage'));
-          if(matchedSovereign&&(!existing.sovereignModelCoverage||existing.sovereignModelCoverage==='No')){ existing.sovereignModelCoverage=matchedSovereign; changed=true; }
+          if(matchedSovereign){ existing.sovereignModelCoverage=matchedSovereign; changed=true; }
           const matchedStatus=matchInList(['Operational','Inactive','Unknown'],get('status'));
-          if(matchedStatus&&(!existing.status||existing.status==='Unknown')){ existing.status=matchedStatus; changed=true; }
-          if(!existing.verified&&isTruthy(get('verified'))){ existing.verified=true; changed=true; }
+          if(matchedStatus){ existing.status=matchedStatus; changed=true; }
+          if(get('verified')!==undefined){ existing.verified=isTruthy(get('verified')); changed=true; }
           ['dialects','platformsCovered','labels'].forEach(f=>{
-            const add=splitList(get(f)).filter(v=>!(existing[f]||[]).includes(v));
-            if(add.length){ existing[f]=[...(existing[f]||[]),...add]; changed=true; }
+            const list=splitList(get(f));
+            if(list.length){ existing[f]=list; changed=true; }
           });
           if(changed) touched.add(existing); else skippedCount++;
           continue;
