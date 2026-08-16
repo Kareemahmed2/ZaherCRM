@@ -3779,11 +3779,15 @@ function setCompSort(index){
   else state.compSort={key:index,dir:1};
   renderCompetitors();
 }
+// Total competitor count, not unconfirmed-signal count — the nav badge used to show signals
+// awaiting review, but that read as "N competitors" next to the Competitors label and was
+// confusing since it didn't match the actual directory size. Called from everywhere
+// competitors/competitorSignals can change, so recomputing off competitors.length here is
+// harmless even from the signal-confirm/dismiss call sites.
 function updateCompetitorsBadge(){
   const badge=document.getElementById('nav-competitors-badge'); if(!badge)return;
-  const count=competitorSignals.filter(s=>!s.confirmed).length;
-  badge.textContent=count;
-  badge.style.display=count?'':'none';
+  badge.textContent=competitors.length;
+  badge.style.display=competitors.length?'':'none';
 }
 // state.compView ('radar'|'table') picks which of #comp-grid/#comp-table-wrap is visible;
 // setCompView is the toggle buttons' onclick, renderCompetitors reads it on every render so
