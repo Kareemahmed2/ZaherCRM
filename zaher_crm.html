@@ -640,6 +640,10 @@
         <input type="text" placeholder="Search competitors..." id="comp-search" oninput="renderCompetitors()">
       </div>
       <button class="btn btn-ghost" onclick="toggleFilterPanel('comp-filter-panel')">Filters</button>
+      <div style="display:flex;gap:4px;">
+        <button class="btn" id="comp-view-radar-btn" onclick="setCompView('radar')" title="Radar chart view">Radar</button>
+        <button class="btn" id="comp-view-table-btn" onclick="setCompView('table')" title="Table view">Table</button>
+      </div>
       <button class="btn btn-ghost" id="comp-check-all-btn" style="margin-left:auto;" onclick="checkAllCompetitorsNow()" title="Runs the same weekly scan on demand, for every competitor">Check all now</button>
       <button class="btn btn-primary" onclick="openAddCompetitorModal()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -647,9 +651,9 @@
       </button>
     </div>
     <div class="filter-panel" id="comp-filter-panel"></div>
-    <!-- Table view kept for a possible future toggle back — see renderCompetitorsTable() in
-         JS, which still builds this markup but isn't called right now. renderCompetitors()
-         currently renders the radar-chart grid below instead. -->
+    <!-- Table vs. radar-grid visibility is toggled by renderCompetitors() based on
+         state.compView (see the Radar/Table buttons above) — the display:none here is just
+         the pre-first-render default. -->
     <div class="card" id="comp-table-wrap" style="display:none;"><table class="leads-table"><thead id="comp-thead"></thead><tbody id="comp-body"></tbody></table></div>
     <div class="comp-radar-grid" id="comp-grid"></div>
   </div>
@@ -1220,7 +1224,7 @@ let notifications = [];
 let currentUserEmail='', currentUserName='';
 
 // ══════════════ STATE ══════════════
-let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),calColorMode:'type',compFilters:{},compSort:null};
+let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),calColorMode:'type',compFilters:{},compSort:null,compView:'radar'};
 let currentId=null,currentPipeline=null,prevPage='pipeline';
 // Directory bulk-select: ids of checked rows in the currently active pipeline's Directory
 // table. Scoped to state.pipeline (cleared on switch) — same reasoning as every other
@@ -3431,16 +3435,22 @@ function updateCompetitorsBadge(){
   badge.textContent=count;
   badge.style.display=count?'':'none';
 }
+// state.compView ('radar'|'table') picks which of #comp-grid/#comp-table-wrap is visible;
+// setCompView is the toggle buttons' onclick, renderCompetitors reads it on every render so
+// search/filter changes redraw whichever view is currently active.
+function setCompView(v){ state.compView=v; renderCompetitors(); }
 function renderCompetitors(){
   updateCompetitorsBadge();
   const q=(document.getElementById('comp-search')||{value:''}).value.toLowerCase();
   let list=q?competitors.filter(c=>c.company.toLowerCase().includes(q)||(c.website||'').toLowerCase().includes(q)):competitors.slice();
   list=applyCompFilters(list);
-  renderCompetitorsGrid(list);
+  const isTable=state.compView==='table';
+  document.getElementById('comp-table-wrap').style.display=isTable?'':'none';
+  document.getElementById('comp-grid').style.display=isTable?'none':'';
+  document.getElementById('comp-view-radar-btn').className='btn '+(isTable?'btn-ghost':'btn-primary');
+  document.getElementById('comp-view-table-btn').className='btn '+(isTable?'btn-primary':'btn-ghost');
+  if(isTable) renderCompetitorsTable(list); else renderCompetitorsGrid(list);
 }
-// Table-based render, superseded by the radar-chart grid below (renderCompetitorsGrid) but
-// kept intact and callable — flip #comp-table-wrap/#comp-grid display and call this from
-// renderCompetitors() instead to toggle back.
 function renderCompetitorsTable(list){
   if(state.compSort){
     const sortKeys=[c=>c.company||'',c=>competitorRelationship(c),c=>c.deliveryModel||'',c=>({High:3,Medium:2,Low:1})[c.threatLevel]||0,c=>c.sovereignModelCoverage||'',c=>c.status||'',c=>c.verified?1:0,c=>c.lastCheckedAt||''];
