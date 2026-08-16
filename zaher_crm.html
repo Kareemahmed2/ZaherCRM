@@ -644,7 +644,11 @@
         <button class="btn" id="comp-view-radar-btn" onclick="setCompView('radar')" title="Radar chart view">Radar</button>
         <button class="btn" id="comp-view-table-btn" onclick="setCompView('table')" title="Table view">Table</button>
       </div>
-      <button class="btn btn-ghost" id="comp-check-all-btn" style="margin-left:auto;" onclick="checkAllCompetitorsNow()" title="Runs the same weekly scan on demand, for every competitor">Check all now</button>
+      <div style="display:flex;gap:8px;margin-left:auto;">
+        <button class="btn btn-ghost" onclick="exportCompetitors('csv')" title="Export current view to CSV">Export CSV</button>
+        <button class="btn btn-ghost" onclick="exportCompetitors('xlsx')" title="Export current view to Excel">Export Excel</button>
+      </div>
+      <button class="btn btn-ghost" id="comp-check-all-btn" onclick="checkAllCompetitorsNow()" title="Runs the same weekly scan on demand, for every competitor">Check all now</button>
       <button class="btn btn-primary" onclick="openAddCompetitorModal()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Competitor
@@ -3213,6 +3217,32 @@ function exportRecords(fmt){
   const stamp=new Date().toISOString().slice(0,10);
   const fname=`zaher-crm-${state.pipeline}-${stamp}.${fmt}`;
   XLSX.writeFile(wb,fname,{bookType:fmt});
+}
+// Mirrors exportRecords above, but competitors live in their own `competitors` array (not
+// `records`/activeRecords()) since the directory is flat rather than pipeline-based — see the
+// COMPETITORS comment on #page-competitors. Respects the tab's current search+filters, same
+// as exportRecords respects the active pipeline view.
+function exportCompetitors(fmt){
+  const q=(document.getElementById('comp-search')||{value:''}).value.toLowerCase();
+  let list=q?competitors.filter(c=>c.company.toLowerCase().includes(q)||(c.website||'').toLowerCase().includes(q)):competitors.slice();
+  list=applyCompFilters(list);
+  if(!list.length){showToast('Nothing to export in this view');return;}
+  const rows=list.map(c=>({
+    company:c.company, website:c.website||'', relationship:competitorRelationship(c), competitorType:c.competitorType||'',
+    deliveryModel:c.deliveryModel||'', threatLevel:c.threatLevel||'', sovereignModelCoverage:c.sovereignModelCoverage||'',
+    status:c.status||'', verified:c.verified?'Yes':'No', lastCheckedAt:c.lastCheckedAt?fmtTs(c.lastCheckedAt):'',
+    newsUrl:c.newsUrl||'', arabicDepthNotes:c.arabicDepthNotes||'', menaLocalizationNotes:c.menaLocalizationNotes||'',
+    executionScope:c.executionScope||'', proofNotes:c.proofNotes||'', reviewSources:c.reviewSources||'', reviewSummary:c.reviewSummary||'',
+    arrEstimate:c.arrEstimate||'', entryPrice:c.entryPrice||'', pricingModel:c.pricingModel||'', positioningClaim:c.positioningClaim||'',
+    competitiveVerdict:c.competitiveVerdict||'', featuresNotes:c.featuresNotes||'', notes:c.notes||'',
+    dialects:(c.dialects||[]).join('; '), platformsCovered:(c.platformsCovered||[]).join('; '), labels:(c.labels||[]).join('; '),
+    date_entered:fmtTs(c.created_at), date_modified:fmtTs(c.updated_at)
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Competitors');
+  const stamp=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,`zaher-crm-competitors-${stamp}.${fmt}`,{bookType:fmt});
 }
 
 // ══════════════ ANALYTICS ══════════════
