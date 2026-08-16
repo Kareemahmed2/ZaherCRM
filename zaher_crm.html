@@ -3821,18 +3821,25 @@ function renderCompetitorsTable(list){
     </tr>`).join(''):`<tr><td colspan="8"><div class="notes-body">No competitors match.</div></td></tr>`;
 }
 
-// Radar metrics — placeholder set until the real 8 metrics are specified (see conversation
-// 2026-08-16). Swap COMPETITOR_RADAR_METRICS and competitorRadarValues() below once that
-// spec lands; radarChartSvg()/renderCompetitorsGrid() are generic over however many axes are
-// passed in, so nothing else needs to change.
-const COMPETITOR_RADAR_METRICS=['Metric 1','Metric 2','Metric 3','Metric 4','Metric 5','Metric 6','Metric 7','Metric 8'];
-// Deterministic pseudo-random 20-99 spread per competitor+metric, purely so the placeholder
-// charts look distinct from each other instead of all rendering as identical octagons.
+// Real radar axes — research scores 0-10 per competitor (see the radar columns added to
+// supabase_schema.sql and COMPETITOR_RADAR_FIELDS in the importer above, which this reuses so
+// the field order can't drift between import/export and the chart). Display labels are a
+// separate lookup since the column names are camelCase, not display text.
+const COMPETITOR_RADAR_LABELS={
+  radarArabicCitation:'Arabic Citation', radarContentDepth:'Content Depth', radarDialectCoverage:'Dialect Coverage',
+  radarSovereignModels:'Sovereign Models', radarSurfaceCoverage:'Surface Coverage', radarTechnicalGeo:'Technical GEO',
+  radarAdoptionAccess:'Adoption Access', radarProvenOutcomes:'Proven Outcomes'
+};
+const COMPETITOR_RADAR_METRICS=COMPETITOR_RADAR_FIELDS.map(f=>COMPETITOR_RADAR_LABELS[f]);
+// Scales the 0-10 research score to the chart's 0-100 axis. An unscored axis (column is null —
+// e.g. radarArabicCitation isn't desk-researchable for most competitors) stays null rather than
+// becoming 0, so radarChartSvg can render it as "not yet scored" instead of "scored zero".
 function competitorRadarValues(c){
-  return COMPETITOR_RADAR_METRICS.map((_,i)=>20+strHashIdx(c.company+'::'+i,80));
+  return COMPETITOR_RADAR_FIELDS.map(f=>c[f]==null?null:c[f]*10);
 }
 // Generic n-axis radar/spider chart as an inline SVG — no charting library needed. values are
-// 0-100, one per label; labels is optional (omit to skip the axis text).
+// 0-100 (or null for "not yet scored"), one per label; labels is optional (omit to skip the
+// axis text).
 function radarChartSvg(values,labels,opts){
   opts=opts||{};
   const size=opts.size||180, color=opts.color||'#378ADD', pad=opts.pad||30;
@@ -3846,9 +3853,17 @@ function radarChartSvg(values,labels,opts){
     const anchor=cos>0.3?'start':cos<-0.3?'end':'middle';
     return `<text x="${x}" y="${y}" font-size="7.5" fill="var(--gray-500)" text-anchor="${anchor}" dominant-baseline="middle">${escHtml(lb)}</text>`;
   }).join(''):'';
-  const clamped=values.map(v=>Math.max(0,Math.min(100,v)));
-  const poly=clamped.map((v,i)=>pt(i,v/100).join(',')).join(' ');
-  const dots=clamped.map((v,i)=>{ const [x,y]=pt(i,v/100); return `<circle cx="${x}" cy="${y}" r="2.5" fill="${color}"/>`; }).join('');
+  const frac=v=>(v===null?0:Math.max(0,Math.min(100,v)))/100;
+  const poly=values.map((v,i)=>pt(i,frac(v)).join(',')).join(' ');
+  // A null value plots at the center like a real 0 would (the polygon needs a point on every
+  // axis), but renders as a hollow dot with a tooltip instead of a filled one, so "not yet
+  // scored" doesn't read as "scored zero" at a glance.
+  const dots=values.map((v,i)=>{
+    const [x,y]=pt(i,frac(v));
+    return v===null
+      ? `<circle cx="${x}" cy="${y}" r="2.5" fill="var(--white)" stroke="${color}" stroke-width="1.5"><title>Not yet scored</title></circle>`
+      : `<circle cx="${x}" cy="${y}" r="2.5" fill="${color}"><title>${escHtml(labels&&labels[i]||'')}: ${Math.round(v/10)}/10</title></circle>`;
+  }).join('');
   return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${rings}${axes}${labelEls}<polygon points="${poly}" fill="${color}33" stroke="${color}" stroke-width="2"/>${dots}</svg>`;
 }
 function renderCompetitorsGrid(list){
