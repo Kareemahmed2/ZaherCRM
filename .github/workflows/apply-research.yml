@@ -1,0 +1,120 @@
+name: Apply competitor research
+
+# Applies a weekly competitor-research CSV to Supabase via scripts/apply_research_csv.py.
+#
+# This is the automated half of the research loop. The weekly Cowork scan commits its delta
+# CSV to research/competitors/ -- that push fires this workflow, which validates the file and
+# writes it to the `competitors` table. Nobody opens the CRM and clicks Import.
+#
+# Deliberately separate from competitor-scan.yml: that one is a scraper (does the site
+# health-check and queues signals off known URLs, needs Scrapling/Groq and ~20 min). This one
+# is a fast, dependency-light file applier that must be able to run on its own whenever a
+# research file lands, without dragging a 250MB Playwright install along for the ride.
+#
+# The in-browser Import button in zaher_crm.html stays as the manual escape hatch -- same file
+# format, same rules, so either path works on the same CSV.
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'research/competitors/*.csv'
+      - 'research/signals/*.json'
+  workflow_dispatch:
+    inputs:
+      csv_path:
+        description: 'Path to the research CSV (blank = newest in research/competitors/)'
+        required: false
+        type: string
+      signals_path:
+        description: 'Optional path to a signals JSON file'
+        required: false
+        type: string
+      dry_run:
+        description: 'Print the diff without writing anything'
+        required: false
+        default: false
+        type: boolean
+      max_overwrites:
+        description: 'Abort if the file would replace more than this many populated fields'
+        required: false
+        default: '60'
+        type: string
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history, not just the previous commit: a push can carry more than one commit
+          # (e.g. a CSV commit followed by a separate signals commit, or a rebase-and-push), and
+          # a shallow fetch-depth:2 only ever sees the single commit right before HEAD. Full
+          # history lets the resolve step diff the whole push range (before -> after) instead of
+          # guessing at "the last commit". This repo is small enough that fetch-depth:0 is cheap.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Only `requests` is needed -- deliberately not `pip install -r requirements.txt`, which
+      # would pull Scrapling/Playwright (~250MB) that this job never touches.
+      - run: pip install requests
+
+      - name: Resolve which files to apply
+        id: resolve
+        run: |
+          set -euo pipefail
+          CSV="${{ inputs.csv_path }}"
+          SIG="${{ inputs.signals_path }}"
+
+          # On push, diff the whole pushed range (before -> after), not just HEAD~1..HEAD --
+          # a single push can carry several commits and HEAD~1 only ever sees the last one.
+          # github.event.before is all-zeros on a brand new branch's first push, and can also
+          # name a commit this checkout never fetched (a force-push/history rewrite) even with
+          # fetch-depth:0 above if it belonged to a different ref entirely -- `git cat-file -e`
+          # guards both cases before trusting it as a diff endpoint.
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.event.after || github.sha }}"
+          RANGE_OK=false
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            RANGE_OK=true
+          fi
+
+          if [ -z "$CSV" ]; then
+            if [ "$RANGE_OK" = true ]; then
+              CSV=$(git diff --name-only "$BEFORE" "$AFTER" -- 'research/competitors/*.csv' 2>/dev/null | tail -1 || true)
+            fi
+            # Fall back to the newest by filename (they're date-stamped, so lexicographic order
+            # is chronological order) -- covers workflow_dispatch, a first push, and any case the
+            # range diff above couldn't resolve.
+            [ -z "$CSV" ] && CSV=$(ls -1 research/competitors/*.csv 2>/dev/null | tail -1 || true)
+          fi
+          if [ -z "$SIG" ] && [ "$RANGE_OK" = true ]; then
+            SIG=$(git diff --name-only "$BEFORE" "$AFTER" -- 'research/signals/*.json' 2>/dev/null | tail -1 || true)
+          fi
+          if [ -z "$CSV" ] || [ ! -f "$CSV" ]; then
+            echo "No research CSV to apply — nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "Applying: $CSV${SIG:+ (+ signals $SIG)}"
+          { echo "csv=$CSV"; echo "signals=$SIG"; echo "skip=false"; } >> "$GITHUB_OUTPUT"
+
+      # Always dry-run first. The diff lands in the Actions log, so there's a permanent record
+      # of exactly what each weekly run changed even when the apply step succeeds silently.
+      - name: Preview changes
+        if: steps.resolve.outputs.skip != 'true'
+        run: |
+          python scripts/apply_research_csv.py "${{ steps.resolve.outputs.csv }}" \
+            --dry-run --max-overwrites "${{ inputs.max_overwrites || '60' }}"
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Apply to Supabase
+        if: steps.resolve.outputs.skip != 'true' && inputs.dry_run != true
+        run: |
+          python scripts/apply_research_csv.py "${{ steps.resolve.outputs.csv }}" \
+            ${{ steps.resolve.outputs.signals && format('--signals {0}', steps.resolve.outputs.signals) || '' }} \
+            --max-overwrites "${{ inputs.max_overwrites || '60' }}"
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

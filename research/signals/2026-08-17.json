@@ -1,0 +1,58 @@
+[
+  {
+    "company": "ChatFeatured",
+    "type": "Funding",
+    "description": "Raised US$2M pre-seed led by Storytime Capital, with BY Venture Partners (UAE/Lebanon) and Garage Capital participating. Founders Farris Nasr and Nithiiyan Skhanthan.",
+    "occurred_on": "2026-07-22",
+    "source_url": "https://www.wamda.com/2026/07/venture-partners-backs-chatfeatured-2-million-pre-seed-round"
+  },
+  {
+    "company": "ReachLLM",
+    "type": "News",
+    "description": "Selected for the first MZN x Hub71 cohort backed by Khalifa Fund and Hub71; no funding amount disclosed.",
+    "occurred_on": "2026-05-21",
+    "source_url": "https://www.hub71.com/latest-news/press-release/khalifa-fund-and-hub71-announce-first-mzn-hub71-cohort-to-support-emirati-tech-founders-in-al-ain"
+  },
+  {
+    "company": "VOCTOS",
+    "type": "Product",
+    "description": "Launched a free, no-signup AI Visibility Score running 45 automated checks — the first time this agency has shipped self-serve software.",
+    "occurred_on": "2026-08-13",
+    "source_url": "https://voctos.net/ai-visibility-score/"
+  },
+  {
+    "company": "VOCTOS",
+    "type": "News",
+    "description": "Published a 33-tool audit concluding that no AEO tool tracks any Arabic sovereign model (Falcon-H1 Arabic, ALLaM, Jais 2, Fanar 2.0) — publicly naming the whitespace ZaherAI has been planning to claim.",
+    "occurred_on": "2026-08-07",
+    "source_url": "https://www.voctos.com/blog/best-aeo-tools/"
+  },
+  {
+    "company": "Scrunch",
+    "type": "Product",
+    "description": "Post-acquisition product wave under Sitecore: Scrunch MCP connector, Knowledge Studio beta (Notion/SharePoint), expanded Content Gaps, and a redesigned site serving a separate agent-optimised experience.",
+    "occurred_on": "2026-06-13",
+    "source_url": "https://www.tipranks.com/news/private-companies/scrunch-ai-advances-ai-native-web-strategy-with-sitecore-integration-and-new-enterprise-tools"
+  },
+  {
+    "company": "ARGEO",
+    "type": "Funding",
+    "description": "Opened an investor solicitation page seeking strategic and financial investors, self-describing as a pre-revenue early-stage consultancy. No amount disclosed and no round closed.",
+    "occurred_on": null,
+    "source_url": "https://argeo.ai/investors"
+  },
+  {
+    "company": "Elshorafa Co",
+    "type": "M&A",
+    "description": "Became a shareholder in RaviaCare, a GCC beauty and cosmetics e-commerce launch.",
+    "occurred_on": "2026-07-24",
+    "source_url": "https://elshorafa.co/blog/elshorafa-co-shareholder-raviacare-gcc-beauty-cosmetics-ecommerce-launch"
+  },
+  {
+    "company": "SalesTrig",
+    "type": "Product",
+    "description": "Published product pricing and a named team for the first time: AutoSEO $149/mo ($99/mo annual), AdPilot Audit $250/mo, AI Media Buyer $500/mo, AI Visibility $59/mo. Names an explicit Gulf/Saudi/Emirati Arabic dialect capability.",
+    "occurred_on": null,
+    "source_url": "https://salestrig.com/pricing"
+  }
+]

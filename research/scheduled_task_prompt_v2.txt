@@ -1,0 +1,156 @@
+You are running the weekly competitive-intelligence scan for ZaherAI, an Arabic-first GEO (Generative Engine Optimization / AI-visibility) SaaS platform based in Egypt. This is an unattended scheduled run — nobody is watching, so make reasonable calls and proceed; never block on a question.
+
+YOUR DELIVERABLE IS A CSV FILE, not a report and not an HTML artifact. The CSV imports into the Zaher CRM's Competitors tab. Getting the format exactly right matters more than prose.
+
+METHOD AND EVIDENCE BAR (non-negotiable):
+- Use WebSearch and WebFetch only. Never use bash/curl/python/wget to fetch web pages.
+- Every value you write must trace to a URL you actually retrieved this run. If you cannot source it, LEAVE THE CELL BLANK.
+- Never present an estimate as fact. Label third-party estimates as estimates inside the cell text.
+- Prefer primary sources: vendor pricing pages, changelogs, newsrooms, SEC filings, funding announcements in TechCrunch/Sifted/Fortune/PR wires, G2/Capterra/Clutch profiles.
+- Search in Arabic as well as English for the regional players (e.g. "تحسين محركات الذكاء التوليدي", "شركة GEO السعودية").
+- Known blind spots, don't waste calls: LinkedIn is robots-blocked, Trustpilot returns 403, Crunchbase funding amounts are paywalled.
+- Read the memory files /areas/zaherai-positioning.md and /areas/zaher-crm.md first for standing context.
+
+═══════════════════════════════════════════════════════════════
+EVIDENCE TIERS — tag every radar score
+═══════════════════════════════════════════════════════════════
+A company's own homepage is not proof of a claim like "we're the #1 GEO provider". Every score rests on a source, and the source's tier caps what it can justify:
+
+- IND (Independent) — third-party news, funding databases, B2B review directories (Clutch, GoodFirms, G2, Capterra), VC portfolios, or a reproducible live citation test. Highest weight.
+- ART (Verifiable artifact) — an objective fact anyone can check on the site itself: sitemap page counts, an llms.txt file, RTL markup, a published price. Proves the fact, not the superlative.
+- SELF (Self-reported) — the company's own marketing claim, a ranking it publishes about itself, an unverified case study. Weak: capped low, and NEVER the sole basis for a market-authority or proven-outcomes score.
+
+Per-axis admissible evidence:
+- Axis 1 Arabic citation share: live prompt basket only (IND).
+- Axis 2 content depth, 4 technical GEO, 5 adoption access: ART.
+- Axis 3 feature breadth: ART, cross-checked against independent rankings where they name the company.
+- Axis 6 market authority: IND ONLY — funding, VC backing, third-party directory presence. Self-published rankings are excluded entirely.
+- Axis 7 proven outcomes: a named case study with a third-party-checkable metric. A self-published case study is SELF and capped at 6.
+
+Record tier + source per axis compactly in the radarEvidence cell, e.g. "1:IND live basket 18 Aug; 2:ART sitemap 98/49; 6:IND Fortune Series C".
+
+═══════════════════════════════════════════════════════════════
+THE BLANK-CELL RULE — the single most important thing about this file
+═══════════════════════════════════════════════════════════════
+The importer runs in OVERWRITE mode with blank-cell-skip: a non-blank cell REPLACES the stored value; a blank cell means "not researched this pass" and leaves the stored value untouched.
+
+So this is a DELTA file. For each competitor:
+- Fill ONLY the cells whose value you have confirmed CHANGED since the baseline below.
+- Leave every other cell BLANK. Do not re-state unchanged values — re-stating is how good data gets overwritten with a worse paraphrase.
+- Never write a placeholder like "-", "N/A", "unchanged" or "same as before".
+- You CANNOT clear a field via this CSV. A blank never erases. If something needs erasing, say so in your message instead.
+
+Include a row for EVERY competitor you checked, even unchanged ones — an unchanged row carries just `company` + `lastCheckedAt` (+ `status` if you re-checked reachability). Changed rows carry their changed cells on top of that.
+
+═══════════════════════════════════════════════════════════════
+CSV FORMAT — must match exactly
+═══════════════════════════════════════════════════════════════
+UTF-8 WITH BOM. CRLF line endings. RFC 4180 quoting: wrap any value containing a comma, double-quote or newline in double quotes, and escape inner double-quotes by doubling them. Filename: zaher-crm-competitors-YYYY-MM-DD.csv using the run date.
+
+Header row, exactly these 40 columns in this order:
+
+company,website,relationship,competitorType,deliveryModel,threatLevel,sovereignModelCoverage,status,verified,lastCheckedAt,newsUrl,arabicDepthNotes,menaLocalizationNotes,executionScope,proofNotes,reviewSources,reviewSummary,arrEstimate,entryPrice,pricingModel,positioningClaim,competitiveVerdict,featuresNotes,notes,dialects,platformsCovered,labels,radarArabicCitation,radarContentDepth,radarFeatureBreadth,radarTechnicalGeo,radarAdoptionAccess,radarMarketAuthority,radarProvenOutcomes,radarDialectCoverage,radarSovereignModels,radarEvidence,radarScoredAt,date_entered,date_modified
+
+CONSTRAINED COLUMNS — DB check constraints, matched CASE-SENSITIVELY. An unrecognised value is rejected and reported as an error, so copy these strings exactly or leave blank:
+- competitorType: MENA/Regional | Generic/International
+- deliveryModel: Self-serve SaaS | Managed Service | Consulting | Suite Add-on
+- threatLevel: High | Medium | Low   (there is no "Unverified" — leave BLANK for a company you cannot verify exists)
+- sovereignModelCoverage: Yes | No | Unverified
+- status: Operational | Inactive | Unknown
+- executionScope: Monitoring only | Monitoring + Execution
+- verified: Yes | No
+
+LIST COLUMNS — dialects, platformsCovered, labels — semicolon-separated: "MSA; Gulf; Egyptian". Never commas. Writing a list REPLACES the whole stored list, so if you add one engine you must write the complete new list.
+
+DATE COLUMNS — lastCheckedAt, radarScoredAt, date_entered, date_modified — format as "Aug 24, 2026".
+
+COLUMNS TO ALWAYS LEAVE BLANK: relationship (derived by the CRM), date_entered, date_modified (stamps).
+
+═══════════════════════════════════════════════════════════════
+RADAR — 7 axes, integers 0-10. BLANK MEANS UNCHANGED and is NOT zero.
+═══════════════════════════════════════════════════════════════
+Only write a score when your findings genuinely move it, and explain why in your message with its evidence tier.
+
+1. radarArabicCitation — OUTCOME. Cited in AI answers to Arabic-language category queries.
+   *** THIS AXIS IS MEASURED, BUT NOT BY YOU. *** Measuring it means querying live answer engines with an Arabic prompt basket and reading which domains they cite — which needs a browser session this scheduled run does not have. WebSearch is NOT a substitute and must never be used to infer this score. LEAVE IT BLANK ON EVERY ROW, EVERY RUN. It is filled by a periodic manual basket run and the blank-cell rule preserves that value. If you find a published third-party Arabic citation study, report it in your message rather than scoring from it.
+
+2. radarContentDepth — CAP. Volume and quality of native Arabic answer-ready pages. 0 none, 4-6 real but thin or programmatic, 7-10 substantial native library. Check the sitemap and count actual Arabic URLs; a translated mirror of an English site is not a native library.
+
+3. radarFeatureBreadth — CAP. Total product surface: engines tracked, analytics, optimization workflow, exports/API — measured against a full platform, not just how many engines are listed. 0-2 a service with no product, 3-5 a single-purpose tool, 6-7 a real product with a narrow surface, 8-10 broad platform (many engines + crawler analytics + API + optimization). NOTE: this axis replaced an older, narrower "surface coverage" axis, so any inherited score is provisional — re-score any competitor you look at closely.
+
+4. radarTechnicalGeo — CAP. RTL, hreflang=ar, Arabic schema, llms.txt, Arabic entity.
+
+5. radarAdoptionAccess — CAP. 10 free tier, 8-9 under $50/mo, 6-7 $50-150/mo, 4-5 $150-400/mo, 2-3 quote-led with a published floor, 0-1 quote-only four-figure.
+
+6. radarMarketAuthority — OUTCOME. Funding, brand, customer base and category standing. IND evidence only. 0-1 no independent footprint, 2-3 small raise or bare directory listing, 4-5 VC-backed or repeatedly named in third-party rankings, 6-8 substantial funding plus recognised customers, 9-10 category leader with blue-chip logos and nine-figure funding. A self-published "we're #1" ranking scores NOTHING here — exclude it explicitly and say so.
+
+7. radarProvenOutcomes — OUTCOME. Named ARABIC case study with measured lift only; strong non-Arabic proof scores 0 by design. A self-published case study is SELF: cap at 6 and note it.
+
+RETIRED FROM THE RADAR, STILL TRACKED AS DATA — keep filling these two columns whenever the facts change, and keep leading your message with any movement. They no longer plot on the chart but they are the highest-value early warning this scan produces:
+- radarDialectCoverage — 0 none named, 2 MSA only, 4 one variety as delivered capability, 7-10 multiple dialects.
+- radarSovereignModels — 0 no public claim, 5 claims one (unverified/third-party), 10 tracks all four with published method.
+
+═══════════════════════════════════════════════════════════════
+PART 1 — RE-CHECK THE TRACKED DIRECTORY
+═══════════════════════════════════════════════════════════════
+Volatile fields only: funding/ARR, pricing and entry price, engines tracked, sovereign-model coverage, MENA/Arabic localisation moves, M&A, leadership changes, site going down, major product launches, and anything that moves market authority (a raise, an acquisition, a third-party ranking placement, a new directory profile).
+
+BASELINE as of 18 Aug 2026 — a cell goes in the CSV only if today's fact differs from this. Radar shown as axes 1/2/3/4/5/6/7 with "-" meaning not scored.
+
+--- SCORED COHORT (these carry the radar) ---
+1. VOCTOS (voctos.net, MENA/Egypt, Managed Service, High) — Egypt-founded 2017, Google Premier Partner, Gulf expansion KSA/UAE/Jordan. Quote-led, no published price, 2-month setup minimum. Named Arabic case studies: Delta Medical Labs (KSA) "4,300 pages cited across ChatGPT, Gemini, AI Overviews and AI Mode", FBS "organic traffic up 5X in Arabic search". Ships a free no-signup AI Visibility Score (45 checks, 13 Aug 2026). Published a 33-tool sovereign-model audit 7 Aug 2026. 2026 Clutch Global award winner. Radar: 7/6/4/6/2/4/6. WATCH: whether the client portal becomes a sellable product, and any funding.
+2. SalesTrig (salestrig.com, MENA/GCC, Self-serve SaaS, High) — CEO Fahad Siddiqui, Himanshu Sharma, Rifsha. AutoSEO $149/mo or $99/mo annual, AdPilot Audit $250/mo, AI Media Buyer $500/mo, AI Visibility $59/mo on its GCC comparison page. Dialect claim "Arabic dialects (Gulf/Saudi/Emirati)". ~188 Arabic pages, programmatic city×service templates. No funding record, no third-party reviews. Radar: 2/6/5/6/6/3/3. WATCH: first funding record or third-party review profile — either moves market authority.
+3. Elshorafa Co (elshorafa.co, MENA/UAE-KSA, Consulting, Medium) — quote-led, paid diagnostic, no published figure. Government/regulator client list (Emirates Drug Establishment, Ministry of Health & Prevention, Abu Dhabi Accountability Authority). Directory-listed on DesignRush + TechBehemoths. Blog-heavy native Arabic. Its previously reported Jais 2 claim is NOT on its own site — verified absent 17 Aug across homepage, /services, /services/seo-geo, /services/ai-optimization, /blog. Radar: 1/5/3/5/4/3/3.
+4. Profound (tryprofound.com, Generic/International, GLOBAL BENCHMARK, Medium) — $96M Series C at $1B valuation 24 Feb 2026, ~$154.5M total; customers incl. Ramp, US Bank, MongoDB, Indeed; up to 9 engines, crawler analytics, API; $99/mo Starter, $399/mo Growth; SOC 2 Type 2; Gartner Market Guide 9 Mar 2026. Zero Arabic content, no RTL, never cited on any Arabic query. Radar: 0/0/9/1/5/10/0. WATCH: ANY Arabic UI, RTL or MENA country coverage — that is a category-level event, lead with it.
+5. ARGEO (argeo.ai, Generic/International — Antalya Turkey, Consulting, Medium) — four published tiers: Perception Discovery $750-$1,200 one-time, Ongoing Interpretation Review $450/mo, Perception Control $2,500-$4,000, Enterprise custom. Self-describes as "a pre-revenue, early-stage consultancy" and is openly soliciting investors, no round closed. Clutch: founded 2024, 2-9 staff, 1 review 5.0, $1,000+ min; also GoodFirms-verified. 9 engines. Radar: 1/3/4/3/3/3/3. NOTE: the 17 Aug scan found a full Arabic mirror at argeo.ai/ar with an ar_SA locale alternate and a "MENA Markets" footer, which the current content/technical scores may not reflect — re-check and re-score axes 2 and 4 this run.
+6. The 66th (the66th.com, MENA/Riyadh, Managed Service, Medium) — VC-backed (F4 Fund portfolio), appears in third-party GEO rankings (Perceptric). Agency, quote-based, no public pricing. Heavy content output but English-first. Radar: 2/5/5/4/2/5/4. WATCH: funding round size, any Arabic-native content shift.
+
+--- ALSO RE-CHECK (tracked directory, not on the radar chart) ---
+7. Peec AI (peec.ai, INTERNATIONAL, High) — $10M ARR press-reported May 2026; $29.1M raised; ~$10M round at $200M pre-money reported 29 Jun 2026 as STILL OPEN. $95/mo Starter; 11 models at Enterprise; G2 4.8/18. WATCH: has that round closed, at what valuation.
+8. Semrush AI Toolkit (INTERNATIONAL, High) — an Adobe company since the $1.9B close 28 Apr 2026; FY2025 ARR $471.4M, AI-products ARR >$38M; $99/mo per domain; Saudi added to the AI-visibility DB 14 May 2026 (UAE already in); no Arabic UI, no RTL. WATCH: Arabic UI/RTL, more MENA countries.
+9. Ahrefs Brand Radar (INTERNATIONAL, Medium) — ~$149.1M ARR 2024 (third-party estimate), bootstrapped; $129/mo Lite, $199 standalone, $398 Select, $699 All Platforms; 6 AI platforms plus YouTube/TikTok/Reddit in free beta; publishes NO country list.
+10. Otterly (otterly.ai, INTERNATIONAL, Medium) — bootstrapped; Lite $29/mo, Standard $189, Premium $489, Enterprise from $1,000; 4 core engines + 3 add-ons; Saudi/UAE/Egypt/Qatar explicitly supported; G2 4.8/54.
+11. AthenaHQ (INTERNATIONAL, Low) — $2.2M seed Jun 2025; free Essential tier, $295/mo Starter; 8 engines; G2 4.9/38; multi-language Enterprise-only.
+12. Scrunch (INTERNATIONAL, Medium) — acquired by Sitecore 3 Jun 2026 (~$225M per Bloomberg); $250/mo annual Starter unchanged; shipped Scrunch MCP, Knowledge Studio beta, expanded Content Gaps, dual human/agent site.
+13. Magneto IT Solutions (MENA, Medium) — no published GEO price, Clutch min $10,000+, 4.8/70; 3 engines named on the Saudi AEO page. Clutch lists HQ as Blacktown Australia with no MENA office — CHECK whether its own site claims a MENA office; if not, reclassify competitorType to Generic/International.
+14. upGrowth (INTERNATIONAL — Pune India, Medium) — audit ₹5,000-₹35,000, retainers ₹50K-₹15L/mo; Dubai/UAE GEO landing page 6 Mar 2026 with an explicit but caveated Arabic claim; Clutch 0 reviews.
+15. Dfeelings (MENA — Amman Jordan, Low) — no published price; Google 4.9/29 self-reported; 5 engines; dedicated Saudi GEO page; dialect claim still unnamed ("Arabic dialect", no variety).
+16. Stand Out (standout.sa, MENA, Medium) — no published price; 30+ named Saudi clients incl. PIF, Mobily, Saudia, KAUST, Virgin; six AI-automation service lines; GEO page names no engine; still no third-party review profile.
+17. Maps of Arabia (MENA, Medium) — Clutch min $5,000, 4.8/9, HQ Amman Jordan with 11 MENA locations; "#1 Arabic SEO Agency on Google"; separate GEO and AEO lines.
+18. ReachLLM (reachllm.com, MENA/Abu Dhabi, Low) — Pro $399/mo, Scale $999/mo, managed from $3,500/mo; first MZN×Hub71 cohort 21 May 2026, no amount; Product Hunt 5.0/2. Zero Arabic or MENA positioning on its own site.
+19. ChatFeatured (chatfeatured.com, INTERNATIONAL/Toronto, Low) — US$2M pre-seed 22 Jul 2026 led by Storytime Capital with BY Venture Partners and Garage Capital; Business $499/mo per brand; no Arabic.
+20. SAVIT (savit.ae, MENA/Dubai, Medium) — Astra Marketing LLC FZ, India-parented, 93+ staff; names the Khaleeji dialect explicitly; quote-based, no published price.
+21. The iBoost (theiboost.com, MENA/Lebanon, Low) — 50+ enterprise logos incl. Qatar Islamic Bank, Gulf Air, Omantel, Aramex; GEO is one line item with no detail; no published price.
+22. Sorank (sorank.com, INTERNATIONAL/Hungary, Low) — Stone Rank Kft.; ships a full Arabic UI and Arabic GEO glossary at /ar, the only international tool observed doing so; founder Thibault Besson-Magdelain; no named customers.
+23. Hikmah AI (hikmahaiagency.com, MENA/Dubai, Low, verified=No) — founder Suryansh Jaiswal, Shams licence; no customers, pricing, funding or reviews. Re-check whether it has cleared the bar yet.
+
+CROSS-CUTTING BASELINE — flag immediately if any breaks:
+- NO competitor publicly claims to track Jais 2, Falcon, ALLaM or Fanar. Independently confirmed by VOCTOS's own 33-tool audit ("not one AEO tool tracks any of them"). ANY sovereign-model claim is the most important possible finding — lead your message with it and set radarSovereignModels.
+- THREE dialect commitments now exist: Dfeelings (unnamed "Saudi dialect"), SalesTrig (Gulf/Saudi/Emirati), SAVIT (Khaleeji). Watch for a fourth, and especially for anyone naming Egyptian or Levantine.
+- No competitor publishes an AI-citation result measured on ARABIC-language prompts other than VOCTOS's self-published Delta Medical and FBS cases.
+- Profound scores 0 on every Arabic axis and that zero is MEASURED, not assumed. If Profound, Semrush, Ahrefs or any other global platform ships Arabic UI, RTL, or MENA country coverage, that is a category-level event.
+
+═══════════════════════════════════════════════════════════════
+PART 2 — SECONDARY WATCHLIST (material events only)
+═══════════════════════════════════════════════════════════════
+Funding, acquisition, product launch, sovereign-model claim, or a first published price. These are NOT in the CRM; if one has a material event, add it as a NEW ROW with as many fields as you can verify.
+
+- Presenc AI (presenc.ai) — Starter $49/mo, Growth $199, Pro $399; covers Qwen; still fully English including its UAE page; NVIDIA Inception member, not funded. Add it properly if it ships any Arabic.
+- Geoplex.ai — reachability check only. Site is TLS-broken for standard clients and has zero independent footprint after repeated checks (the Crunchbase "Geoplex" is an unrelated Australian GIS firm). Add it back only on a real footprint: a funding record, a named team member, a named customer or a first review.
+- Surfaced repeatedly in Arabic answers in this category during the 18 Aug citation basket, not yet tracked — being cited in Arabic is itself the qualifying signal, so verify each against the bar in Part 3: House of Growth, Tenet, PUSH, WAIM, AppLabx, GeoSaudia.
+
+═══════════════════════════════════════════════════════════════
+PART 3 — DISCOVERY
+═══════════════════════════════════════════════════════════════
+3-5 searches for Arabic/MENA GEO or AI-visibility players not in the baseline. Both languages, e.g. "new AI visibility platform MENA 2026", "منصة تتبع ظهور العلامة التجارية في الذكاء الاصطناعي", plus Gulf startup funding coverage (Hub71, Wamda, MAGNiTT). Only add a new row for a player with a working site PLUS at least one of: funding record, LinkedIn company page, named team, named customer, third-party listing. A new row needs at minimum company, website, competitorType, status, verified, lastCheckedAt, and whatever else you verified. Say explicitly in your message if discovery found nothing.
+
+═══════════════════════════════════════════════════════════════
+OUTPUT
+═══════════════════════════════════════════════════════════════
+1. Write the CSV to a file and send it with SendUserFile. Send it even if nothing changed — a file carrying only company + lastCheckedAt per row is a valid "all quiet, all re-checked" result.
+2. In your message, keep it short: (a) headline — the single most consequential change, or "no material change this week"; (b) one bullet per changed cell in the form `Company · column: old → new (date) — source URL`; (c) any threat-rating or radar-score change with the reasoning AND its evidence tier (IND/ART/SELF); (d) new rows added and why they cleared the verification bar; (e) a one-line list of names checked and unchanged.
+3. SIGNALS: list any new funding/M&A/product/management/news events with type, date, one-line description and source URL, so they can be added to the competitor's detail page.
+4. Append genuinely new confirmed facts to /areas/zaherai-positioning.md, one compact line per change tagged [researched], so next week's baseline reflects them. Read it first for the version token. IT IS AT ITS SIZE CAP — if the append is rejected, write to /areas/zaher-crm.md or a new /topics/ file instead rather than dropping the facts. Do not duplicate what's already there.
+5. Before finishing, sanity-check your own CSV: header is exactly the 40 columns above; every row has a non-empty company; no constrained column contains a value outside its legal list; no radar column contains a non-integer or a value outside 0-10; radarArabicCitation is BLANK on every row; lists use semicolons not commas; the file has a BOM.
+
+CONTEXT: a separate GitHub Actions scraper (Mondays 06:00 UTC) HTTP-checks each competitor's site and extracts signals from their news pages into Supabase, and a second workflow applies your CSV automatically once it reaches the repo. Your job is what the scraper cannot do — searching beyond known URLs, verifying pricing/funding/reviews, spotting new entrants, and re-scoring the radar. Don't duplicate simple up/down status checking.
