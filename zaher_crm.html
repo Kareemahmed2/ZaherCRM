@@ -1280,7 +1280,7 @@ function regionPill(v){ const c=REGION_COLOR[v]||'#888780'; return `<span class=
 function setCalColorMode(mode){ if(state.calColorMode===mode)return; state.calColorMode=mode; renderPipeline(); }
 // Formats the sign separately (rather than letting it ride along inside the number) so a
 // negative value reads as "-$500", not "$-500".
-const ff=v=>{ if(!v) return '$0'; const neg=v<0; return (neg?'-':'')+'$'+Math.abs(v).toLocaleString('en-US',{maximumFractionDigits:2}); };
+const ff=v=>{ if(!v) return '$0'; const neg=v<0; return (neg?'-':'')+'$'+Math.round(Math.abs(v)).toLocaleString('en-US'); };
 function fmtTs(ts){ if(!ts) return '—'; const d=new Date(ts); return isNaN(d)?'—':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
 function activeStages(){ if(state.pipeline==='partners') return STAGES['partners'+state.portfolio]; return STAGES[state.pipeline]; }
 function activeRecords(){ return records.filter(r=>r.pipeline===state.pipeline && (state.pipeline!=='partners'||r.portfolio===state.portfolio)); }
