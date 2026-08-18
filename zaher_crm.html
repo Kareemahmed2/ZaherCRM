@@ -1514,7 +1514,10 @@ const COMPETITOR_COLUMNS=['company','website','newsUrl','competitorType','delive
   'arabicDepthNotes','dialects','platformsCovered','menaLocalizationNotes','competitiveVerdict','featuresNotes','executionScope',
   'proofNotes','reviewSources','reviewSummary','arrEstimate','pricingModel','entryPrice','positioningClaim','status','verified',
   'lastCheckedAt','notes','labels','radarArabicCitation','radarContentDepth','radarDialectCoverage','radarSovereignModels',
-  'radarSurfaceCoverage','radarTechnicalGeo','radarAdoptionAccess','radarProvenOutcomes','radarScoredAt','created_at','updated_at'];
+  // v2: radarSurfaceCoverage renamed radarFeatureBreadth; radarMarketAuthority and radarEvidence
+  // (free text, not a score) are new. See COMPETITOR_RADAR_FIELDS below for the axis order.
+  'radarFeatureBreadth','radarTechnicalGeo','radarAdoptionAccess','radarProvenOutcomes','radarMarketAuthority','radarEvidence',
+  'radarScoredAt','created_at','updated_at'];
 function pickCompetitorColumns(c){
   const out={};
   COMPETITOR_COLUMNS.forEach(k=>{ if(c[k]!==undefined) out[k]=c[k]; });
@@ -3387,12 +3390,20 @@ const IMPORT_FIELD_MAP_COMPETITORS={
   lastCheckedAt:['last checked','lastcheckedat','last checked at'],
   radarArabicCitation:['radararabiccitation','radar arabic citation'],
   radarContentDepth:['radarcontentdepth','radar content depth'],
-  radarDialectCoverage:['radardialectcoverage','radar dialect coverage'],
-  radarSovereignModels:['radarsovereignmodels','radar sovereign models'],
-  radarSurfaceCoverage:['radarsurfacecoverage','radar surface coverage'],
+  // v2: radarSurfaceCoverage was renamed radarFeatureBreadth and redefined broader. The old
+  // header stays as an alias so a v1 CSV still imports — the values carry over as provisional
+  // (see the migration's radarEvidence stamp).
+  radarFeatureBreadth:['radarfeaturebreadth','radar feature breadth','feature breadth','radarsurfacecoverage','radar surface coverage'],
   radarTechnicalGeo:['radartechnicalgeo','radar technical geo'],
   radarAdoptionAccess:['radaradoptionaccess','radar adoption access'],
+  radarMarketAuthority:['radarmarketauthority','radar market authority','market authority'],
   radarProvenOutcomes:['radarprovenoutcomes','radar proven outcomes'],
+  // Retired from the radar in v2 but still tracked as CRM data — sovereign-model coverage is
+  // the highest-value thing the weekly scan watches for, so the column outlives the axis.
+  radarDialectCoverage:['radardialectcoverage','radar dialect coverage'],
+  radarSovereignModels:['radarsovereignmodels','radar sovereign models'],
+  // Free text, not a score: compact per-axis provenance, e.g. '1:IND live basket; 2:ART sitemap'.
+  radarEvidence:['radarevidence','radar evidence','evidence'],
   radarScoredAt:['radarscoredat','radar scored at']
 };
 function mapCompetitorHeaders(headerRow){
@@ -3455,10 +3466,14 @@ function parseCompetitorDate(raw){
   return isNaN(d)?null:d.toISOString();
 }
 const COMPETITOR_STRING_FIELDS=['website','newsUrl','arabicDepthNotes','menaLocalizationNotes','proofNotes','reviewSources',
-  'reviewSummary','arrEstimate','entryPrice','pricingModel','positioningClaim','competitiveVerdict','featuresNotes','notes'];
+  'reviewSummary','arrEstimate','entryPrice','pricingModel','positioningClaim','competitiveVerdict','featuresNotes','notes',
+  'radarEvidence'];
 const COMPETITOR_ENUM_FIELDS=['competitorType','deliveryModel','threatLevel','sovereignModelCoverage','executionScope','status'];
-const COMPETITOR_RADAR_FIELDS=['radarArabicCitation','radarContentDepth','radarDialectCoverage','radarSovereignModels',
-  'radarSurfaceCoverage','radarTechnicalGeo','radarAdoptionAccess','radarProvenOutcomes'];
+// v2 radar: axes 1-7 in chart order, then the two axes retired from the chart but still stored
+// (they still import/export via this array; COMPETITOR_RADAR_CHART_FIELDS below is the
+// chart-only subset). Mirrors RADAR_FIELDS in scripts/apply_research_csv.py.
+const COMPETITOR_RADAR_FIELDS=['radarArabicCitation','radarContentDepth','radarFeatureBreadth','radarTechnicalGeo',
+  'radarAdoptionAccess','radarMarketAuthority','radarProvenOutcomes','radarDialectCoverage','radarSovereignModels'];
 async function handleCompetitorImportFile(ev){
   const file=ev.target.files[0]; if(!file)return;
   showImportLoading();
@@ -3554,7 +3569,7 @@ async function handleCompetitorImportFile(ev){
           arrEstimate:(get('arrEstimate')||'').toString(), entryPrice:(get('entryPrice')||'').toString(),
           pricingModel:(get('pricingModel')||'').toString(), positioningClaim:(get('positioningClaim')||'').toString(),
           competitiveVerdict:(get('competitiveVerdict')||'').toString(), featuresNotes:(get('featuresNotes')||'').toString(),
-          notes:(get('notes')||'').toString(),
+          notes:(get('notes')||'').toString(), radarEvidence:(get('radarEvidence')||'').toString(),
           status: mStatus||'Unknown',
           verified: mVerified||false,
           // A CSV import is itself a research/confirmation event, so a row with no explicit
@@ -3687,9 +3702,12 @@ function exportCompetitors(fmt){
     dialects:(c.dialects||[]).join('; '), platformsCovered:(c.platformsCovered||[]).join('; '), labels:(c.labels||[]).join('; '),
     // ?? not || : a real score of 0 must round-trip as 0, not get flattened to blank like a
     // genuinely unscored (null) axis — see the radar column comments in supabase_schema.sql.
-    radarArabicCitation:c.radarArabicCitation??'', radarContentDepth:c.radarContentDepth??'', radarDialectCoverage:c.radarDialectCoverage??'',
-    radarSovereignModels:c.radarSovereignModels??'', radarSurfaceCoverage:c.radarSurfaceCoverage??'', radarTechnicalGeo:c.radarTechnicalGeo??'',
-    radarAdoptionAccess:c.radarAdoptionAccess??'', radarProvenOutcomes:c.radarProvenOutcomes??'',
+    // v2 column order (matches the 40-column header in research/scheduled_task_prompt_v2.txt):
+    // axes 1-7, then the two retired-from-the-chart-but-still-stored axes, then radarEvidence.
+    radarArabicCitation:c.radarArabicCitation??'', radarContentDepth:c.radarContentDepth??'', radarFeatureBreadth:c.radarFeatureBreadth??'',
+    radarTechnicalGeo:c.radarTechnicalGeo??'', radarAdoptionAccess:c.radarAdoptionAccess??'', radarMarketAuthority:c.radarMarketAuthority??'',
+    radarProvenOutcomes:c.radarProvenOutcomes??'', radarDialectCoverage:c.radarDialectCoverage??'', radarSovereignModels:c.radarSovereignModels??'',
+    radarEvidence:c.radarEvidence||'',
     radarScoredAt:c.radarScoredAt?fmtTs(c.radarScoredAt):'',
     date_entered:fmtTs(c.created_at), date_modified:fmtTs(c.updated_at)
   }));
@@ -4017,17 +4035,24 @@ function renderCompetitorsTable(list){
 // supabase_schema.sql and COMPETITOR_RADAR_FIELDS in the importer above, which this reuses so
 // the field order can't drift between import/export and the chart). Display labels are a
 // separate lookup since the column names are camelCase, not display text.
+// v2: 7 axes blending Arabic-localization depth with general competitive strength.
+// radarDialectCoverage and radarSovereignModels are retired from the chart (no label here) but
+// stay in COMPETITOR_RADAR_FIELDS above so they still import/store — sovereign-model coverage
+// (Jais 2 / ALLaM / Falcon / Fanar) remains the highest-value thing the weekly scan watches for.
 const COMPETITOR_RADAR_LABELS={
-  radarArabicCitation:'Arabic Citation', radarContentDepth:'Content Depth', radarDialectCoverage:'Dialect Coverage',
-  radarSovereignModels:'Sovereign Models', radarSurfaceCoverage:'Surface Coverage', radarTechnicalGeo:'Technical GEO',
-  radarAdoptionAccess:'Adoption Access', radarProvenOutcomes:'Proven Outcomes'
+  radarArabicCitation:'Arabic Citation', radarContentDepth:'Content Depth', radarFeatureBreadth:'Feature Breadth',
+  radarTechnicalGeo:'Technical GEO', radarAdoptionAccess:'Adoption Access', radarMarketAuthority:'Market Authority',
+  radarProvenOutcomes:'Proven Outcomes'
 };
-const COMPETITOR_RADAR_METRICS=COMPETITOR_RADAR_FIELDS.map(f=>COMPETITOR_RADAR_LABELS[f]);
+// Chart-only subset (first 7 of COMPETITOR_RADAR_FIELDS) — the two retired axes still import
+// and store via the fuller array above, they just don't plot.
+const COMPETITOR_RADAR_CHART_FIELDS=COMPETITOR_RADAR_FIELDS.slice(0,7);
+const COMPETITOR_RADAR_METRICS=COMPETITOR_RADAR_CHART_FIELDS.map(f=>COMPETITOR_RADAR_LABELS[f]);
 // Scales the 0-10 research score to the chart's 0-100 axis. An unscored axis (column is null —
 // e.g. radarArabicCitation isn't desk-researchable for most competitors) stays null rather than
 // becoming 0, so radarChartSvg can render it as "not yet scored" instead of "scored zero".
 function competitorRadarValues(c){
-  return COMPETITOR_RADAR_FIELDS.map(f=>c[f]==null?null:c[f]*10);
+  return COMPETITOR_RADAR_CHART_FIELDS.map(f=>c[f]==null?null:c[f]*10);
 }
 // Generic n-axis radar/spider chart as an inline SVG — no charting library needed. values are
 // 0-100 (or null for "not yet scored"), one per label; labels is optional (omit to skip the

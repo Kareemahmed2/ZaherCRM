@@ -1,0 +1,8 @@
+# Weekly research deliveries must round-trip byte-for-byte: the format contract in
+# research/scheduled_task_prompt_v2.txt requires UTF-8 WITH BOM and CRLF line endings, and
+# apply_research_csv.py / handleCompetitorImportFile() are both tested against that exact shape.
+# Without this, core.autocrlf on a contributor's machine (or a differently-configured CI runner)
+# silently normalizes CRLF -> LF on `git add`, which is invisible in the working tree (the warning
+# only fires "next time Git touches it") but corrupts the committed blob and makes every future
+# `git diff` on these files noisy line-ending churn instead of real content changes.
+research/competitors/*.csv -text
