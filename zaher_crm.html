@@ -988,7 +988,7 @@
           <option value="Annually">Annually</option>
         </select>
       </div>
-      <div class="form-group" id="stage-subdate-group" style="display:none;"><label class="form-label">Subscription date</label><input class="form-input" id="stage-subdate-input" placeholder="e.g. 2026-01-01"></div>
+      <div class="form-group" id="stage-subdate-group" style="display:none;"><label class="form-label">Subscription date</label><input class="form-input" type="date" id="stage-subdate-input"></div>
       <div class="form-group"><label class="form-label">Note (optional)</label><textarea class="form-input" id="stage-note-text" rows="3" placeholder="What changed?"></textarea></div>
     </div>
     <div class="modal-footer">
@@ -2719,7 +2719,7 @@ function renderDirBulkBar(){
       <option value="SaaS">SaaS</option>
     </select>
     <select id="dir-bulk-subperiod-input" class="form-input" style="font-size:12px;padding:5px 8px;width:120px;display:none;">${subscriptionPeriodSelectHtml('')}</select>
-    <input id="dir-bulk-subdate-input" class="form-input" style="font-size:12px;padding:5px 8px;width:120px;display:none;" placeholder="Sub. date">`:''}
+    <input id="dir-bulk-subdate-input" class="form-input" type="date" style="font-size:12px;padding:5px 8px;width:140px;display:none;">`:''}
     <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="bulkChangeStage()">Apply</button>
     <button class="btn btn-danger" style="font-size:12px;padding:5px 10px;" onclick="bulkDeleteSelected()">Delete selected</button>`;
 }
@@ -4503,7 +4503,7 @@ function extraFieldsHtml(p,r){
       <div class="form-group"><label class="form-label">Lead source</label><select class="form-input" id="f-leadsource" onchange="handleLeadSourceChange(this)">${leadSourceSelectHtml(r?r.leadSource:leadSourceOptions[0])}</select></div>
       <div class="form-row">
         <div class="form-group" id="f-subperiod-group" style="display:${seg==='Enterprise'?'':'none'};"><label class="form-label">Subscription period</label><select class="form-input" id="f-subperiod">${subscriptionPeriodSelectHtml(r?r.subscriptionPeriod:'')}</select></div>
-        <div class="form-group" id="f-subdate-group" style="display:${seg==='SaaS'?'':'none'};"><label class="form-label">Subscription date</label><input class="form-input" id="f-subdate" placeholder="e.g. 2026-01-01" value="${escAttr(r?r.subscriptionDate:'')}"></div>
+        <div class="form-group" id="f-subdate-group" style="display:${seg==='SaaS'?'':'none'};"><label class="form-label">Subscription date</label><input class="form-input" type="date" id="f-subdate" value="${escAttr(r?r.subscriptionDate:'')}"></div>
       </div>
       <div class="form-group"><label class="form-label">Next step</label><select class="form-input" id="f-nextstep" onchange="handleNextStepChange(this)">${nextStepSelectHtml(r?r.nextStep:nextStepOptions[0])}</select></div>`;
   } else if(p==='events'){
