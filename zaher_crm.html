@@ -980,7 +980,14 @@
           <option value="SaaS">SaaS</option>
         </select>
       </div>
-      <div class="form-group" id="stage-subperiod-group" style="display:none;"><label class="form-label">Subscription period</label><input class="form-input" id="stage-subperiod-input" placeholder="Annual / Quarterly / ..."></div>
+      <div class="form-group" id="stage-subperiod-group" style="display:none;"><label class="form-label">Subscription period</label>
+        <select class="form-input" id="stage-subperiod-input">
+          <option value="" selected>Select...</option>
+          <option value="Quarterly">Quarterly</option>
+          <option value="Half-Annual">Half-Annual</option>
+          <option value="Annually">Annually</option>
+        </select>
+      </div>
       <div class="form-group" id="stage-subdate-group" style="display:none;"><label class="form-label">Subscription date</label><input class="form-input" id="stage-subdate-input" placeholder="e.g. 2026-01-01"></div>
       <div class="form-group"><label class="form-label">Note (optional)</label><textarea class="form-input" id="stage-note-text" rows="3" placeholder="What changed?"></textarea></div>
     </div>
@@ -1794,6 +1801,15 @@ async function handleLeadSourceChange(sel){
     if(label){ await addLeadSourceOption(label); sel.innerHTML=leadSourceSelectHtml(label); }
     else sel.value=leadSourceOptions[0]||'';
   }
+}
+
+// ══════════════ SUBSCRIPTION PERIOD (customers, Enterprise segment) ══════════════
+// Fixed 3-option enum, unlike sector/leadSource — no team "add new" picker, so a plain
+// select with a blank placeholder is enough.
+const SUBSCRIPTION_PERIODS=['Quarterly','Half-Annual','Annually'];
+function subscriptionPeriodSelectHtml(selected){
+  return `<option value="" ${!selected?'selected':''}>Select...</option>`
+    +SUBSCRIPTION_PERIODS.map(o=>`<option value="${o}" ${o===selected?'selected':''}>${o}</option>`).join('');
 }
 
 // ══════════════ LABELS (all four pipelines) ══════════════
@@ -2702,7 +2718,7 @@ function renderDirBulkBar(){
       <option value="Enterprise">Enterprise</option>
       <option value="SaaS">SaaS</option>
     </select>
-    <input id="dir-bulk-subperiod-input" class="form-input" style="font-size:12px;padding:5px 8px;width:120px;display:none;" placeholder="Sub. period">
+    <select id="dir-bulk-subperiod-input" class="form-input" style="font-size:12px;padding:5px 8px;width:120px;display:none;">${subscriptionPeriodSelectHtml('')}</select>
     <input id="dir-bulk-subdate-input" class="form-input" style="font-size:12px;padding:5px 8px;width:120px;display:none;" placeholder="Sub. date">`:''}
     <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="bulkChangeStage()">Apply</button>
     <button class="btn btn-danger" style="font-size:12px;padding:5px 10px;" onclick="bulkDeleteSelected()">Delete selected</button>`;
@@ -4486,7 +4502,7 @@ function extraFieldsHtml(p,r){
       <div class="form-group"><label class="form-label">Segment</label>${segField}</div></div>
       <div class="form-group"><label class="form-label">Lead source</label><select class="form-input" id="f-leadsource" onchange="handleLeadSourceChange(this)">${leadSourceSelectHtml(r?r.leadSource:leadSourceOptions[0])}</select></div>
       <div class="form-row">
-        <div class="form-group" id="f-subperiod-group" style="display:${seg==='Enterprise'?'':'none'};"><label class="form-label">Subscription period</label><input class="form-input" id="f-subperiod" placeholder="Annual / Quarterly / ..." value="${escAttr(r?r.subscriptionPeriod:'')}"></div>
+        <div class="form-group" id="f-subperiod-group" style="display:${seg==='Enterprise'?'':'none'};"><label class="form-label">Subscription period</label><select class="form-input" id="f-subperiod">${subscriptionPeriodSelectHtml(r?r.subscriptionPeriod:'')}</select></div>
         <div class="form-group" id="f-subdate-group" style="display:${seg==='SaaS'?'':'none'};"><label class="form-label">Subscription date</label><input class="form-input" id="f-subdate" placeholder="e.g. 2026-01-01" value="${escAttr(r?r.subscriptionDate:'')}"></div>
       </div>
       <div class="form-group"><label class="form-label">Next step</label><select class="form-input" id="f-nextstep" onchange="handleNextStepChange(this)">${nextStepSelectHtml(r?r.nextStep:nextStepOptions[0])}</select></div>`;
