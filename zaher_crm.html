@@ -1761,6 +1761,41 @@ function timezoneSelectHtml(selected){
   return TIMEZONES.map(tz=>`<option ${tz===selected?'selected':''}>${tz}</option>`).join('');
 }
 
+// ══════════════ LEAD SOURCES (customers) ══════════════
+const DEFAULT_LEAD_SOURCES=['Founder network','LinkedIn','Community','Referral','Cold Outreach','Partner','Inbound','Manual'];
+let leadSourceOptions=DEFAULT_LEAD_SOURCES.slice();
+async function loadLeadSourceOptions(){
+  if(!sb) return;
+  const {data,error}=await sb.from('lead_source_options').select('*').order('id');
+  if(!error && data && data.length) leadSourceOptions=data.map(o=>o.label);
+}
+async function addLeadSourceOption(label){
+  label=(label||'').trim(); if(!label) return null;
+  if(!leadSourceOptions.includes(label)){
+    leadSourceOptions.push(label);
+    if(sb){ const {error}=await sb.from('lead_source_options').insert({label}); if(error) console.error(error); }
+  }
+  return label;
+}
+// Same union-with-existing-records trick as sectorSelectOptions() — leadSource has always been
+// free text (CSV import, chat, the old text input), so records can carry values that were never
+// added through this picker.
+function leadSourceSelectOptions(){
+  const vals=new Set(leadSourceOptions);
+  records.forEach(r=>{ if(r.pipeline==='customers'&&r.leadSource) vals.add(r.leadSource); });
+  return [...vals];
+}
+function leadSourceSelectHtml(selected){
+  return leadSourceSelectOptions().map(o=>`<option ${o===selected?'selected':''}>${escHtml(o)}</option>`).join('')+'<option value="__add__">+ Add new...</option>';
+}
+async function handleLeadSourceChange(sel){
+  if(sel.value==='__add__'){
+    const label=prompt('New lead source:');
+    if(label){ await addLeadSourceOption(label); sel.innerHTML=leadSourceSelectHtml(label); }
+    else sel.value=leadSourceOptions[0]||'';
+  }
+}
+
 // ══════════════ LABELS (all four pipelines) ══════════════
 // Free-form, multi-value, shared across partners/customers/investors/events — unlike every
 // other options list in this file (next steps, event types), a label isn't scoped to one
@@ -4449,7 +4484,7 @@ function extraFieldsHtml(p,r){
       <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="f-website" placeholder="company.com" value="${escAttr(r?r.website:'')}"></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">MRR / yr ($)</label><input class="form-input" type="number" min="0" id="f-value" placeholder="12000" value="${r&&r.value?r.value:''}"></div>
       <div class="form-group"><label class="form-label">Segment</label>${segField}</div></div>
-      <div class="form-group"><label class="form-label">Lead source</label><input class="form-input" id="f-leadsource" placeholder="LinkedIn / Community / Partner" value="${escAttr(r?r.leadSource:'')}"></div>
+      <div class="form-group"><label class="form-label">Lead source</label><select class="form-input" id="f-leadsource" onchange="handleLeadSourceChange(this)">${leadSourceSelectHtml(r?r.leadSource:leadSourceOptions[0])}</select></div>
       <div class="form-row">
         <div class="form-group" id="f-subperiod-group" style="display:${seg==='Enterprise'?'':'none'};"><label class="form-label">Subscription period</label><input class="form-input" id="f-subperiod" placeholder="Annual / Quarterly / ..." value="${escAttr(r?r.subscriptionPeriod:'')}"></div>
         <div class="form-group" id="f-subdate-group" style="display:${seg==='SaaS'?'':'none'};"><label class="form-label">Subscription date</label><input class="form-input" id="f-subdate" placeholder="e.g. 2026-01-01" value="${escAttr(r?r.subscriptionDate:'')}"></div>
@@ -5110,6 +5145,7 @@ async function startApp(){
   await loadNextStepOptions();
   await loadEventTypeOptions();
   await loadSectorOptions();
+  await loadLeadSourceOptions();
   await loadLabelOptions();
   await loadCompetitors();
   await loadCompetitorSignals();

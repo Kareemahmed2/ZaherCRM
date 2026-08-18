@@ -507,6 +507,32 @@ create policy "zaher team read sector_options" on sector_options for select usin
 drop policy if exists "zaher team insert sector_options" on sector_options;
 create policy "zaher team insert sector_options" on sector_options for insert with check (is_zaher_team());
 
+-- Lead source options (mirrors sector_options above) — an extensible, team-editable list of
+-- customer lead sources, seeded with the values already seen in practice.
+create table if not exists lead_source_options (
+  id         bigint generated always as identity primary key,
+  label      text not null unique,
+  created_at timestamptz not null default now()
+);
+
+insert into lead_source_options (label) values
+  ('Founder network'),
+  ('LinkedIn'),
+  ('Community'),
+  ('Referral'),
+  ('Cold Outreach'),
+  ('Partner'),
+  ('Inbound'),
+  ('Manual')
+on conflict (label) do nothing;
+
+alter table lead_source_options enable row level security;
+
+drop policy if exists "zaher team read lead_source_options" on lead_source_options;
+create policy "zaher team read lead_source_options" on lead_source_options for select using (is_zaher_team());
+drop policy if exists "zaher team insert lead_source_options" on lead_source_options;
+create policy "zaher team insert lead_source_options" on lead_source_options for insert with check (is_zaher_team());
+
 -- ═══════════════════════════════════════════════════════════════════════
 -- Tasks (added 2026-08-04)
 -- Discrete to-dos attached to a company record in any pipeline — distinct
