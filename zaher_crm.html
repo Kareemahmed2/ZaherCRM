@@ -1321,6 +1321,12 @@ function findRecord(q){ if(q==null)return null; if(typeof q==='number'||/^\d+$/.
 }
 function describeAmbiguous(r,q){ return `"${q}" matches a contact at multiple companies (${r.candidates.map(x=>x.company).join(', ')}) — please specify which company.`; }
 function matchInList(list,needle){ if(!needle)return null; const n=(''+needle).toLowerCase(); return list.find(s=>s.toLowerCase()===n) || list.find(s=>s.toLowerCase().includes(n)) || null; }
+// A cell/field reading "-", "—", "---", "N/A", etc. means "no data", not literal text — used by
+// the importer's get() (see handleImportFile) and by anywhere a free-text field's *existing*
+// values are surfaced as options (sectorSelectOptions/leadSourceSelectOptions, the filter
+// panel's distinct-value lists) so a placeholder that slipped into the data pre-dates this
+// fix, or arrived via chat/CSV, doesn't get offered back as if it were a real, selectable value.
+function isPlaceholderText(raw){ const s=(raw==null?'':raw.toString()).trim(); return !s||/^[-—]+$/.test(s)||/^n\/?a$/i.test(s); }
 function primaryMember(r){ return (r&&r.members&&r.members[0]) || null; }
 // Used by the chatbot's member tools (add_member/update_member/delete_member) — mirrors
 // findRecord's exact-then-partial matching, scoped to one record's own members list.
@@ -1751,7 +1757,7 @@ async function addSectorOption(label){
 // reverting to the first option when its record is opened for edit.
 function sectorSelectOptions(){
   const vals=new Set(sectorOptions);
-  records.forEach(r=>{ if(r.pipeline==='customers'&&r.sector) vals.add(r.sector); });
+  records.forEach(r=>{ if(r.pipeline==='customers'&&r.sector&&!isPlaceholderText(r.sector)) vals.add(r.sector); });
   return [...vals];
 }
 function sectorSelectHtml(selected){
@@ -1789,7 +1795,7 @@ async function addLeadSourceOption(label){
 // added through this picker.
 function leadSourceSelectOptions(){
   const vals=new Set(leadSourceOptions);
-  records.forEach(r=>{ if(r.pipeline==='customers'&&r.leadSource) vals.add(r.leadSource); });
+  records.forEach(r=>{ if(r.pipeline==='customers'&&r.leadSource&&!isPlaceholderText(r.leadSource)) vals.add(r.leadSource); });
   return [...vals];
 }
 function leadSourceSelectHtml(selected){
@@ -2398,7 +2404,7 @@ function renderFilterPanel(panelId){
   let html=fields.map(f=>{
     const vals=f.key==='labels'
       ? [...new Set(recs.flatMap(r=>r.labels||[]))].sort()
-      : [...new Set(recs.map(r=>r[f.key]).filter(v=>v!=null&&v!==''))].sort();
+      : [...new Set(recs.map(r=>r[f.key]).filter(v=>v!=null&&v!==''&&!isPlaceholderText(v)))].sort();
     const cur=state.filters[f.key]!=null?(''+state.filters[f.key]):'';
     return `<div class="form-group"><label class="form-label">${f.label}</label>
       <select class="form-input" onchange="setFilter('${f.key}',this.value)">
@@ -3105,8 +3111,7 @@ async function handleImportFile(ev){
         if(idx[f]===undefined)return undefined;
         const v=row[idx[f]];
         if(v==null)return undefined;
-        const s=(''+v).trim();
-        if(!s||/^[-—]+$/.test(s)||/^n\/?a$/i.test(s))return undefined;
+        if(isPlaceholderText(v))return undefined;
         return v;
       };
       const company=(get('company')||get('name')||'').toString().trim(); if(!company)continue;
@@ -3472,8 +3477,7 @@ async function handleCompetitorImportFile(ev){
           if(idx[f]===undefined)return undefined;
           const v=row[idx[f]];
           if(v==null)return undefined;
-          const s=(''+v).trim();
-          if(!s||/^[-—]+$/.test(s)||/^n\/?a$/i.test(s))return undefined;
+          if(isPlaceholderText(v))return undefined;
           return v;
         };
         const company=(get('company')||'').toString().trim(); if(!company)continue;
