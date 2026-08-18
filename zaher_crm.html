@@ -1273,7 +1273,7 @@ const FORMAT_COLOR={'Virtual':'#378ADD','In-Person':'#639922'};
 const REGION_COLOR={'Egypt':'#639922','Outside Egypt':'#EF9F27'};
 function strHashIdx(s,len){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; return Math.abs(h)%len; }
 function eventTypeColor(t){ if(!t) return '#888780'; return EVENT_TYPE_COLOR[t]||PALETTE[strHashIdx(t,PALETTE.length)]; }
-function calEventColor(r){ return state.calColorMode==='format'?(FORMAT_COLOR[r.format]||'#888780'):eventTypeColor(r.eventType); }
+function calEventColor(r){ if(state.calColorMode==='format')return FORMAT_COLOR[r.format]||'#888780'; if(state.calColorMode==='region')return REGION_COLOR[r.outsideEgypt]||'#888780'; return eventTypeColor(r.eventType); }
 // Standard colored-pill treatment (background:${c}1F / color:${c}) matching
 // stagePill/competitorPill/catChip elsewhere, for events' Egypt vs Outside Egypt field.
 function regionPill(v){ const c=REGION_COLOR[v]||'#888780'; return `<span class="chip" style="background:${c}1F;color:${c};">${escHtml(v||'—')}</span>`; }
@@ -2559,19 +2559,21 @@ function renderCalendar(list){
 
   const monthLabel=month.toLocaleDateString('en-US',{month:'long',year:'numeric'});
   const weekdayLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const byFormat=state.calColorMode==='format';
+  const byFormat=state.calColorMode==='format', byRegion=state.calColorMode==='region';
   // Legend only lists colors actually in play this month (plus "Unscheduled", if any) — a
   // fixed list of every known event type would include types with zero events on this page,
   // cluttering the legend with swatches that don't appear anywhere in the visible grid.
-  const legendKeys=byFormat?['Virtual','In-Person']:Array.from(new Set(list.map(r=>r.eventType).filter(Boolean))).sort();
-  const legendHtml=legendKeys.length?`<div class="cal-legend">${legendKeys.map(k=>`<span class="cal-legend-item"><span class="cal-legend-dot" style="background:${byFormat?FORMAT_COLOR[k]:eventTypeColor(k)};"></span>${escHtml(k)}</span>`).join('')}</div>`:'';
+  const legendKeys=byFormat?['Virtual','In-Person']:byRegion?['Egypt','Outside Egypt']:Array.from(new Set(list.map(r=>r.eventType).filter(Boolean))).sort();
+  const legendColor=k=>byFormat?FORMAT_COLOR[k]:byRegion?REGION_COLOR[k]:eventTypeColor(k);
+  const legendHtml=legendKeys.length?`<div class="cal-legend">${legendKeys.map(k=>`<span class="cal-legend-item"><span class="cal-legend-dot" style="background:${legendColor(k)};"></span>${escHtml(k)}</span>`).join('')}</div>`:'';
   document.getElementById('calendar-view').innerHTML=`
     <div class="calendar-header">
       <div class="calendar-title">${monthLabel}</div>
       <div class="calendar-nav">
         <div class="seg" style="margin-right:6px;">
-          <button type="button" class="seg-btn ${byFormat?'':'active'}" onclick="setCalColorMode('type')">By type</button>
+          <button type="button" class="seg-btn ${(byFormat||byRegion)?'':'active'}" onclick="setCalColorMode('type')">By type</button>
           <button type="button" class="seg-btn ${byFormat?'active':''}" onclick="setCalColorMode('format')">By format</button>
+          <button type="button" class="seg-btn ${byRegion?'active':''}" onclick="setCalColorMode('region')">By region</button>
         </div>
         <button class="btn btn-ghost" onclick="calPrevMonth()" aria-label="Previous month">‹</button>
         <button class="btn btn-ghost" onclick="calToday()">Today</button>
