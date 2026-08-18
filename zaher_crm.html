@@ -1278,11 +1278,8 @@ function calEventColor(r){ if(state.calColorMode==='format')return FORMAT_COLOR[
 // stagePill/competitorPill/catChip elsewhere, for events' Egypt vs Outside Egypt field.
 function regionPill(v){ const c=REGION_COLOR[v]||'#888780'; return `<span class="chip" style="background:${c}1F;color:${c};">${escHtml(v||'—')}</span>`; }
 function setCalColorMode(mode){ if(state.calColorMode===mode)return; state.calColorMode=mode; renderPipeline(); }
-// Both format the sign separately (rather than letting it ride along inside the number) so a
-// negative value reads as "-$500", not "$-500" — v>=1000 etc. all short-circuit on a negative
-// v otherwise, since -500 is neither !v nor >=1000, falling through to the raw-number branch
-// with the minus sign stuck between the $ and the digits.
-const fv=v=>{ if(!v) return '$0'; const neg=v<0, av=Math.abs(v); const s=av>=1000000?(av/1000000).toFixed(1)+'M':av>=1000?(av/1000).toFixed(0)+'k':''+av; return (neg?'-':'')+'$'+s; };
+// Formats the sign separately (rather than letting it ride along inside the number) so a
+// negative value reads as "-$500", not "$-500".
 const ff=v=>{ if(!v) return '$0'; const neg=v<0; return (neg?'-':'')+'$'+Math.abs(v).toLocaleString(); };
 function fmtTs(ts){ if(!ts) return '—'; const d=new Date(ts); return isNaN(d)?'—':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
 function activeStages(){ if(state.pipeline==='partners') return STAGES['partners'+state.portfolio]; return STAGES[state.pipeline]; }
@@ -2165,7 +2162,7 @@ function renderDashboard(){
       <td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${primary}</div><div class="lc">${secondary}</div></div></div></td>
       <td>${state.pipeline==='partners'?catChip(r.category):`<span class="lc">${escHtml(r.sector||r.thesis||'—')}</span>`}</td>
       <td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>
-      <td style="font-weight:500;">${isP2()?(r.founders||0):fv(r.value)}</td>
+      <td style="font-weight:500;">${isP2()?(r.founders||0):ff(r.value)}</td>
       <td>${stagePill(r.stage)}</td>
     </tr>`;}).join(''):emptyRecentRow;
   }
@@ -2238,7 +2235,7 @@ function buildCard(r){
   else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment)}</span>`:''}${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.nextStep)}</span>`:''}</div>`;
   else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${escHtml(r.fundSize||'')} · ${escHtml(r.thesis||'')}</div>`;
   else if(state.pipeline==='events') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${r.eventType?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.eventType)}</span>`:''}${r.format?`<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format)}</span>`:''}${regionPill(r.outsideEgypt||'Egypt')}</div>`;
-  const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:state.pipeline==='events'?`<div class="k-card-value" style="font-size:12px;">${fmtDateTime(r.startAt,r.timezone)}</div>`:`<div class="k-card-value">${fv(r.value)}</div>`;
+  const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:state.pipeline==='events'?`<div class="k-card-value" style="font-size:12px;">${fmtDateTime(r.startAt,r.timezone)}</div>`:`<div class="k-card-value">${ff(r.value)}</div>`;
   const pm=primaryMember(r);
   const cardPrimary=escHtml(r.company);
   const cardSecondary=state.pipeline==='events'?(r.format==='In-Person'?escHtml(r.venueName||r.address||'In-Person'):'Virtual'):(pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—');
@@ -2463,7 +2460,7 @@ function renderPipeline(){
     const cards=list.filter(r=>r.stage===stage).sort((a,b)=>tagRank(a)-tagRank(b));
     const tot=cards.reduce((s,r)=>s+(r.value||0),0);
     return `<div class="kanban-col" data-stage="${stage}">
-      <div class="col-header"><div><div class="col-name">${stage}</div>${(!isP2()&&state.pipeline!=='events'&&tot)?`<div class="col-total">${fv(tot)}</div>`:''}</div><span class="col-count">${cards.length}</span></div>
+      <div class="col-header"><div><div class="col-name">${stage}</div>${(!isP2()&&state.pipeline!=='events'&&tot)?`<div class="col-total">${ff(tot)}</div>`:''}</div><span class="col-count">${cards.length}</span></div>
       <div class="col-cards">${cards.map(buildCard).join('')}</div>
       <button class="add-card-btn" onclick="openModal('${stage}')">+ Add</button>
     </div>`;
@@ -2708,7 +2705,7 @@ function renderDirectory(){
       <td>${catChip(r.category)}</td><td style="font-size:12px;color:var(--gray-700);">${escHtml(r.model||'—')}</td>
       <td>${r.tier?tierPill(r.tier)+' '+(r.score!=null?`<span style="font-size:11px;color:var(--gray-500);">${r.score}</span>`:''):'<span class="lc">—</span>'}</td>
       <td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>
-      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':fv(r.value)}</td>
+      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':ff(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else if(state.pipeline==='customers'){
     head=sortableHead(['Company','Primary contact','Sector','Segment','AI Score','Website','Next step','Source','Stage','MRR/yr','Added','Updated']);
@@ -2721,7 +2718,7 @@ function renderDirectory(){
       <td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>
       <td style="font-size:12px;color:var(--gray-700);">${escHtml(r.nextStep||'—')}</td>
       <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.leadSource)}${ref?` · ${escHtml(ref.company)}`:''}</td>
-      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
+      <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${ff(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else if(state.pipeline==='events'){
     head=sortableHead(['Title','Type','Format','Region','Location','Start','End','Timezone','Status','Added','Updated']);
@@ -2742,7 +2739,7 @@ function renderDirectory(){
     rowFn=r=>{ const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td><td style="font-size:12px;">${escHtml(r.fundSize||'—')}</td>
-      <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.thesis||'—')}</td><td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${fv(r.value)}</td>
+      <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.thesis||'—')}</td><td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td><td>${stagePill(r.stage)}</td><td style="font-weight:500;">${ff(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }}
   if(state.dirSort&&sortKeys[state.dirSort.key]){
@@ -3834,7 +3831,7 @@ function renderAnalytics(){
   } else {
     const isCust=state.pipeline==='customers';
     const allVal=recs.reduce((s,r)=>s+(r.value||0),0),wonVal=won.reduce((s,r)=>s+(r.value||0),0);
-    kpis=[['Total value',fv(allVal)],[{partners:'Signed ARR',customers:'MRR',investors:'Capital raised'}[state.pipeline],ff(wonVal)],['Avg deal',fv(recs.length?Math.round(allVal/recs.length):0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
+    kpis=[['Total value',ff(allVal)],[{partners:'Signed ARR',customers:'MRR',investors:'Capital raised'}[state.pipeline],ff(wonVal)],['Avg deal',ff(recs.length?Math.round(allVal/recs.length):0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
     if(isCust) kpis.push([null,null,arrCardHtml(computeCustomerRealizedRevenue(recs))]);
     const pipeVal=computePipelineValue(stages,recs), rejectedVal=computeRejectedValue(recs);
     kpis.push(['Open pipeline',ff(pipeVal)],['Closed pipeline',ff(rejectedVal)],['Total pipeline',ff(wonVal+rejectedVal+pipeVal)]);
@@ -3856,7 +3853,7 @@ function renderAnalytics(){
   if(state.pipeline==='partners'){
     bTitle='By category';
     const cats=[...new Set(recs.map(r=>r.category))];
-    bItems=cats.map(c=>({name:c,v:recs.filter(r=>r.category===c).length,color:CAT_META[c].c,extra:isP2()?recs.filter(r=>r.category===c).reduce((a,r)=>a+(r.founders||0),0)+' reached':fv(recs.filter(r=>r.category===c).reduce((a,r)=>a+(r.value||0),0))}));
+    bItems=cats.map(c=>({name:c,v:recs.filter(r=>r.category===c).length,color:CAT_META[c].c,extra:isP2()?recs.filter(r=>r.category===c).reduce((a,r)=>a+(r.founders||0),0)+' reached':ff(recs.filter(r=>r.category===c).reduce((a,r)=>a+(r.value||0),0))}));
   } else if(state.pipeline==='customers'){
     bTitle='By sector';
     const secs=[...new Set(recs.map(r=>r.sector))];
@@ -3865,9 +3862,9 @@ function renderAnalytics(){
       const segStages=[...new Set(inSec.map(r=>r.stage))];
       const segments=segStages.map(s=>{
         const inStage=inSec.filter(r=>r.stage===s);
-        return {v:inStage.length,color:STAGE_COLOR[s]||ac,tip:`${s}: ${inStage.length} · ${fv(inStage.reduce((a,r)=>a+(r.value||0),0))}`};
+        return {v:inStage.length,color:STAGE_COLOR[s]||ac,tip:`${s}: ${inStage.length} · ${ff(inStage.reduce((a,r)=>a+(r.value||0),0))}`};
       });
-      return {name:c,v:inSec.length,segments,extra:fv(inSec.reduce((a,r)=>a+(r.value||0),0))};
+      return {name:c,v:inSec.length,segments,extra:ff(inSec.reduce((a,r)=>a+(r.value||0),0))};
     });
   } else if(isEvents){
     bTitle='By event type';
@@ -3876,7 +3873,7 @@ function renderAnalytics(){
   } else {
     bTitle='By thesis';
     const th=[...new Set(recs.map(r=>r.thesis))];
-    bItems=th.map((c,i)=>({name:c,v:recs.filter(r=>r.thesis===c).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.thesis===c).reduce((a,r)=>a+(r.value||0),0))}));
+    bItems=th.map((c,i)=>({name:c,v:recs.filter(r=>r.thesis===c).length,color:PALETTE[i%PALETTE.length],extra:ff(recs.filter(r=>r.thesis===c).reduce((a,r)=>a+(r.value||0),0))}));
   }
   document.getElementById('an-break-title').textContent=bTitle;
   document.getElementById('an-breakdown').innerHTML=state.pipeline==='customers'?stackedBarList(bItems):barList(bItems,ac);
@@ -3889,8 +3886,8 @@ function renderAnalytics(){
     s1=['#3B6D11',recs.reduce((s,r)=>s+(r.workshops||0),0),'Workshops delivered',won.length+' recurring'];
     s2=['#0E7474',recs.reduce((s,r)=>s+(r.founders||0),0),'Founders educated','Leading indicator'];
   } else {
-    s1=['#3B6D11',fv(won.reduce((s,r)=>s+(r.value||0),0)),{partners:'Signed ARR',customers:'Won revenue',investors:'Capital raised'}[state.pipeline],won.length+' closed'];
-    s2=['#EF9F27',fv(active.reduce((s,r)=>s+(r.value||0),0)),'Open pipeline',active.length+' active'];
+    s1=['#3B6D11',ff(won.reduce((s,r)=>s+(r.value||0),0)),{partners:'Signed ARR',customers:'Won revenue',investors:'Capital raised'}[state.pipeline],won.length+' closed'];
+    s2=['#EF9F27',ff(active.reduce((s,r)=>s+(r.value||0),0)),'Open pipeline',active.length+' active'];
   }
   document.getElementById('an-stat-1').innerHTML=`<div class="val" style="color:${s1[0]}">${s1[1]}</div><div class="lbl">${s1[2]}</div><div class="sub">${s1[3]}</div>`;
   document.getElementById('an-stat-2').innerHTML=`<div class="val" style="color:${s2[0]}">${s2[1]}</div><div class="lbl">${s2[2]}</div><div class="sub">${s2[3]}</div>`;
@@ -3899,7 +3896,7 @@ function renderAnalytics(){
     document.getElementById('an-extra-title').textContent='Lead source & partner attribution';
     const srcs=[...new Set(recs.map(r=>r.leadSource))];
     const notFounder=recs.filter(r=>r.leadSource!=='Founder network').length;
-    const items=srcs.map((s,i)=>({name:s,v:recs.filter(r=>r.leadSource===s).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.leadSource===s).reduce((a,r)=>a+(r.value||0),0))}));
+    const items=srcs.map((s,i)=>({name:s,v:recs.filter(r=>r.leadSource===s).length,color:PALETTE[i%PALETTE.length],extra:ff(recs.filter(r=>r.leadSource===s).reduce((a,r)=>a+(r.value||0),0))}));
     document.getElementById('an-extra').innerHTML=`<div style="padding:8px 20px 4px;font-size:12px;color:var(--gray-500);">${recs.length?Math.round(notFounder/recs.length*100):0}% of leads are from non-founder-network sources · ${recs.filter(r=>r.referredBy).length} partner-referred</div>`+barList(items,ac);
   } else if(isEvents){
     document.getElementById('an-extra-title').textContent='By format';
@@ -3917,7 +3914,7 @@ function renderAnalytics(){
   if(state.pipeline==='customers'){
     segCard.style.display='';
     const segs=['SaaS','Enterprise'];
-    const segItems=segs.map((s,i)=>({name:s,v:recs.filter(r=>r.segment===s).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.segment===s).reduce((a,r)=>a+(r.value||0),0))}));
+    const segItems=segs.map((s,i)=>({name:s,v:recs.filter(r=>r.segment===s).length,color:PALETTE[i%PALETTE.length],extra:ff(recs.filter(r=>r.segment===s).reduce((a,r)=>a+(r.value||0),0))}));
     document.getElementById('an-segment').innerHTML=barList(segItems,ac);
   } else segCard.style.display='none';
 }
