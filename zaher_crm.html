@@ -1237,7 +1237,7 @@ let notifications = [];
 let currentUserEmail='', currentUserName='';
 
 // ══════════════ STATE ══════════════
-let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),calColorMode:'type',compFilters:{},compSort:null,compView:'radar'};
+let state={pipeline:'partners',portfolio:1,filters:{},calMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),calColorMode:'type',compFilters:{},compSort:null,compView:'radar',arrPeriod:'Annually'};
 let currentId=null,currentPipeline=null,prevPage='pipeline';
 // Directory bulk-select: ids of checked rows in the currently active pipeline's Directory
 // table. Scoped to state.pipeline (cleared on switch) — same reasoning as every other
@@ -1841,6 +1841,39 @@ function normalizeSubscriptionDate(raw){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
+// ══════════════ CUSTOMER REVENUE (Dashboard/Analytics ARR card) ══════════════
+// A customer's `value` field is their MRR. Revenue actually realized from them is tied to
+// how long they're actually subscribed for — a Quarterly Enterprise deal only ever pays 3
+// months of that MRR, not a full year of it — so this is MRR × the customer's own committed
+// months, summed across won customers, rather than a blanket MRR×12 that overstated anyone
+// not on an Annual plan. SaaS has no fixed term (ongoing monthly billing off subscriptionDate,
+// not a subscriptionPeriod length), so it stays at the full 12-month run rate.
+const SUBSCRIPTION_PERIOD_MONTHS={Quarterly:3,'Half-Annual':6,Annually:12};
+function customerRevenueMonths(r){
+  return r.segment==='Enterprise'?(SUBSCRIPTION_PERIOD_MONTHS[r.subscriptionPeriod]||12):12;
+}
+function computeCustomerRealizedRevenue(recs){
+  return recs.filter(r=>isWonStage(r.stage)).reduce((s,r)=>s+(r.value||0)*customerRevenueMonths(r),0);
+}
+// The Quarterly/Half-Annual/Annually toggle re-expresses that one combined total on a
+// different time basis (÷4 / ÷2 / ×1) — it doesn't change which customers are counted.
+const ARR_PERIOD_DIVISOR={Quarterly:4,'Half-Annual':2,Annually:1};
+function setArrPeriod(period){
+  if(!ARR_PERIOD_DIVISOR[period])return;
+  state.arrPeriod=period;
+  const active=document.querySelector('.page.active'); if(!active)return;
+  const page=active.id.replace('page-','');
+  if(page==='dashboard')renderDashboard();
+  else if(page==='analytics')renderAnalytics();
+}
+function arrToggleHtml(){
+  return `<div class="seg" style="margin-top:10px;">${Object.keys(ARR_PERIOD_DIVISOR).map(p=>`<button type="button" class="seg-btn ${state.arrPeriod===p?'active':''}" onclick="setArrPeriod('${p}')">${p}</button>`).join('')}</div>`;
+}
+function arrCardHtml(total){
+  const val=Math.round(total/ARR_PERIOD_DIVISOR[state.arrPeriod]);
+  return `<div class="stat-card"><div class="stat-label">Revenue (${state.arrPeriod})</div><div class="stat-value">${ff(val)}</div><div class="stat-delta">MRR × subscribed months</div>${arrToggleHtml()}</div>`;
+}
+
 // ══════════════ LABELS (all four pipelines) ══════════════
 // Free-form, multi-value, shared across partners/customers/investors/events — unlike every
 // other options list in this file (next steps, event types), a label isn't scoped to one
@@ -2070,7 +2103,7 @@ function renderDashboard(){
     const l3={partners:'Revenue partners',customers:'Active clients',investors:'Closed'}[state.pipeline];
     cards=[[l1,total,'All'],['In pipeline',active.length,'Active'],[l3,won.length,total?((won.length/total)*100).toFixed(0)+'% rate':'0%'],['Open pipeline',ff(pipeVal),thresholdStage+'+']];
     const wonVal=computeWonValue(recs);
-    if(isCust) cards.push(['MRR',ff(wonVal),'Active clients'],['ARR',ff(wonVal*12),'MRR × 12']);
+    if(isCust) cards.push(['MRR',ff(wonVal),'Active clients'],[null,null,null,arrCardHtml(computeCustomerRealizedRevenue(recs))]);
     else if(state.pipeline==='partners') cards.push(['Signed ARR',ff(wonVal),'Revenue/Strategic partners']);
     else if(state.pipeline==='investors') cards.push(['Capital raised',ff(wonVal),'Closed deals']);
     // Closed pipeline = Rejected value only -- Won already has its own card (MRR/ARR/Signed
@@ -2080,7 +2113,7 @@ function renderDashboard(){
     const rejectedVal=computeRejectedValue(recs);
     cards.push(['Closed pipeline',ff(rejectedVal),'Rejected'],['Total pipeline',ff(wonVal+rejectedVal+pipeVal),'Won + Rejected + Open']);
   }
-  document.getElementById('stats-grid').innerHTML=cards.map(c=>`<div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-value">${c[1]}</div><div class="stat-delta">${c[2]}</div></div>`).join('');
+  document.getElementById('stats-grid').innerHTML=cards.map(c=>c[3]||`<div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-value">${c[1]}</div><div class="stat-delta">${c[2]}</div></div>`).join('');
 
   document.getElementById('dash-table-title').textContent='Recent '+{partners:'partners',customers:'customers',investors:'investors',events:'events'}[state.pipeline];
   // Both branches below build a 5-column table — a pipeline with zero records previously left
@@ -3746,11 +3779,11 @@ function renderAnalytics(){
     const isCust=state.pipeline==='customers';
     const allVal=recs.reduce((s,r)=>s+(r.value||0),0),wonVal=won.reduce((s,r)=>s+(r.value||0),0);
     kpis=[['Total value',fv(allVal)],[{partners:'Signed ARR',customers:'MRR',investors:'Capital raised'}[state.pipeline],ff(wonVal)],['Avg deal',fv(recs.length?Math.round(allVal/recs.length):0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
-    if(isCust) kpis.push(['ARR',ff(wonVal*12)]);
+    if(isCust) kpis.push([null,null,arrCardHtml(computeCustomerRealizedRevenue(recs))]);
     const pipeVal=computePipelineValue(stages,recs), rejectedVal=computeRejectedValue(recs);
     kpis.push(['Open pipeline',ff(pipeVal)],['Closed pipeline',ff(rejectedVal)],['Total pipeline',ff(wonVal+rejectedVal+pipeVal)]);
   }
-  document.getElementById('an-kpis').innerHTML=kpis.map(k=>`<div class="stat-card"><div class="stat-label">${k[0]}</div><div class="stat-value">${k[1]}</div><div class="stat-delta">${state.pipeline}</div></div>`).join('');
+  document.getElementById('an-kpis').innerHTML=kpis.map(k=>k[2]||`<div class="stat-card"><div class="stat-label">${k[0]}</div><div class="stat-value">${k[1]}</div><div class="stat-delta">${state.pipeline}</div></div>`).join('');
   // stage chart
   document.getElementById('an-bar-title').textContent=isP2()?'Ecosystem stage — partner count':(isEvents?'Events by status':'Value by stage');
   const useCount=isP2()||isEvents;
