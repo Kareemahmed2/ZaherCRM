@@ -3720,7 +3720,13 @@ function wrapCanvasLabel(ctx,text,maxWidth){
   if(cur)lines.push(cur);
   return lines;
 }
-function drawBar(id,labels,data,color){
+// `colors` may be a single fill string (every bar the same, the original behavior) or an
+// array of one color per bar (e.g. STAGE_COLOR per stage) for a color-coded chart. `tips`,
+// if given, is a parallel array of pre-formatted "Label: value" strings shown via the native
+// title attribute on hover — kept as plain strings (rather than drawBar re-deriving them from
+// raw numbers) so the caller controls formatting (counts vs $ vs anything else) without this
+// generic chart helper needing to know which.
+function drawBar(id,labels,data,colors,tips){
   const canvas=document.getElementById(id); if(!canvas)return;
   const ctx=canvas.getContext('2d');
   // Scale the backing bitmap by devicePixelRatio (kept 1:1 with CSS size via canvas.style.*)
@@ -3748,10 +3754,27 @@ function drawBar(id,labels,data,color){
   for(let i=0;i<=numTicks;i++){const y=pad.t+cH-(i/numTicks)*cH;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cW,y);ctx.stroke();const v=i*step;ctx.fillText(v>=1000?(v/1000).toFixed(0)+'k':v,pad.l-6,y+3);}
 
   const bp=Math.min(16,bgW*0.25),bW=bgW-bp*2;
-  data.forEach((val,i)=>{const bh=(val/mx)*cH,x=pad.l+i*bgW+bp,y=pad.t+cH-bh,r=Math.min(4,bW/2);ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+bW-r,y);ctx.quadraticCurveTo(x+bW,y,x+bW,y+r);ctx.lineTo(x+bW,y+bh);ctx.lineTo(x,y+bh);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();ctx.fill();});
+  const colorAt=i=>Array.isArray(colors)?(colors[i]||colors[0]||'#888780'):colors;
+  data.forEach((val,i)=>{const bh=(val/mx)*cH,x=pad.l+i*bgW+bp,y=pad.t+cH-bh,r=Math.min(4,bW/2);ctx.fillStyle=colorAt(i);ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+bW-r,y);ctx.quadraticCurveTo(x+bW,y,x+bW,y+r);ctx.lineTo(x+bW,y+bh);ctx.lineTo(x,y+bh);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();ctx.fill();});
 
   ctx.fillStyle='#888780';ctx.textAlign='center';ctx.font='9px DM Sans';
   wrapped.forEach((lines,i)=>{const x=pad.l+i*bgW+bgW/2;lines.forEach((line,li)=>ctx.fillText(line,x,pad.t+cH+14+li*11));});
+
+  // Hover tooltip via the native title attribute — wired once per canvas (guarded by
+  // _hoverWired) and reads the freshest layout/labels/tips off canvas._bar on every move,
+  // since drawBar re-runs (and overwrites canvas._bar) on every render/resize.
+  canvas._bar={pad,bgW,labels,tips};
+  if(!canvas._hoverWired){
+    canvas.addEventListener('mousemove',e=>{
+      const d=canvas._bar; if(!d||!d.tips)return;
+      const rect=canvas.getBoundingClientRect();
+      const x=e.clientX-rect.left;
+      const i=Math.floor((x-d.pad.l)/d.bgW);
+      canvas.title=(x>=d.pad.l&&i>=0&&i<d.labels.length)?d.tips[i]:'';
+    });
+    canvas.addEventListener('mouseleave',()=>{canvas.title='';});
+    canvas._hoverWired=true;
+  }
 }
 // Chart canvases don't redraw on their own when the window resizes (canvas dims are only set
 // at draw time) — re-render Analytics (debounced) whenever it's the active page.
@@ -3792,7 +3815,9 @@ function renderAnalytics(){
   document.getElementById('an-bar-title').textContent=isP2()?'Ecosystem stage — partner count':(isEvents?'Events by status':'Value by stage');
   const useCount=isP2()||isEvents;
   const vals=stages.map(s=>recs.filter(r=>r.stage===s).reduce((a,r)=>a+(useCount?1:(r.value||0)),0));
-  setTimeout(()=>drawBar('chart-stage',stages,vals,ac),30);
+  const stageColors=stages.map(s=>STAGE_COLOR[s]||ac);
+  const stageTips=stages.map((s,i)=>`${s}: ${useCount?vals[i]:ff(vals[i])}`);
+  setTimeout(()=>drawBar('chart-stage',stages,vals,stageColors,stageTips),30);
   // breakdown
   let bTitle,bItems;
   if(state.pipeline==='partners'){
