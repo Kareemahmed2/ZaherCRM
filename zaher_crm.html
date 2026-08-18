@@ -3790,6 +3790,22 @@ window.addEventListener('resize',()=>{
 // ("By thesis"/"By source" on a fresh Investors pipeline, for example). Matches the "No notes
 // yet." pattern already used correctly on the dashboard's Recent notes feed.
 function barList(items,color){ if(!items.length) return `<div class="notes-body" style="padding:16px 20px;">No data yet.</div>`; const mx=Math.max(...items.map(i=>i.v),1); return items.map(i=>`<div class="bar-row"><div class="bar-name">${escHtml(i.name)}</div><div class="bar-bg"><div class="bar-fill" style="width:${(i.v/mx)*100}%;background:${i.color||color};"></div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${escHtml(i.extra)}</div>`:''}</div>`).join(''); }
+// Segmented variant of barList — each item's bar is split into per-stage colored slices
+// instead of one flat fill, so e.g. a sector containing customers at different stages shows
+// each stage's own color as its own portion of that bar (Proposal=orange, Active Client=
+// purple, side by side), sized to that stage's share of the item's total. The whole bar's
+// length still compares item-to-item exactly like barList (outer wrapper width = i.v/mx),
+// only the fill inside it is now multiple colored slices instead of one. Hovering a slice
+// shows its stage and count via the native title attribute (same pattern as escAttr(hint) on
+// the competitor detail fields, and the Value-by-stage chart's canvas tooltip).
+function stackedBarList(items){
+  if(!items.length) return `<div class="notes-body" style="padding:16px 20px;">No data yet.</div>`;
+  const mx=Math.max(...items.map(i=>i.v),1);
+  return items.map(i=>{
+    const segs=i.segments.filter(seg=>seg.v>0).map(seg=>`<div title="${escAttr(seg.tip)}" style="flex:${seg.v} 0 0;height:100%;background:${seg.color};"></div>`).join('');
+    return `<div class="bar-row"><div class="bar-name">${escHtml(i.name)}</div><div class="bar-bg"><div style="display:flex;height:100%;width:${(i.v/mx)*100}%;">${segs}</div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${escHtml(i.extra)}</div>`:''}</div>`;
+  }).join('');
+}
 function renderAnalytics(){
   const recs=activeRecords(), stages=activeStages(), ac=PIPE_ACCENT[state.pipeline];
   const won=recs.filter(r=>isWonStage(r.stage)), active=recs.filter(r=>!TERMINAL.has(r.stage));
@@ -3827,7 +3843,15 @@ function renderAnalytics(){
   } else if(state.pipeline==='customers'){
     bTitle='By sector';
     const secs=[...new Set(recs.map(r=>r.sector))];
-    bItems=secs.map((c,i)=>({name:c,v:recs.filter(r=>r.sector===c).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.sector===c).reduce((a,r)=>a+(r.value||0),0))}));
+    bItems=secs.map(c=>{
+      const inSec=recs.filter(r=>r.sector===c);
+      const segStages=[...new Set(inSec.map(r=>r.stage))];
+      const segments=segStages.map(s=>{
+        const inStage=inSec.filter(r=>r.stage===s);
+        return {v:inStage.length,color:STAGE_COLOR[s]||ac,tip:`${s}: ${inStage.length} · ${fv(inStage.reduce((a,r)=>a+(r.value||0),0))}`};
+      });
+      return {name:c,v:inSec.length,segments,extra:fv(inSec.reduce((a,r)=>a+(r.value||0),0))};
+    });
   } else if(isEvents){
     bTitle='By event type';
     const types=[...new Set(recs.map(r=>r.eventType))];
@@ -3838,7 +3862,7 @@ function renderAnalytics(){
     bItems=th.map((c,i)=>({name:c,v:recs.filter(r=>r.thesis===c).length,color:PALETTE[i%PALETTE.length],extra:fv(recs.filter(r=>r.thesis===c).reduce((a,r)=>a+(r.value||0),0))}));
   }
   document.getElementById('an-break-title').textContent=bTitle;
-  document.getElementById('an-breakdown').innerHTML=barList(bItems,ac);
+  document.getElementById('an-breakdown').innerHTML=state.pipeline==='customers'?stackedBarList(bItems):barList(bItems,ac);
   // two big stats
   let s1,s2;
   if(isEvents){
