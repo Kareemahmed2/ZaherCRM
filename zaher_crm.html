@@ -1811,6 +1811,35 @@ function subscriptionPeriodSelectHtml(selected){
   return `<option value="" ${!selected?'selected':''}>Select...</option>`
     +SUBSCRIPTION_PERIODS.map(o=>`<option value="${o}" ${o===selected?'selected':''}>${o}</option>`).join('');
 }
+// Fuzzy-matches free-text CSV/import period values ("Annual", "Semi-Annual", "Quarter", ...)
+// onto the fixed SUBSCRIPTION_PERIODS enum the dropdown now enforces — same idea as
+// matchTagValue/matchInList elsewhere in the importer, so a re-import can't write a value the
+// picker itself could never produce. Unrecognized text returns '' rather than passing the raw
+// string through, since (unlike sector) this field is no longer free text.
+function matchSubscriptionPeriod(raw){
+  const s=(raw==null?'':raw.toString()).trim().toLowerCase();
+  if(!s) return '';
+  if(/^quarter/.test(s)) return 'Quarterly';
+  if(/^(half|semi)/.test(s)) return 'Half-Annual';
+  if(/^annual/.test(s)) return 'Annually';
+  return matchInList(SUBSCRIPTION_PERIODS,s)||'';
+}
+// Normalizes free-text CSV/import dates onto the yyyy-mm-dd shape <input type="date"> requires.
+// Requires a 4-digit year in the source text before even attempting a parse: JS's Date parser
+// resolves a year-less string like "Aug 1" to 2001 (a V8 legacy quirk, not the current year),
+// which would silently corrupt exactly that kind of value — see customers_test_data.csv's
+// "Aug 1" — so year-less/unparseable text is kept as-is instead of guessed. Reads local
+// getFullYear/Month/Date rather than toISOString(), since toISOString converts to UTC first
+// and can shift a date-only value to the wrong day depending on the importing browser's
+// timezone. Either way nothing is dropped — it still displays correctly in the read-only
+// detail view, it just won't pre-fill the picker if the record is reopened for edit.
+function normalizeSubscriptionDate(raw){
+  const s=(raw==null?'':raw.toString()).trim();
+  if(!s||!/\d{4}/.test(s)) return s;
+  const d=new Date(s);
+  if(isNaN(d)) return s;
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 
 // ══════════════ LABELS (all four pipelines) ══════════════
 // Free-form, multi-value, shared across partners/customers/investors/events — unlike every
@@ -3143,8 +3172,8 @@ async function handleImportFile(ev){
           fieldsFilled=fillNum('aiScore',get('aiScore'))||fieldsFilled;
           fieldsFilled=fillStr('leadSource',get('leadSource'))||fieldsFilled;
           fieldsFilled=fillStr('nextStep',get('nextStep'))||fieldsFilled;
-          fieldsFilled=fillStr('subscriptionPeriod',get('subscriptionPeriod'))||fieldsFilled;
-          fieldsFilled=fillStr('subscriptionDate',get('subscriptionDate'))||fieldsFilled;
+          fieldsFilled=fillStr('subscriptionPeriod',matchSubscriptionPeriod(get('subscriptionPeriod')))||fieldsFilled;
+          fieldsFilled=fillStr('subscriptionDate',normalizeSubscriptionDate(get('subscriptionDate')))||fieldsFilled;
         } else if(pipeline==='events'){
           fieldsFilled=fillStr('eventType',get('eventType'))||fieldsFilled;
           fieldsFilled=fillStr('description',get('description'))||fieldsFilled;
@@ -3210,8 +3239,8 @@ async function handleImportFile(ev){
         r.aiScore=Math.round(Number(get('aiScore')))||null;r.leadSource=(get('leadSource')||get('source')||'Import').toString();
         r.referredBy=Math.round(Number(get('referredBy')))||null;r.segment=matchInList(['SaaS','Enterprise'],get('segment'))||null;
         r.nextStep=(get('nextStep')||nextStepOptions[0]||'').toString();
-        r.subscriptionPeriod=r.segment==='Enterprise'?(get('subscriptionPeriod')||'').toString():'';
-        r.subscriptionDate=r.segment==='SaaS'?(get('subscriptionDate')||'').toString():'';
+        r.subscriptionPeriod=r.segment==='Enterprise'?matchSubscriptionPeriod(get('subscriptionPeriod')):'';
+        r.subscriptionDate=r.segment==='SaaS'?normalizeSubscriptionDate(get('subscriptionDate')):'';
         delete r.source;
       } else if(pipeline==='events'){
         r.eventType=(get('eventType')||eventTypeOptions[0]||'').toString();r.description=(get('description')||'').toString();
