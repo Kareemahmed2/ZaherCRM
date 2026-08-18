@@ -351,6 +351,12 @@
   .bar-name{font-size:12px;font-weight:500;width:170px;flex-shrink:0;}
   .bar-bg{flex:1;height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden;}
   .bar-fill{height:100%;border-radius:3px;}
+  /* Maps the stage colors used by both the "Value by stage" chart and the segmented
+     breakdown bars (e.g. By sector) back to stage names, since a colored bar/slice alone
+     doesn't say what each color means. */
+  .stage-legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:0 20px 16px;margin-top:-8px;}
+  .stage-legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--gray-600);}
+  .stage-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
   .big-stat{text-align:center;padding:24px 16px;}
   .big-stat .val{font-size:30px;font-weight:700;letter-spacing:-1.2px;margin-bottom:4px;}
   .big-stat .lbl{font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.06em;}
@@ -619,7 +625,7 @@
   <div class="page" id="page-analytics">
     <div class="analytics-grid" id="an-kpis"></div>
     <div class="an-row">
-      <div class="card"><div class="card-header"><span class="card-title" id="an-bar-title">Pipeline by stage</span></div><div class="chart-wrap"><canvas id="chart-stage" height="200"></canvas></div></div>
+      <div class="card"><div class="card-header"><span class="card-title" id="an-bar-title">Pipeline by stage</span></div><div class="chart-wrap"><canvas id="chart-stage" height="200"></canvas></div><div class="stage-legend" id="an-stage-legend"></div></div>
       <div class="card"><div class="card-header"><span class="card-title" id="an-break-title">Breakdown</span></div><div id="an-breakdown" style="padding:8px 0;"></div></div>
     </div>
     <div class="an-row">
@@ -3834,6 +3840,10 @@ function renderAnalytics(){
   const stageColors=stages.map(s=>STAGE_COLOR[s]||ac);
   const stageTips=stages.map((s,i)=>`${s}: ${useCount?vals[i]:ff(vals[i])}`);
   setTimeout(()=>drawBar('chart-stage',stages,vals,stageColors,stageTips),30);
+  // Legend for the stage colors — shared by this chart and, for Customers, the segmented
+  // By-sector bars below (same stages, same STAGE_COLOR mapping), so a color/slice always
+  // has a name to point back to instead of relying on hover alone.
+  document.getElementById('an-stage-legend').innerHTML=stages.map((s,i)=>`<span class="stage-legend-item"><span class="stage-legend-dot" style="background:${stageColors[i]}"></span>${escHtml(s)}</span>`).join('');
   // breakdown
   let bTitle,bItems;
   if(state.pipeline==='partners'){
