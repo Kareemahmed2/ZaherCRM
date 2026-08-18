@@ -1094,19 +1094,24 @@
 const STAGES = {
   partners1: ['Researched','Emailed','Awareness','Educational Collaboration','Trust','Pilot Partnership','Revenue Partnership','Strategic Alliance','Rejected'],
   partners2: ['Researched','Emailed','Awareness','Conversation','Workshop Delivered','Recurring Relationship','Ecosystem Status','Rejected'],
-  customers: ['Researched','Emailed','Audit Requested','Audit Delivered','Discovery Call','Proposal','Pilot','Active Client','Rejected'],
+  customers: ['Researched','Emailed','Audit Requested','Audit Delivered','Discovery Call','Proposal','Pilot','Active Client','Rejected','Archived'],
   investors: ['Researched','Emailed','Prospecting','First Meeting','Due Diligence','Term Sheet','Closed','Rejected'],
   events: ['Draft','Scheduled','In Progress','Completed','Canceled']
 };
-// 'Rejected' is deliberately appended *after* each pipeline's real win stage(s) above —
-// pipelineValueThresholdIdx() below finds the first TERMINAL stage by scanning the array in
-// order, and needs to land on the win stage, not Rejected, to compute the right threshold.
-const TERMINAL = new Set(['Revenue Partnership','Strategic Alliance','Recurring Relationship','Ecosystem Status','Active Client','Closed','Completed','Canceled','Rejected']);
-// TERMINAL mixes two different endings — actually-won deals vs. Rejected (closed-lost) — so
-// anywhere "won" specifically means revenue/won-count (not just "no longer active"), filter
-// with isWonStage instead of TERMINAL.has directly.
+// 'Rejected' (and, for customers, 'Archived') is deliberately appended *after* each pipeline's
+// real win stage(s) above — pipelineValueThresholdIdx() below finds the first TERMINAL stage by
+// scanning the array in order, and needs to land on the win stage, not Rejected/Archived, to
+// compute the right threshold.
+const TERMINAL = new Set(['Revenue Partnership','Strategic Alliance','Recurring Relationship','Ecosystem Status','Active Client','Closed','Completed','Canceled','Rejected','Archived']);
+// TERMINAL mixes three different endings — actually-won deals, Rejected (closed-lost), and
+// Archived (a former Active Client whose subscription ended and wasn't renewed) — so anywhere
+// "won" specifically means revenue/won-count (not just "no longer active"), filter with
+// isWonStage instead of TERMINAL.has directly. Archived records are intentionally left out of
+// every pipeline-value metric (Open/Won/Rejected/Total) — once archived, their value no longer
+// counts anywhere.
 const REJECTED_STAGE = 'Rejected';
-function isWonStage(s){ return TERMINAL.has(s) && s!==REJECTED_STAGE; }
+const ARCHIVED_STAGE = 'Archived';
+function isWonStage(s){ return TERMINAL.has(s) && s!==REJECTED_STAGE && s!==ARCHIVED_STAGE; }
 const STAGE_COLOR = {
   'Researched':'#888780','Emailed':'#534AB7',
   'Awareness':'#378ADD','Educational Collaboration':'#7F77DD','Trust':'#EF9F27','Pilot Partnership':'#D97706','Revenue Partnership':'#639922','Strategic Alliance':'#3B6D11',
@@ -1114,7 +1119,7 @@ const STAGE_COLOR = {
   'Audit Requested':'#378ADD','Audit Delivered':'#7F77DD','Discovery Call':'#EF9F27','Proposal':'#D97706','Pilot':'#0E7474','Active Client':'#639922',
   'Prospecting':'#378ADD','First Meeting':'#7F77DD','Due Diligence':'#EF9F27','Term Sheet':'#D97706','Closed':'#639922',
   'Draft':'#888780','Scheduled':'#378ADD','In Progress':'#EF9F27','Completed':'#639922','Canceled':'#E24B4A',
-  'Rejected':'#E24B4A'
+  'Rejected':'#E24B4A','Archived':'#6B7280'
 };
 const TAG_VALUES=['Reachout Priority','Reachout Done'];
 const TAG_COLOR={'Reachout Priority':'#E24B4A','Reachout Done':'#639922'};
@@ -4556,15 +4561,16 @@ function renderDetail(){
     document.getElementById('det-score-breakdown').innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">${scoreLine}</div><div style="font-size:12px;color:var(--gray-500);line-height:1.6;">${escHtml(r.clients||'')}</div>`;
   } else scoreCard.style.display='none';
 
-  // stage tracker — Rejected is excluded from the linear step sequence: it isn't a stage a
-  // deal passes *through* on the way to closing, it's a side exit any stage can end in. Keeping
-  // it out of `progressStages` avoids two bugs a naive "just append it" would cause: (1) a deal
-  // rejected early would show every earlier stage checked off (si lands on Rejected's own index,
-  // which is after everything else), and (2) every already-won record would get "→ Rejected"
-  // offered as its suggested *next* stage, since Rejected sat right after the real win stage.
-  const progressStages=stages.filter(s=>s!==REJECTED_STAGE);
+  // stage tracker — Rejected and Archived are excluded from the linear step sequence: neither
+  // is a stage a deal passes *through* on the way to closing, they're side exits a record can
+  // land in. Keeping them out of `progressStages` avoids two bugs a naive "just append it" would
+  // cause: (1) a record moved there early would show every earlier stage checked off (si lands
+  // on its own index, which is after everything else), and (2) every already-won record would
+  // get "→ Rejected"/"→ Archived" offered as its suggested *next* stage, since they sat right
+  // after the real win stage.
+  const progressStages=stages.filter(s=>s!==REJECTED_STAGE&&s!==ARCHIVED_STAGE);
   const si=progressStages.indexOf(r.stage);
-  document.getElementById('det-stages').innerHTML=(r.stage===REJECTED_STAGE?`<div class="chip" style="background:var(--red-50);color:var(--red-400);font-size:11px;padding:5px 10px;margin-bottom:10px;">Rejected — click a stage below to move it back into the pipeline</div>`:'')+
+  document.getElementById('det-stages').innerHTML=(r.stage===REJECTED_STAGE?`<div class="chip" style="background:var(--red-50);color:var(--red-400);font-size:11px;padding:5px 10px;margin-bottom:10px;">Rejected — click a stage below to move it back into the pipeline</div>`:r.stage===ARCHIVED_STAGE?`<div class="chip" style="background:rgba(107,114,128,0.12);color:#6B7280;font-size:11px;padding:5px 10px;margin-bottom:10px;">Archived — click a stage below to move it back into the pipeline</div>`:'')+
     `<div class="stages-list">${progressStages.map((s,i)=>{
     const cls=i<si?'done':i===si?'current':'';const lc=i<si?'done':'';
     return `<div><div class="stage-step"><div class="stage-node ${cls}" onclick="requestStageChange(${r.id},'${s}');">${i<si?'✓':i+1}</div><div class="stage-step-name ${cls}">${s}</div></div>${i<progressStages.length-1?`<div class="stage-line ${lc}"></div>`:''}</div>`;
@@ -4573,6 +4579,7 @@ function renderDetail(){
   if(progressStages[si+1])btns+=`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;flex:1;" onclick="requestStageChange(${r.id},'${progressStages[si+1]}',true);">→ ${progressStages[si+1]}</button>`;
   if(progressStages[si-1])btns+=`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="requestStageChange(${r.id},'${progressStages[si-1]}',true);">← Back</button>`;
   if(r.stage!==REJECTED_STAGE&&stages.includes(REJECTED_STAGE))btns+=`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;color:var(--red-400);border-color:rgba(226,75,74,0.3);" onclick="requestStageChange(${r.id},'${REJECTED_STAGE}',true);">Reject</button>`;
+  if(r.stage!==ARCHIVED_STAGE&&stages.includes(ARCHIVED_STAGE))btns+=`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;color:#6B7280;border-color:rgba(107,114,128,0.3);" onclick="requestStageChange(${r.id},'${ARCHIVED_STAGE}',true);">Archive</button>`;
   document.getElementById('det-stage-actions').innerHTML=btns;
 
   const acts=r.activity.slice().reverse();
@@ -5124,7 +5131,7 @@ function buildSystem(){
 The CRM has FOUR pipelines:
 Partners/customers/investors are company-based: the company/organisation is each record's identity, and any contacts at that company live in a \`members\` list (name, title, email, phone, linkedin) rather than as hardcoded top-level fields. Events are NOT company-based — "company"/"name" holds the event title instead, and there are no members/contacts.
 - partners: partner organisations. Two portfolios. Portfolio 1 (Revenue) stages: ${STAGES.partners1.join(' → ')}. Categories: Marketing Agencies, SaaS & E-commerce Platforms, Operational Touchpoint. Portfolio 2 (Ecosystem, measured on workshops/founders not revenue) stages: ${STAGES.partners2.join(' → ')}. Categories: Startup Development Orgs, Government & National Dev.
-- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Segment (SaaS or Enterprise) is only decided once the deal closes, so it's null/unset for every stage before Active Client — don't guess it earlier. Some are referred by partners. Enterprise customers track a subscriptionPeriod (must be exactly one of ${SUBSCRIPTION_PERIODS.join('/')}); SaaS customers track a subscriptionDate (yyyy-mm-dd).
+- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Segment (SaaS or Enterprise) is only decided once the deal closes, so it's null/unset for every stage before Active Client — don't guess it earlier. Some are referred by partners. Enterprise customers track a subscriptionPeriod (must be exactly one of ${SUBSCRIPTION_PERIODS.join('/')}); SaaS customers track a subscriptionDate (yyyy-mm-dd). Archived means a former Active Client whose subscription period ended and who did not renew — like Rejected, it's excluded from every pipeline-value metric.
 - investors: fundraising firms. Stages: ${STAGES.investors.join(' → ')}.
 - events: webinars, trade shows, demos, meetings, conferences, etc. Status (used as its stage): ${STAGES.events.join(' → ')}. Each has an eventType (extensible list), description, startAt/endAt (ISO timestamps), timezone, and format (Virtual or In-Person) — Virtual events track meetingUrl/meetingPasscode/dialIn, In-Person events track venueName/address/mapUrl/capacity. No monetary value.
 
