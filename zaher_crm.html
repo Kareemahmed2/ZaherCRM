@@ -250,7 +250,11 @@
      open/close flicker. Opening upward instead means it covers space above the list (or the
      "Unscheduled" header) rather than another hoverable row, so nothing to flicker against. */
   .cal-tooltip.tooltip-up{top:auto;bottom:100%;margin-top:0;margin-bottom:4px;}
-  .cal-bar-wrap:hover .cal-tooltip,.cal-event-wrap:hover .cal-tooltip{display:block;}
+  .cal-bar-wrap:hover .cal-tooltip,.cal-event-wrap:hover .cal-tooltip,.seg-hover-wrap:hover .cal-tooltip{display:block;}
+  /* Sector-breakdown stage segments (stackedBarList) — same hover-card pattern as the calendar
+     tooltips above, just anchored to a flex-sized slice instead of a bar/event row. */
+  .seg-hover-wrap{position:relative;height:100%;}
+  .seg-hover-wrap .cal-tooltip{left:50%;transform:translateX(-50%);top:calc(100% + 6px);margin-top:0;}
   .cal-tooltip .ctt-title{font-size:12px;font-weight:600;color:var(--gray-900);margin-bottom:4px;}
   .cal-tooltip .ctt-row{display:flex;gap:6px;}
   .cal-tooltip .ctt-row+.ctt-row{margin-top:2px;}
@@ -338,8 +342,13 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
   /* ── ANALYTICS ── */
-  .analytics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+  .an-section-label{font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+  .analytics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
   .an-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  /* Cards on this page are all read-only data displays (nothing to click), so the hover here
+     is purely a "you're looking at this one" affordance, not an interactivity cue. */
+  #page-analytics .card{transition:box-shadow .15s,transform .15s;}
+  #page-analytics .card:hover{box-shadow:0 2px 10px rgba(0,0,0,.08);}
 
   /* ── COMPETITOR RADAR GRID ── */
   .comp-radar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;}
@@ -350,6 +359,12 @@
   .bar-row:last-child{border-bottom:none;}
   .bar-name{font-size:12px;font-weight:500;width:170px;flex-shrink:0;}
   .bar-bg{flex:1;height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden;}
+  /* stackedBarList's segments nest a .cal-tooltip hover card inside .bar-bg — overflow:hidden
+     above (there to clip the flat barList fill to the track's rounded corners) would clip that
+     card too, since it renders well below the 6px track. Segmented bars don't need the clip
+     for their own shape (each segment already gets the track's border-radius visually via the
+     shared background), so it's safe to open back up just for this variant. */
+  .bar-bg.bar-bg-stacked{overflow:visible;}
   .bar-fill{height:100%;border-radius:3px;}
   /* Maps the stage colors used by both the "Value by stage" chart and the segmented
      breakdown bars (e.g. By sector) back to stage names, since a colored bar/slice alone
@@ -623,6 +638,7 @@
 
   <!-- ANALYTICS -->
   <div class="page" id="page-analytics">
+    <div class="an-section-label">Pipeline health</div>
     <div class="analytics-grid" id="an-kpis"></div>
     <div class="an-row">
       <div class="card"><div class="card-header"><span class="card-title" id="an-bar-title">Pipeline by stage</span></div><div class="chart-wrap"><canvas id="chart-stage" height="200"></canvas></div><div class="stage-legend" id="an-stage-legend"></div></div>
@@ -633,7 +649,10 @@
       <div class="card"><div class="big-stat" id="an-stat-2"></div></div>
     </div>
     <div class="card" id="an-extra-card"><div class="card-header"><span class="card-title" id="an-extra-title">By source</span></div><div id="an-extra" style="padding:8px 0;"></div></div>
-    <div class="card" id="an-segment-card" style="display:none;margin-top:16px;"><div class="card-header"><span class="card-title">SaaS vs Enterprise</span></div><div id="an-segment" style="padding:8px 0;"></div></div>
+    <div class="an-row" style="margin-top:16px;">
+      <div class="card" id="an-segment-card" style="display:none;"><div class="card-header"><span class="card-title">SaaS vs Enterprise</span></div><div id="an-segment" style="padding:8px 0;"></div></div>
+      <div class="card" id="an-subperiod-card" style="display:none;"><div class="card-header"><span class="card-title">Enterprise subscription mix</span></div><div class="chart-wrap" style="padding:16px 20px 4px;"><canvas id="chart-subperiod" height="160"></canvas></div><div id="an-subperiod-legend" class="stage-legend" style="padding:0 20px 16px;"></div></div>
+    </div>
   </div>
 
   <!-- COMPETITORS — a flat monitoring directory, not a sales pipeline: no stage funnel, so this
@@ -1094,7 +1113,7 @@
 const STAGES = {
   partners1: ['Researched','Emailed','Awareness','Educational Collaboration','Trust','Pilot Partnership','Revenue Partnership','Strategic Alliance','Rejected'],
   partners2: ['Researched','Emailed','Awareness','Conversation','Workshop Delivered','Recurring Relationship','Ecosystem Status','Rejected'],
-  customers: ['Researched','Emailed','Audit Requested','Audit Delivered','Discovery Call','Proposal','Pilot','Active Client','Rejected','Archived'],
+  customers: ['Researched','Emailed','Discovery Call','Proposal','Active Client','Rejected','Archived'],
   investors: ['Researched','Emailed','Prospecting','First Meeting','Due Diligence','Term Sheet','Closed','Rejected'],
   events: ['Draft','Scheduled','In Progress','Completed','Canceled']
 };
@@ -1116,7 +1135,7 @@ const STAGE_COLOR = {
   'Researched':'#888780','Emailed':'#534AB7',
   'Awareness':'#378ADD','Educational Collaboration':'#7F77DD','Trust':'#EF9F27','Pilot Partnership':'#D97706','Revenue Partnership':'#639922','Strategic Alliance':'#3B6D11',
   'Conversation':'#7F77DD','Workshop Delivered':'#EF9F27','Recurring Relationship':'#0E7474','Ecosystem Status':'#639922',
-  'Audit Requested':'#378ADD','Audit Delivered':'#7F77DD','Discovery Call':'#EF9F27','Proposal':'#D97706','Pilot':'#0E7474','Active Client':'#639922',
+  'Discovery Call':'#378ADD','Proposal':'#D97706','Active Client':'#639922',
   'Prospecting':'#378ADD','First Meeting':'#7F77DD','Due Diligence':'#EF9F27','Term Sheet':'#D97706','Closed':'#639922',
   'Draft':'#888780','Scheduled':'#378ADD','In Progress':'#EF9F27','Completed':'#639922','Canceled':'#E24B4A',
   'Rejected':'#E24B4A','Archived':'#6B7280'
@@ -1179,13 +1198,13 @@ const SEED_RECORDS = [
   {id:24,pipeline:'partners',portfolio:2,category:'Government & National Dev',name:'MSMEDA',company:'MSMEDA',role:'',email:'',phone:'',members:[{name:'SME Programs',title:'Advisor',email:'info@msmeda.org.eg',phone:'+20 100 111 5024',linkedin:''}],stage:'Awareness',model:'Education Partner',tier:null,score:null,website:'msmeda.org.eg',region:'Egypt',clients:'National SME development agency',value:0,workshops:0,founders:0,source:'Referral',date:'Apr 15',notes:'SMEs may have enough digital presence for real audits, not just education.',activity:[{t:'Added to pipeline',d:'Apr 15'}]},
 
   // ── CUSTOMERS ── (company-based identity: `name`===`company`, contact lives in `members`)
-  {id:40,pipeline:'customers',name:'Noon.com',company:'Noon.com',website:'noon.com',role:'',email:'',phone:'',members:[{name:'Sara Rashid',title:'Head of Marketing',email:'sara@noon.com',phone:'+20 100 222 4040',linkedin:''}],stage:'Pilot',sector:'E-Commerce',package:'Audit + Content',aiScore:71,value:26000,leadSource:'LinkedIn',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Annual',date:'Apr 12',notes:'Interested in the GEO package. Pilot running on 20 product categories.',activity:[{t:'Demo completed',d:'Apr 10'},{t:'Pilot scope agreed',d:'Apr 12'}]},
-  {id:41,pipeline:'customers',name:'Vezeeta',company:'Vezeeta',website:'vezeeta.com',role:'',email:'',phone:'',members:[{name:'Laila Amin',title:'Head of Growth',email:'laila@vezeeta.com',phone:'+20 100 222 4041',linkedin:''}],stage:'Discovery Call',sector:'Health Tech',package:'Audit',aiScore:58,value:12000,leadSource:'Community',referredBy:null,segment:'SaaS',subscriptionDate:'May 15',date:'Apr 13',notes:'Came in through the WhatsApp community. Booked a discovery call.',activity:[{t:'Joined community',d:'Apr 9'},{t:'Discovery call booked',d:'Apr 13'}]},
-  {id:42,pipeline:'customers',name:'Talabat',company:'Talabat',website:'talabat.com',role:'',email:'',phone:'',members:[{name:'Fady Nasser',title:'CMO',email:'fnasser@talabat.com',phone:'+20 100 222 4042',linkedin:''}],stage:'Audit Delivered',sector:'Food & Restaurant',package:'Audit',aiScore:63,value:18000,leadSource:'LinkedIn',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Quarterly',date:'Apr 11',notes:'Audit delivered — low visibility in Arabic AI search. Reviewing recommendations.',activity:[{t:'Audit requested',d:'Apr 8'},{t:'Audit delivered — score 63',d:'Apr 11'}]},
-  {id:43,pipeline:'customers',name:'Namshi',company:'Namshi',website:'namshi.com',role:'',email:'',phone:'',members:[{name:'Mona Abdelaziz',title:'Head of Growth',email:'mona@namshi.com',phone:'+971 50 222 4043',linkedin:''}],stage:'Proposal',sector:'E-Commerce',package:'Audit + Content + Reference',aiScore:66,value:14500,leadSource:'Referral',referredBy:2,segment:'Enterprise',subscriptionPeriod:'Annual',date:'Apr 1',notes:'Referred by Room 11. Losing visibility to AI shopping summaries. Proposal leads with CTR data.',activity:[{t:'Referred by Room 11',d:'Mar 28'},{t:'Proposal sent',d:'Apr 1'}]},
-  {id:44,pipeline:'customers',name:'Jumia Egypt',company:'Jumia Egypt',website:'jumia.com.eg',role:'',email:'',phone:'',members:[{name:'Sherif Aly',title:'VP Digital Marketing',email:'sherif.aly@jumia.com',phone:'+20 100 222 4044',linkedin:''}],stage:'Audit Requested',sector:'E-Commerce',package:'—',aiScore:null,value:19000,leadSource:'Inbound',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Annual',date:'Apr 15',notes:'Wants an audit across 50 top product categories. Arabic descriptions are the key concern.',activity:[{t:'Audit form submitted',d:'Apr 15'}]},
-  {id:45,pipeline:'customers',name:'Reem Al Bawadi',company:'Reem Al Bawadi',website:'reemalbawadi.com',role:'',email:'',phone:'',members:[{name:'Khaled Nasser',title:'Marketing Director',email:'khaled@reemalbawadi.com',phone:'+971 50 222 4045',linkedin:''}],stage:'Active Client',sector:'Food & Restaurant',package:'Full Stack',aiScore:82,value:30000,leadSource:'Partner',referredBy:2,segment:'Enterprise',subscriptionPeriod:'Annual',date:'Mar 10',notes:'Won via Room 11 reseller. Now cited by ChatGPT for "best Lebanese restaurants Dubai".',activity:[{t:'Referred by Room 11',d:'Feb 28'},{t:'Contract signed',d:'Mar 10'}]},
-  {id:46,pipeline:'customers',name:'Fordeal MENA',company:'Fordeal MENA',website:'fordeal.com',role:'',email:'',phone:'',members:[{name:'Amira Hassan',title:'Digital Director',email:'ahassan@fordeal.com',phone:'+20 100 222 4046',linkedin:''}],stage:'Active Client',sector:'E-Commerce',package:'Audit + Content',aiScore:84,value:8500,leadSource:'Cold Outreach',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Annual (renewed)',date:'Mar 12',notes:'Arabic product visibility inside Perplexity and SGE. Renewed for 12 months.',activity:[{t:'Contract signed',d:'Mar 12'}]},
+  {id:40,pipeline:'customers',name:'Noon.com',company:'Noon.com',website:'noon.com',role:'',email:'',phone:'',members:[{name:'Sara Rashid',title:'Head of Marketing',email:'sara@noon.com',phone:'+20 100 222 4040',linkedin:''}],stage:'Proposal',sector:'E-Commerce',value:26000,leadSource:'LinkedIn',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Annually',date:'Apr 12',notes:'Interested in the GEO package. Pilot running on 20 product categories.',activity:[{t:'Demo completed',d:'Apr 10'},{t:'Pilot scope agreed',d:'Apr 12'}]},
+  {id:41,pipeline:'customers',name:'Vezeeta',company:'Vezeeta',website:'vezeeta.com',role:'',email:'',phone:'',members:[{name:'Laila Amin',title:'Head of Growth',email:'laila@vezeeta.com',phone:'+20 100 222 4041',linkedin:''}],stage:'Discovery Call',sector:'Health Tech',value:12000,leadSource:'Community',referredBy:null,segment:'SaaS',subscriptionDate:'May 15',date:'Apr 13',notes:'Came in through the WhatsApp community. Booked a discovery call.',activity:[{t:'Joined community',d:'Apr 9'},{t:'Discovery call booked',d:'Apr 13'}]},
+  {id:42,pipeline:'customers',name:'Talabat',company:'Talabat',website:'talabat.com',role:'',email:'',phone:'',members:[{name:'Fady Nasser',title:'CMO',email:'fnasser@talabat.com',phone:'+20 100 222 4042',linkedin:''}],stage:'Discovery Call',sector:'Food & Restaurant',value:18000,leadSource:'LinkedIn',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Quarterly',date:'Apr 11',notes:'Audit delivered — low visibility in Arabic AI search. Reviewing recommendations.',activity:[{t:'Audit requested',d:'Apr 8'},{t:'Audit delivered — score 63',d:'Apr 11'}]},
+  {id:43,pipeline:'customers',name:'Namshi',company:'Namshi',website:'namshi.com',role:'',email:'',phone:'',members:[{name:'Mona Abdelaziz',title:'Head of Growth',email:'mona@namshi.com',phone:'+971 50 222 4043',linkedin:''}],stage:'Proposal',sector:'E-Commerce',value:14500,leadSource:'Referral',referredBy:2,segment:'Enterprise',subscriptionPeriod:'Annually',date:'Apr 1',notes:'Referred by Room 11. Losing visibility to AI shopping summaries. Proposal leads with CTR data.',activity:[{t:'Referred by Room 11',d:'Mar 28'},{t:'Proposal sent',d:'Apr 1'}]},
+  {id:44,pipeline:'customers',name:'Jumia Egypt',company:'Jumia Egypt',website:'jumia.com.eg',role:'',email:'',phone:'',members:[{name:'Sherif Aly',title:'VP Digital Marketing',email:'sherif.aly@jumia.com',phone:'+20 100 222 4044',linkedin:''}],stage:'Emailed',sector:'E-Commerce',value:19000,leadSource:'Inbound',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Annually',date:'Apr 15',notes:'Wants an audit across 50 top product categories. Arabic descriptions are the key concern.',activity:[{t:'Audit form submitted',d:'Apr 15'}]},
+  {id:45,pipeline:'customers',name:'Reem Al Bawadi',company:'Reem Al Bawadi',website:'reemalbawadi.com',role:'',email:'',phone:'',members:[{name:'Khaled Nasser',title:'Marketing Director',email:'khaled@reemalbawadi.com',phone:'+971 50 222 4045',linkedin:''}],stage:'Active Client',sector:'Food & Restaurant',value:30000,leadSource:'Partner',referredBy:2,segment:'Enterprise',subscriptionPeriod:'Annually',subscriptionDate:'2025-03-10',date:'Mar 10',notes:'Won via Room 11 reseller. Now cited by ChatGPT for "best Lebanese restaurants Dubai".',activity:[{t:'Referred by Room 11',d:'Feb 28'},{t:'Contract signed',d:'Mar 10'}]},
+  {id:46,pipeline:'customers',name:'Fordeal MENA',company:'Fordeal MENA',website:'fordeal.com',role:'',email:'',phone:'',members:[{name:'Amira Hassan',title:'Digital Director',email:'ahassan@fordeal.com',phone:'+20 100 222 4046',linkedin:''}],stage:'Active Client',sector:'E-Commerce',value:8500,leadSource:'Cold Outreach',referredBy:null,segment:'Enterprise',subscriptionPeriod:'Annually',subscriptionDate:'2025-03-12',date:'Mar 12',notes:'Arabic product visibility inside Perplexity and SGE. Renewed for 12 months.',activity:[{t:'Contract signed',d:'Mar 12'}]},
 
   // ── INVESTORS ──
   {id:60,pipeline:'investors',name:'Algebra Ventures',company:'Algebra Ventures',role:'',email:'',phone:'',members:[{name:'Tarek El Ghamry',title:'General Partner',email:'tarek@algebra.vc',phone:'+20 100 333 6060',linkedin:''}],stage:'First Meeting',fundSize:'$80M',thesis:'MENA SaaS Infrastructure',value:500000,source:'Event',date:'Apr 9',notes:'Interested in the GEO infrastructure thesis. Wants MRR trajectory and retention cohorts.',activity:[{t:'Met at RiseUp Summit',d:'Apr 6'},{t:'Pitch deck sent',d:'Apr 8'}]},
@@ -1290,9 +1309,10 @@ function catChip(cat){ const m=CAT_META[cat]; if(!m) return ''; return `<span cl
 function tierPill(t){ if(!t) return ''; return `<span class="tier-pill t${t}">Tier ${t}</span>`; }
 function isP2(){ return state.pipeline==='partners'&&state.portfolio===2; }
 // A deal only starts counting toward Pipeline Value once it's two stages out from closing
-// — the same distance Proposal sits before Active Client for customers (Proposal, Pilot).
-// For partners1 that lands on Trust/Pilot Partnership (before Revenue Partnership/Strategic
-// Alliance); for investors it lands on Due Diligence/Term Sheet (before Closed). Earlier
+// — the same distance Discovery Call sits before Active Client for customers (Discovery
+// Call, Proposal). For partners1 that lands on Trust/Pilot Partnership (before Revenue
+// Partnership/Strategic Alliance); for investors it lands on Due Diligence/Term Sheet
+// (before Closed). Earlier
 // stages rarely have a real number behind them yet. Once a deal actually closes, its value
 // moves out of the pipeline and into the won/recurring metric (MRR, Signed ARR, Capital
 // raised) instead — applies to any money pipeline (not Portfolio 2 or Events, which don't
@@ -1866,14 +1886,17 @@ const SUBSCRIPTION_PERIOD_MONTHS={Quarterly:3,'Half-Annual':6,Annually:12};
 function customerRevenueMonths(r){
   return r.segment==='Enterprise'?(SUBSCRIPTION_PERIOD_MONTHS[r.subscriptionPeriod]||12):12;
 }
-function computeCustomerRealizedRevenue(recs){
-  return recs.filter(r=>isWonStage(r.stage)).reduce((s,r)=>s+(r.value||0)*customerRevenueMonths(r),0);
+// The Quarterly/Half-Annual/Annually toggle picks a lookback window (3/6/12 months) — each
+// customer's contribution is capped at their own committed months if that's shorter than the
+// window, so e.g. a Half-Annual customer contributes at most 3 months of MRR to the Quarterly
+// view, not a quartered slice of their full 6-month total. Reuses SUBSCRIPTION_PERIOD_MONTHS
+// as the period→months lookup since it's the exact same mapping.
+function computeCustomerRealizedRevenue(recs,periodMonths){
+  periodMonths=periodMonths||12;
+  return recs.filter(r=>isWonStage(r.stage)).reduce((s,r)=>s+(r.value||0)*Math.min(customerRevenueMonths(r),periodMonths),0);
 }
-// The Quarterly/Half-Annual/Annually toggle re-expresses that one combined total on a
-// different time basis (÷4 / ÷2 / ×1) — it doesn't change which customers are counted.
-const ARR_PERIOD_DIVISOR={Quarterly:4,'Half-Annual':2,Annually:1};
 function setArrPeriod(period){
-  if(!ARR_PERIOD_DIVISOR[period])return;
+  if(!SUBSCRIPTION_PERIOD_MONTHS[period])return;
   state.arrPeriod=period;
   const active=document.querySelector('.page.active'); if(!active)return;
   const page=active.id.replace('page-','');
@@ -1881,11 +1904,11 @@ function setArrPeriod(period){
   else if(page==='analytics')renderAnalytics();
 }
 function arrToggleHtml(){
-  return `<div class="seg" style="margin-top:10px;">${Object.keys(ARR_PERIOD_DIVISOR).map(p=>`<button type="button" class="seg-btn ${state.arrPeriod===p?'active':''}" onclick="setArrPeriod('${p}')">${p}</button>`).join('')}</div>`;
+  return `<div class="seg" style="margin-top:10px;">${Object.keys(SUBSCRIPTION_PERIOD_MONTHS).map(p=>`<button type="button" class="seg-btn ${state.arrPeriod===p?'active':''}" onclick="setArrPeriod('${p}')">${p}</button>`).join('')}</div>`;
 }
-function arrCardHtml(total){
-  const val=total/ARR_PERIOD_DIVISOR[state.arrPeriod];
-  return `<div class="stat-card"><div class="stat-label">Revenue (${state.arrPeriod})</div><div class="stat-value">${ff(val)}</div><div class="stat-delta">MRR × subscribed months</div>${arrToggleHtml()}</div>`;
+function arrCardHtml(recs){
+  const val=computeCustomerRealizedRevenue(recs,SUBSCRIPTION_PERIOD_MONTHS[state.arrPeriod]);
+  return `<div class="stat-card"><div class="stat-label">Revenue (${state.arrPeriod})</div><div class="stat-value">${ff(val)}</div><div class="stat-delta">MRR × subscribed months (capped to period)</div>${arrToggleHtml()}</div>`;
 }
 
 // ══════════════ LABELS (all four pipelines) ══════════════
@@ -2115,17 +2138,17 @@ function renderDashboard(){
     const thresholdStage=pipelineValueThresholdStage(stages);
     const l1={partners:'Total partners',customers:'Total customers',investors:'Total investors'}[state.pipeline];
     const l3={partners:'Revenue partners',customers:'Active clients',investors:'Closed'}[state.pipeline];
-    cards=[[l1,total,'All'],['In pipeline',active.length,'Active'],[l3,won.length,total?((won.length/total)*100).toFixed(0)+'% rate':'0%'],['Open pipeline',ff(pipeVal),thresholdStage+'+']];
+    cards=[[l1,total,'All'],['In pipeline',active.length,'Active'],[l3,won.length,total?((won.length/total)*100).toFixed(0)+'% rate':'0%'],[isCust?'Open pipeline (/mo)':'Open pipeline',ff(pipeVal),thresholdStage+'+']];
     const wonVal=computeWonValue(recs);
-    if(isCust) cards.push(['MRR',ff(wonVal),'Active clients'],[null,null,null,arrCardHtml(computeCustomerRealizedRevenue(recs))]);
+    if(isCust) cards.push(['MRR',ff(wonVal),'Active clients'],[null,null,null,arrCardHtml(recs)]);
     else if(state.pipeline==='partners') cards.push(['Signed ARR',ff(wonVal),'Revenue/Strategic partners']);
     else if(state.pipeline==='investors') cards.push(['Capital raised',ff(wonVal),'Closed deals']);
-    // Closed pipeline = Rejected value only -- Won already has its own card (MRR/ARR/Signed
-    // ARR/Capital raised above), so folding it into "Closed" too would double-count it there.
+    // Lost pipeline = Rejected value only -- Won already has its own card (MRR/ARR/Signed
+    // ARR/Capital raised above), so folding it into "Lost" too would double-count it there.
     // Total pipeline still folds in Won + Rejected + Open — the user explicitly chose to count
     // rejected value toward the total rather than treat it as dead money excluded from it.
     const rejectedVal=computeRejectedValue(recs);
-    cards.push(['Closed pipeline',ff(rejectedVal),'Rejected'],['Total pipeline',ff(wonVal+rejectedVal+pipeVal),'Won + Rejected + Open']);
+    cards.push(['Lost Pipeline',ff(rejectedVal),'Rejected'],['Total pipeline',ff(wonVal+rejectedVal+pipeVal),'Won + Rejected + Open']);
   }
   document.getElementById('stats-grid').innerHTML=cards.map(c=>c[3]||`<div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-value">${c[1]}</div><div class="stat-delta">${c[2]}</div></div>`).join('');
 
@@ -2232,7 +2255,7 @@ function buildCard(r){
   let extra='';
   if(state.pipeline==='partners'&&!isP2()) extra=`<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap;">${catChip(r.category)}${tierPill(r.tier)}</div>`;
   else if(isP2()) extra=`<div style="margin-bottom:8px;">${catChip(r.category)}</div>`;
-  else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment)}</span>`:''}${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">AI ${r.aiScore}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.nextStep)}</span>`:''}</div>`;
+  else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment)}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.nextStep)}</span>`:''}</div>`;
   else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${escHtml(r.fundSize||'')} · ${escHtml(r.thesis||'')}</div>`;
   else if(state.pipeline==='events') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${r.eventType?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.eventType)}</span>`:''}${r.format?`<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format)}</span>`:''}${regionPill(r.outsideEgypt||'Egypt')}</div>`;
   const bottom=isP2()?`<div class="k-card-value" style="font-size:12px;">${r.workshops||0} wshops · ${r.founders||0} founders</div>`:state.pipeline==='events'?`<div class="k-card-value" style="font-size:12px;">${fmtDateTime(r.startAt,r.timezone)}</div>`:`<div class="k-card-value">${ff(r.value)}</div>`;
@@ -2304,7 +2327,7 @@ function stageNeedsSegment(r,newStage){ return r.pipeline==='customers'&&newStag
 // f-sub*-group ids, which this modal doesn't share).
 function toggleStageSubscriptionFields(segment){
   document.getElementById('stage-subperiod-group').style.display=segment==='Enterprise'?'':'none';
-  document.getElementById('stage-subdate-group').style.display=segment==='SaaS'?'':'none';
+  document.getElementById('stage-subdate-group').style.display=(segment==='SaaS'||segment==='Enterprise')?'':'none';
 }
 function requestStageChange(id,newStage,toast){
   const r=records.find(x=>x.id===id&&x.pipeline===state.pipeline); if(!r||r.stage===newStage)return;
@@ -2330,7 +2353,7 @@ function confirmStageChange(){
     segment=document.getElementById('stage-segment-select').value;
     if(!segment){ showToast('Pick SaaS or Enterprise before moving to Active Client'); return; }
     if(segment==='Enterprise')subscriptionPeriod=document.getElementById('stage-subperiod-input').value.trim();
-    else subscriptionDate=document.getElementById('stage-subdate-input').value.trim();
+    if(segment==='SaaS'||segment==='Enterprise')subscriptionDate=document.getElementById('stage-subdate-input').value.trim();
   }
   const note=document.getElementById('stage-note-text').value.trim();
   document.getElementById('stage-note-modal').classList.remove('open');
@@ -2345,7 +2368,7 @@ function applyStage(id,newStage,toast,note,segment,subscriptionPeriod,subscripti
   if(segment){
     r.segment=segment;
     r.subscriptionPeriod=segment==='Enterprise'?(subscriptionPeriod||''):'';
-    r.subscriptionDate=segment==='SaaS'?(subscriptionDate||''):'';
+    r.subscriptionDate=(segment==='SaaS'||segment==='Enterprise')?(subscriptionDate||''):'';
     entry.note=(entry.note?entry.note+' · ':'')+`Segment set to ${segment}`;
   }
   r.activity.push(entry);
@@ -2708,13 +2731,12 @@ function renderDirectory(){
       <td>${stagePill(r.stage)}</td><td style="font-weight:500;">${isP2()?(r.founders||0)+' reached':ff(r.value)}</td>
       <td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.created_at)}</td><td style="font-size:12px;color:var(--gray-500);">${fmtTs(r.updated_at)}</td>`;
   }} else if(state.pipeline==='customers'){
-    head=sortableHead(['Company','Primary contact','Sector','Segment','AI Score','Website','Next step','Source','Stage','MRR/yr','Added','Updated']);
-    sortKeys=[r=>r.company||'',r=>(primaryMember(r)||{}).name||'',r=>r.sector||'',r=>r.segment||'',r=>r.aiScore||0,r=>r.website||'',r=>r.nextStep||'',r=>r.leadSource||'',r=>r.stage||'',r=>r.value||0,r=>r.created_at||'',r=>r.updated_at||''];
+    head=sortableHead(['Company','Primary contact','Sector','Segment','Website','Next step','Source','Stage','MRR/yr','Added','Updated']);
+    sortKeys=[r=>r.company||'',r=>(primaryMember(r)||{}).name||'',r=>r.sector||'',r=>r.segment||'',r=>r.website||'',r=>r.nextStep||'',r=>r.leadSource||'',r=>r.stage||'',r=>r.value||0,r=>r.created_at||'',r=>r.updated_at||''];
     rowFn=r=>{ const ref=r.referredBy?records.find(x=>x.id===r.referredBy&&x.pipeline==='customers'):null; const pm=primaryMember(r);
       return `<td><div class="lead-name-cell"><div class="av ${avc(r.id)}">${ini(r.company)}</div><div><div class="ln">${escHtml(r.company)}</div></div></div></td>
       <td style="font-size:12px;color:var(--gray-700);">${pm?escHtml(pm.name+(pm.title?' · '+pm.title:'')):'—'}</td><td><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span></td>
       <td><span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment||'—')}</span></td>
-      <td>${r.aiScore!=null?`<span class="chip" style="background:var(--blue-50);color:var(--blue-600);">${r.aiScore}</span>`:'<span class="lc">—</span>'}</td>
       <td style="font-size:12px;color:var(--gray-500);">${linkHtml(r.website)||'—'}</td>
       <td style="font-size:12px;color:var(--gray-700);">${escHtml(r.nextStep||'—')}</td>
       <td style="font-size:12px;color:var(--gray-500);">${escHtml(r.leadSource)}${ref?` · ${escHtml(ref.company)}`:''}</td>
@@ -2817,7 +2839,7 @@ function toggleDirBulkSubFields(segment){
   const p=document.getElementById('dir-bulk-subperiod-input'), d=document.getElementById('dir-bulk-subdate-input');
   if(!p||!d)return;
   p.style.display=segment==='Enterprise'?'':'none';
-  d.style.display=segment==='SaaS'?'':'none';
+  d.style.display=(segment==='SaaS'||segment==='Enterprise')?'':'none';
 }
 // Bulk stage move — unlike the single-record stage change (requestStageChange), this skips
 // the note-prompt modal entirely: with many records selected at once there's no single note
@@ -2832,7 +2854,7 @@ function bulkChangeStage(){
     segment=segSel?segSel.value:'';
     if(!segment){ showToast('Pick SaaS or Enterprise for the selected records before moving them to Active Client'); return; }
     if(segment==='Enterprise')subscriptionPeriod=document.getElementById('dir-bulk-subperiod-input').value.trim();
-    else subscriptionDate=document.getElementById('dir-bulk-subdate-input').value.trim();
+    if(segment==='SaaS'||segment==='Enterprise')subscriptionDate=document.getElementById('dir-bulk-subdate-input').value.trim();
   }
   const ids=[...dirSelected];
   const recs=records.filter(x=>ids.includes(x.id)&&x.pipeline===pipeline&&x.stage!==newStage);
@@ -2843,7 +2865,7 @@ function bulkChangeStage(){
     if(segment){
       r.segment=segment;
       r.subscriptionPeriod=segment==='Enterprise'?subscriptionPeriod:'';
-      r.subscriptionDate=segment==='SaaS'?subscriptionDate:'';
+      r.subscriptionDate=(segment==='SaaS'||segment==='Enterprise')?subscriptionDate:'';
       entry.note=`Segment set to ${segment}`;
     }
     r.activity.push(entry);
@@ -2986,7 +3008,7 @@ function findFuzzyEventDuplicate(pool,company,rawStart){
 const IMPORT_FIELD_MAP_EXTRA={
   partners:{portfolio:['portfolio'], category:['category'], model:['model'], tier:['tier'], score:['score'],
     website:['website'], region:['region'], clients:['clients'], workshops:['workshops'], founders:['founders']},
-  customers:{sector:['sector','industry','field','field of work','vertical','business type','business sector'], website:['website'], package:['package'], aiScore:['ai score','aiscore'],
+  customers:{sector:['sector','industry','field','field of work','vertical','business type','business sector'], website:['website'],
     leadSource:['lead source','leadsource'], referredBy:['referred by','referredby'],
     segment:['segment','customer type'], nextStep:['next step','nextstep'],
     subscriptionPeriod:['subscription period','subscriptionperiod'], subscriptionDate:['subscription date','subscriptiondate']},
@@ -3052,7 +3074,7 @@ function hideImportLoading(){
 function importUndoSnapshot(pipeline,rec){
   const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes, tag:rec.tag, stage:rec.stage};
   if(pipeline==='partners') Object.assign(snap,{category:rec.category,model:rec.model,tier:rec.tier,score:rec.score,website:rec.website,region:rec.region,clients:rec.clients,workshops:rec.workshops,founders:rec.founders});
-  else if(pipeline==='customers') Object.assign(snap,{sector:rec.sector,website:rec.website,package:rec.package,aiScore:rec.aiScore,leadSource:rec.leadSource,segment:rec.segment,nextStep:rec.nextStep,subscriptionPeriod:rec.subscriptionPeriod,subscriptionDate:rec.subscriptionDate});
+  else if(pipeline==='customers') Object.assign(snap,{sector:rec.sector,website:rec.website,leadSource:rec.leadSource,segment:rec.segment,nextStep:rec.nextStep,subscriptionPeriod:rec.subscriptionPeriod,subscriptionDate:rec.subscriptionDate});
   else if(pipeline==='events') Object.assign(snap,{eventType:rec.eventType,description:rec.description,startAt:rec.startAt,endAt:rec.endAt,timezone:rec.timezone,format:rec.format,outsideEgypt:rec.outsideEgypt,meetingUrl:rec.meetingUrl,meetingPasscode:rec.meetingPasscode,dialIn:rec.dialIn,venueName:rec.venueName,address:rec.address,mapUrl:rec.mapUrl,capacity:rec.capacity});
   else Object.assign(snap,{fundSize:rec.fundSize,thesis:rec.thesis,website:rec.website});
   return snap;
@@ -3216,8 +3238,6 @@ async function handleImportFile(ev){
             existing.segment=matchedSegment; fieldsFilled=true;
           }
           fieldsFilled=fillStr('website',get('website'))||fieldsFilled;
-          fieldsFilled=fillStr('package',get('package'))||fieldsFilled;
-          fieldsFilled=fillNum('aiScore',get('aiScore'))||fieldsFilled;
           fieldsFilled=fillStr('leadSource',get('leadSource'))||fieldsFilled;
           fieldsFilled=fillStr('nextStep',get('nextStep'))||fieldsFilled;
           fieldsFilled=fillStr('subscriptionPeriod',matchSubscriptionPeriod(get('subscriptionPeriod')))||fieldsFilled;
@@ -3283,12 +3303,12 @@ async function handleImportFile(ev){
         r.website=(get('website')||'').toString();r.region=(get('region')||'').toString();r.clients=(get('clients')||'').toString();
         if(portfolio===2){r.workshops=Math.round(Number(get('workshops')))||0;r.founders=Math.round(Number(get('founders')))||0;}
       } else if(pipeline==='customers'){
-        r.sector=(get('sector')||'General').toString();r.website=(get('website')||'').toString();r.package=(get('package')||'—').toString();
-        r.aiScore=Math.round(Number(get('aiScore')))||null;r.leadSource=(get('leadSource')||get('source')||'Import').toString();
+        r.sector=(get('sector')||'General').toString();r.website=(get('website')||'').toString();
+        r.leadSource=(get('leadSource')||get('source')||'Import').toString();
         r.referredBy=Math.round(Number(get('referredBy')))||null;r.segment=matchInList(['SaaS','Enterprise'],get('segment'))||null;
         r.nextStep=(get('nextStep')||nextStepOptions[0]||'').toString();
         r.subscriptionPeriod=r.segment==='Enterprise'?matchSubscriptionPeriod(get('subscriptionPeriod')):'';
-        r.subscriptionDate=r.segment==='SaaS'?normalizeSubscriptionDate(get('subscriptionDate')):'';
+        r.subscriptionDate=(r.segment==='SaaS'||r.segment==='Enterprise')?normalizeSubscriptionDate(get('subscriptionDate')):'';
         delete r.source;
       } else if(pipeline==='events'){
         r.eventType=(get('eventType')||eventTypeOptions[0]||'').toString();r.description=(get('description')||'').toString();
@@ -3650,7 +3670,7 @@ function exportRecords(fmt){
     id:r.id, pipeline:r.pipeline, name:r.name, company:r.company, role:r.role||'', email:r.email||'',
     phone:r.phone||'', website:r.website||'', stage:r.stage, value:r.value||0, source:r.pipeline==='customers'?(r.leadSource||''):(r.source||''), date:r.date||'', notes:r.notes||'',
     category:r.category||'', model:r.model||'', tier:r.tier||'', score:r.score!=null?r.score:'', region:r.region||'',
-    sector:r.sector||'', segment:r.segment||'', package:r.package||'', aiScore:r.aiScore||'', nextStep:r.nextStep||'',
+    sector:r.sector||'', segment:r.segment||'', nextStep:r.nextStep||'',
     subscriptionPeriod:r.subscriptionPeriod||'', subscriptionDate:r.subscriptionDate||'',
     members:(r.members||[]).map(m=>`${m.name}${m.title?' ('+m.title+')':''}${m.email?' <'+m.email+'>':''}`).join('; '),
     fundSize:r.fundSize||'', thesis:r.thesis||'',
@@ -3786,6 +3806,48 @@ function drawBar(id,labels,data,colors,tips){
     canvas._hoverWired=true;
   }
 }
+// Pie chart — same devicePixelRatio scaling and mousemove→native-title hover technique as
+// drawBar above, just mapped to angle/radius instead of a bar index. Slices start at 12
+// o'clock (-90°) and go clockwise, matching how a reader scans a pie left-to-right/top-down.
+function drawPie(id,labels,data,colors,tips){
+  const canvas=document.getElementById(id); if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth-40, H=200;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+
+  const total=data.reduce((a,v)=>a+v,0)||1;
+  const cx=W/2,cy=H/2,r=Math.min(W,H)/2-10;
+  let angle=-Math.PI/2;
+  const slices=data.map((v,i)=>{
+    const span=(v/total)*Math.PI*2;
+    const slice={start:angle,end:angle+span,color:Array.isArray(colors)?(colors[i]||colors[0]||'#888780'):colors};
+    angle+=span;
+    return slice;
+  });
+  slices.forEach(s=>{
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,s.start,s.end);ctx.closePath();
+    ctx.fillStyle=s.color;ctx.fill();
+  });
+
+  canvas._pie={cx,cy,r,slices,tips};
+  if(!canvas._hoverWired){
+    canvas.addEventListener('mousemove',e=>{
+      const d=canvas._pie; if(!d||!d.tips)return;
+      const rect=canvas.getBoundingClientRect();
+      const x=e.clientX-rect.left-d.cx, y=e.clientY-rect.top-d.cy;
+      if(Math.sqrt(x*x+y*y)>d.r){canvas.title='';return;}
+      let a=Math.atan2(y,x); if(a<-Math.PI/2)a+=Math.PI*2;
+      const i=d.slices.findIndex(s=>a>=s.start&&a<s.end);
+      canvas.title=i>=0?d.tips[i]:'';
+    });
+    canvas.addEventListener('mouseleave',()=>{canvas.title='';});
+    canvas._hoverWired=true;
+  }
+}
 // Chart canvases don't redraw on their own when the window resizes (canvas dims are only set
 // at draw time) — re-render Analytics (debounced) whenever it's the active page.
 let analyticsResizeTimer=null;
@@ -3806,14 +3868,14 @@ function barList(items,color){ if(!items.length) return `<div class="notes-body"
 // purple, side by side), sized to that stage's share of the item's total. The whole bar's
 // length still compares item-to-item exactly like barList (outer wrapper width = i.v/mx),
 // only the fill inside it is now multiple colored slices instead of one. Hovering a slice
-// shows its stage and count via the native title attribute (same pattern as escAttr(hint) on
-// the competitor detail fields, and the Value-by-stage chart's canvas tooltip).
+// shows a real hover card (stage/count/value as separate rows) via the same pure-CSS
+// .cal-tooltip pattern the calendar view uses, rather than a single-line native title.
 function stackedBarList(items){
   if(!items.length) return `<div class="notes-body" style="padding:16px 20px;">No data yet.</div>`;
   const mx=Math.max(...items.map(i=>i.v),1);
   return items.map(i=>{
-    const segs=i.segments.filter(seg=>seg.v>0).map(seg=>`<div title="${escAttr(seg.tip)}" style="flex:${seg.v} 0 0;height:100%;background:${seg.color};"></div>`).join('');
-    return `<div class="bar-row"><div class="bar-name">${escHtml(i.name)}</div><div class="bar-bg"><div style="display:flex;height:100%;width:${(i.v/mx)*100}%;">${segs}</div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${escHtml(i.extra)}</div>`:''}</div>`;
+    const segs=i.segments.filter(seg=>seg.v>0).map(seg=>`<div class="seg-hover-wrap" style="flex:${seg.v} 0 0;"><div style="height:100%;background:${seg.color};"></div><div class="cal-tooltip"><div class="ctt-title">${escHtml(seg.stage)}</div><div class="ctt-row"><span class="ctt-label">Count</span>${seg.v}</div><div class="ctt-row"><span class="ctt-label">Value</span>${escHtml(seg.valueStr)}</div></div></div>`).join('');
+    return `<div class="bar-row"><div class="bar-name">${escHtml(i.name)}</div><div class="bar-bg bar-bg-stacked"><div style="display:flex;height:100%;width:${(i.v/mx)*100}%;">${segs}</div></div><div style="font-size:12px;color:var(--gray-700);width:34px;text-align:right;">${i.v}</div>${i.extra?`<div style="font-size:11px;color:var(--gray-500);width:64px;text-align:right;">${escHtml(i.extra)}</div>`:''}</div>`;
   }).join('');
 }
 function renderAnalytics(){
@@ -3832,9 +3894,9 @@ function renderAnalytics(){
     const isCust=state.pipeline==='customers';
     const allVal=recs.reduce((s,r)=>s+(r.value||0),0),wonVal=won.reduce((s,r)=>s+(r.value||0),0);
     kpis=[['Total value',ff(allVal)],[{partners:'Signed ARR',customers:'MRR',investors:'Capital raised'}[state.pipeline],ff(wonVal)],['Avg deal',ff(recs.length?allVal/recs.length:0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
-    if(isCust) kpis.push([null,null,arrCardHtml(computeCustomerRealizedRevenue(recs))]);
+    if(isCust) kpis.push([null,null,arrCardHtml(recs)]);
     const pipeVal=computePipelineValue(stages,recs), rejectedVal=computeRejectedValue(recs);
-    kpis.push(['Open pipeline',ff(pipeVal)],['Closed pipeline',ff(rejectedVal)],['Total pipeline',ff(wonVal+rejectedVal+pipeVal)]);
+    kpis.push([isCust?'Open pipeline (/mo)':'Open pipeline',ff(pipeVal)],['Lost Pipeline',ff(rejectedVal)],['Total pipeline',ff(wonVal+rejectedVal+pipeVal)]);
   }
   document.getElementById('an-kpis').innerHTML=kpis.map(k=>k[2]||`<div class="stat-card"><div class="stat-label">${k[0]}</div><div class="stat-value">${k[1]}</div><div class="stat-delta">${state.pipeline}</div></div>`).join('');
   // stage chart
@@ -3862,7 +3924,7 @@ function renderAnalytics(){
       const segStages=[...new Set(inSec.map(r=>r.stage))];
       const segments=segStages.map(s=>{
         const inStage=inSec.filter(r=>r.stage===s);
-        return {v:inStage.length,color:STAGE_COLOR[s]||ac,tip:`${s}: ${inStage.length} · ${ff(inStage.reduce((a,r)=>a+(r.value||0),0))}`};
+        return {v:inStage.length,color:STAGE_COLOR[s]||ac,stage:s,valueStr:ff(inStage.reduce((a,r)=>a+(r.value||0),0))};
       });
       return {name:c,v:inSec.length,segments,extra:ff(inSec.reduce((a,r)=>a+(r.value||0),0))};
     });
@@ -3887,7 +3949,7 @@ function renderAnalytics(){
     s2=['#0E7474',recs.reduce((s,r)=>s+(r.founders||0),0),'Founders educated','Leading indicator'];
   } else {
     s1=['#3B6D11',ff(won.reduce((s,r)=>s+(r.value||0),0)),{partners:'Signed ARR',customers:'Won revenue',investors:'Capital raised'}[state.pipeline],won.length+' closed'];
-    s2=['#EF9F27',ff(active.reduce((s,r)=>s+(r.value||0),0)),'Open pipeline',active.length+' active'];
+    s2=['#EF9F27',ff(active.reduce((s,r)=>s+(r.value||0),0)),state.pipeline==='customers'?'Open pipeline (/mo)':'Open pipeline',active.length+' active'];
   }
   document.getElementById('an-stat-1').innerHTML=`<div class="val" style="color:${s1[0]}">${s1[1]}</div><div class="lbl">${s1[2]}</div><div class="sub">${s1[3]}</div>`;
   document.getElementById('an-stat-2').innerHTML=`<div class="val" style="color:${s2[0]}">${s2[1]}</div><div class="lbl">${s2[2]}</div><div class="sub">${s2[3]}</div>`;
@@ -3917,6 +3979,22 @@ function renderAnalytics(){
     const segItems=segs.map((s,i)=>({name:s,v:recs.filter(r=>r.segment===s).length,color:PALETTE[i%PALETTE.length],extra:ff(recs.filter(r=>r.segment===s).reduce((a,r)=>a+(r.value||0),0))}));
     document.getElementById('an-segment').innerHTML=barList(segItems,ac);
   } else segCard.style.display='none';
+  // subscription-period mix (Enterprise-only — SaaS has no fixed period), pie chart
+  const subCard=document.getElementById('an-subperiod-card');
+  if(state.pipeline==='customers'){
+    const ent=recs.filter(r=>r.segment==='Enterprise');
+    if(ent.length){
+      subCard.style.display='';
+      const periods=[...SUBSCRIPTION_PERIODS,'Not set'];
+      const subColors={Quarterly:'#378ADD','Half-Annual':'#EF9F27',Annually:'#639922','Not set':'#888780'};
+      const counts=periods.map(p=>ent.filter(r=>(r.subscriptionPeriod||'Not set')===p).length);
+      const nonEmpty=periods.map((p,i)=>({p,i})).filter(x=>counts[x.i]>0);
+      const pieLabels=nonEmpty.map(x=>x.p), pieData=nonEmpty.map(x=>counts[x.i]), pieColors=nonEmpty.map(x=>subColors[x.p]);
+      const pieTips=nonEmpty.map(x=>`${x.p}: ${counts[x.i]} · ${ff(ent.filter(r=>(r.subscriptionPeriod||'Not set')===x.p).reduce((a,r)=>a+(r.value||0),0))}`);
+      setTimeout(()=>drawPie('chart-subperiod',pieLabels,pieData,pieColors,pieTips),30);
+      document.getElementById('an-subperiod-legend').innerHTML=nonEmpty.map(x=>`<span class="stage-legend-item"><span class="stage-legend-dot" style="background:${subColors[x.p]}"></span>${escHtml(x.p)} (${counts[x.i]})</span>`).join('');
+    } else subCard.style.display='none';
+  } else subCard.style.display='none';
 }
 
 // ══════════════ COMPETITORS UI ══════════════
@@ -4478,9 +4556,9 @@ function renderDetail(){
     if(r.website)fields.push(['Website',r.website,true]);
   } else if(state.pipeline==='customers'){
     const ref=r.referredBy?records.find(x=>x.id===r.referredBy&&x.pipeline==='customers'):null;
-    fields.push(['Sector',r.sector,false],['Segment',r.segment||'—',false],['Package',r.package||'—',false],['AI Visibility Score',r.aiScore!=null?r.aiScore+'/100':'—',false],['MRR / yr',ff(r.value),false],['Lead source',r.leadSource+(ref?' · '+ref.company:''),false]);
+    fields.push(['Sector',r.sector,false],['Segment',r.segment||'—',false],['MRR / yr',ff(r.value),false],['Lead source',r.leadSource+(ref?' · '+ref.company:''),false]);
     if(r.website)fields.push(['Website',r.website,true]);
-    if(r.segment==='Enterprise')fields.push(['Subscription period',r.subscriptionPeriod||'—',false]);
+    if(r.segment==='Enterprise')fields.push(['Subscription period',r.subscriptionPeriod||'—',false],['Subscription date',r.subscriptionDate||'—',false]);
     else if(r.segment==='SaaS')fields.push(['Subscription date',r.subscriptionDate||'—',false]);
   } else if(state.pipeline==='events'){
     fields.push(['Format',r.format||'—',false],['Region',r.outsideEgypt||'Egypt',false],['Start',fmtDateTime(r.startAt,r.timezone),false],['End',fmtDateTime(r.endAt,r.timezone),false],['Timezone',r.timezone||'—',false]);
@@ -4595,7 +4673,7 @@ const linkHtml=v=>{ const s=(v==null?'':(''+v)).trim(); return s?`<a href="${esc
 let editId=null,editPipeline=null;
 function toggleSubscriptionFields(segment){
   document.getElementById('f-subperiod-group').style.display=segment==='Enterprise'?'':'none';
-  document.getElementById('f-subdate-group').style.display=segment==='SaaS'?'':'none';
+  document.getElementById('f-subdate-group').style.display=(segment==='SaaS'||segment==='Enterprise')?'':'none';
 }
 // Every segment value already in use across customers (plus the two baseline types), so a
 // value set via import/chat — which can write any free text to r.segment — stays pickable
@@ -4634,7 +4712,7 @@ function extraFieldsHtml(p,r){
       <div class="form-group"><label class="form-label">Lead source</label><select class="form-input" id="f-leadsource" onchange="handleLeadSourceChange(this)">${leadSourceSelectHtml(r?r.leadSource:leadSourceOptions[0])}</select></div>
       <div class="form-row">
         <div class="form-group" id="f-subperiod-group" style="display:${seg==='Enterprise'?'':'none'};"><label class="form-label">Subscription period</label><select class="form-input" id="f-subperiod">${subscriptionPeriodSelectHtml(r?r.subscriptionPeriod:'')}</select></div>
-        <div class="form-group" id="f-subdate-group" style="display:${seg==='SaaS'?'':'none'};"><label class="form-label">Subscription date</label><input class="form-input" type="date" id="f-subdate" value="${escAttr(r?r.subscriptionDate:'')}"></div>
+        <div class="form-group" id="f-subdate-group" style="display:${(seg==='SaaS'||seg==='Enterprise')?'':'none'};"><label class="form-label">Subscription date</label><input class="form-input" type="date" id="f-subdate" value="${escAttr(r?r.subscriptionDate:'')}"></div>
       </div>
       <div class="form-group"><label class="form-label">Next step</label><select class="form-input" id="f-nextstep" onchange="handleNextStepChange(this)">${nextStepSelectHtml(r?r.nextStep:nextStepOptions[0])}</select></div>`;
   } else if(p==='events'){
@@ -4744,9 +4822,9 @@ async function addRecord(){
   if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.website=val('f-website');r.region=val('f-region');r.tier=val('f-tier')?Number(val('f-tier')):null;r.score=null;if(r.portfolio===2){r.workshops=0;r.founders=0;}}
   else if(p==='customers'){
     r.segment=val('f-segment')||null;
-    r.sector=val('f-sector')||'General';r.website=val('f-website');r.leadSource=val('f-leadsource')||'Manual';r.aiScore=null;r.package='—';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;
+    r.sector=val('f-sector')||'General';r.website=val('f-website');r.leadSource=val('f-leadsource')||'Manual';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
-    r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
+    r.subscriptionDate=(r.segment==='SaaS'||r.segment==='Enterprise')?val('f-subdate'):'';
   }
   else if(p==='events'){
     r.eventType=val('f-eventtype')||eventTypeOptions[0]||'';r.description=val('f-description');
@@ -4774,7 +4852,7 @@ function saveEditedRecord(){
   else if(p==='customers'){
     r.segment=val('f-segment')||null;
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
-    r.subscriptionDate=r.segment==='SaaS'?val('f-subdate'):'';
+    r.subscriptionDate=(r.segment==='SaaS'||r.segment==='Enterprise')?val('f-subdate'):'';
     r.sector=val('f-sector')||'General'; r.website=val('f-website'); r.leadSource=val('f-leadsource')||r.leadSource; r.nextStep=val('f-nextstep')||r.nextStep;
   }
   else if(p==='events'){
@@ -5036,8 +5114,8 @@ const SUGGESTIONS=[
 // Number(...) either way, so accepting the string form costs nothing and avoids the crash.
 const TOOLS=[
   {type:'function',function:{name:'move_stage',description:'Move a record to a different stage in its pipeline.',parameters:{type:'object',properties:{record:{type:'string',description:'Company or contact name'},stage:{type:'string',description:'Target stage name'},note:{type:'string',description:'Optional note explaining the move, shown as a breadcrumb on the stage-change timeline'}},required:['record','stage']}}},
-  {type:'function',function:{name:'update_record',description:'Update fields on a record (value, notes, model, tier, aiScore, package, nextStep, etc.).',parameters:{type:'object',properties:{record:{type:'string'},field:{type:'string',description:'field name e.g. value, notes, model, aiScore, package, region, nextStep'},value:{type:'string'}},required:['record','field','value']}}},
-  {type:'function',function:{name:'add_record',description:'Add a new record — including from messy, unstructured text the user just pastes or describes in prose (notes from a call, a forwarded bio, a rambling description). Pull every field below you can confidently infer from it; don\'t ask the user to restructure their own text first. Whatever doesn\'t map to a specific field, put in notes rather than dropping it. category/model/stage/segment/etc. only need to be your best guess at the closest valid option, not an exact match. partners/customers/investors are company-based (company = identity; pass contactName/contactTitle/contactEmail/contactPhone to add a first member). events use company as the event title, no members. Fields irrelevant to the chosen pipeline are ignored, so it\'s fine to omit any that don\'t apply.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors','events']},company:{type:'string',description:'Company name, or event title'},stage:{type:'string',description:'Stage, or event status'},category:{type:'string',description:'Partners only'},portfolio:{type:['number','string'],description:'Partners only — 1 (revenue) or 2 (ecosystem)'},value:{type:['number','string'],description:'Deal/ticket value — not events'},source:{type:'string',description:'How this came in, e.g. LinkedIn, Referral, Cold Outreach, Inbound, Event — not events'},notes:{type:'string',description:'Any context from the user\'s message that doesn\'t fit another field'},model:{type:'string',description:'Partners only — e.g. Reseller, Referral, Merchant Education'},tier:{type:['number','string'],description:'Partners only — 1, 2, or 3'},region:{type:'string',description:'Partners only'},website:{type:'string',description:'Partners/customers only'},clients:{type:'string',description:'Partners only — free text describing their client roster'},workshops:{type:['number','string'],description:'Partners portfolio 2 only'},founders:{type:['number','string'],description:'Partners portfolio 2 only'},sector:{type:'string',description:'Customers only'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only'},package:{type:'string',description:'Customers only'},subscriptionPeriod:{type:'string',description:'Customers only, Enterprise segment'},subscriptionDate:{type:'string',description:'Customers only, SaaS segment'},fundSize:{type:'string',description:'Investors only, e.g. $80M'},thesis:{type:'string',description:'Investors only'},contactName:{type:'string'},contactTitle:{type:'string'},contactEmail:{type:'string'},contactPhone:{type:'string'},eventType:{type:'string',description:'e.g. Webinar, Conference'},description:{type:'string'},startAt:{type:'string',description:'ISO 8601 start timestamp'},endAt:{type:'string',description:'ISO 8601 end timestamp'},timezone:{type:'string',description:'IANA tz, e.g. Asia/Riyadh'},format:{type:'string',enum:['Virtual','In-Person']},meetingUrl:{type:'string'},meetingPasscode:{type:'string'},dialIn:{type:'string'},venueName:{type:'string'},address:{type:'string'},mapUrl:{type:'string'},capacity:{type:['number','string']}},required:['pipeline','company']}}},
+  {type:'function',function:{name:'update_record',description:'Update fields on a record (value, notes, model, tier, nextStep, etc.).',parameters:{type:'object',properties:{record:{type:'string'},field:{type:'string',description:'field name e.g. value, notes, model, region, nextStep'},value:{type:'string'}},required:['record','field','value']}}},
+  {type:'function',function:{name:'add_record',description:'Add a new record — including from messy, unstructured text the user just pastes or describes in prose (notes from a call, a forwarded bio, a rambling description). Pull every field below you can confidently infer from it; don\'t ask the user to restructure their own text first. Whatever doesn\'t map to a specific field, put in notes rather than dropping it. category/model/stage/segment/etc. only need to be your best guess at the closest valid option, not an exact match. partners/customers/investors are company-based (company = identity; pass contactName/contactTitle/contactEmail/contactPhone to add a first member). events use company as the event title, no members. Fields irrelevant to the chosen pipeline are ignored, so it\'s fine to omit any that don\'t apply.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors','events']},company:{type:'string',description:'Company name, or event title'},stage:{type:'string',description:'Stage, or event status'},category:{type:'string',description:'Partners only'},portfolio:{type:['number','string'],description:'Partners only — 1 (revenue) or 2 (ecosystem)'},value:{type:['number','string'],description:'Deal/ticket value — not events'},source:{type:'string',description:'How this came in, e.g. LinkedIn, Referral, Cold Outreach, Inbound, Event — not events'},notes:{type:'string',description:'Any context from the user\'s message that doesn\'t fit another field'},model:{type:'string',description:'Partners only — e.g. Reseller, Referral, Merchant Education'},tier:{type:['number','string'],description:'Partners only — 1, 2, or 3'},region:{type:'string',description:'Partners only'},website:{type:'string',description:'Partners/customers only'},clients:{type:'string',description:'Partners only — free text describing their client roster'},workshops:{type:['number','string'],description:'Partners portfolio 2 only'},founders:{type:['number','string'],description:'Partners portfolio 2 only'},sector:{type:'string',description:'Customers only'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only'},subscriptionPeriod:{type:'string',description:'Customers only, Enterprise segment'},subscriptionDate:{type:'string',description:'Customers only, SaaS or Enterprise segment'},fundSize:{type:'string',description:'Investors only, e.g. $80M'},thesis:{type:'string',description:'Investors only'},contactName:{type:'string'},contactTitle:{type:'string'},contactEmail:{type:'string'},contactPhone:{type:'string'},eventType:{type:'string',description:'e.g. Webinar, Conference'},description:{type:'string'},startAt:{type:'string',description:'ISO 8601 start timestamp'},endAt:{type:'string',description:'ISO 8601 end timestamp'},timezone:{type:'string',description:'IANA tz, e.g. Asia/Riyadh'},format:{type:'string',enum:['Virtual','In-Person']},meetingUrl:{type:'string'},meetingPasscode:{type:'string'},dialIn:{type:'string'},venueName:{type:'string'},address:{type:'string'},mapUrl:{type:'string'},capacity:{type:['number','string']}},required:['pipeline','company']}}},
   {type:'function',function:{name:'delete_record',description:'Delete a record from the CRM.',parameters:{type:'object',properties:{record:{type:'string'}},required:['record']}}},
   {type:'function',function:{name:'log_activity',description:'Log an activity note on a record.',parameters:{type:'object',properties:{record:{type:'string'},text:{type:'string'}},required:['record','text']}}},
   {type:'function',function:{name:'score_agency',description:'Run the agency qualification scoring rubric and return score + tier.',parameters:{type:'object',properties:{clientType:{type:'string',enum:['b2c','mixed','b2b']},services:{type:'array',items:{type:'string',enum:['seo','content','ads','brand']}},rosterSize:{type:['number','string']},namedSeoTeam:{type:'boolean'},listsGeo:{type:'boolean'},offlineOnly:{type:'boolean'},leadgenOnly:{type:'boolean'}},required:['clientType']}}},
@@ -5059,7 +5137,7 @@ const TOOLS=[
 const UPDATE_FIELD_ALLOWLIST={
   common:['value','notes','source','date','tag'],
   partners:['category','model','tier','score','website','region','clients','workshops','founders'],
-  customers:['sector','website','package','aiScore','leadSource','referredBy','segment','nextStep','subscriptionPeriod','subscriptionDate'],
+  customers:['sector','website','leadSource','referredBy','segment','nextStep','subscriptionPeriod','subscriptionDate'],
   investors:['fundSize','thesis','website'],
   events:['eventType','description','startAt','endAt','timezone','format','meetingUrl','meetingPasscode','dialIn','venueName','address','mapUrl','capacity']
 };
@@ -5068,9 +5146,9 @@ function snapshotRecord(r){
   o.members=(r.members||[]).map(m=>({name:m.name,title:m.title}));
   if(r.pipeline==='partners'){o.portfolio=r.portfolio;o.category=r.category;o.model=r.model;o.tier=r.tier;o.score=r.score;if(r.portfolio===2){o.workshops=r.workshops;o.founders=r.founders;}else o.value=r.value;}
   else if(r.pipeline==='customers'){
-    o.sector=r.sector;o.segment=r.segment;o.aiScore=r.aiScore;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;
+    o.sector=r.sector;o.segment=r.segment;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;
     if(r.segment==='Enterprise')o.subscriptionPeriod=r.subscriptionPeriod;
-    else if(r.segment==='SaaS')o.subscriptionDate=r.subscriptionDate;
+    if(r.segment==='SaaS'||r.segment==='Enterprise')o.subscriptionDate=r.subscriptionDate;
     if(r.referredBy){const p=records.find(x=>x.id===r.referredBy&&x.pipeline==='customers');o.referredBy=p?p.company:null;}
   }
   else if(r.pipeline==='events'){
@@ -5130,7 +5208,7 @@ function buildSystem(){
 The CRM has FOUR pipelines:
 Partners/customers/investors are company-based: the company/organisation is each record's identity, and any contacts at that company live in a \`members\` list (name, title, email, phone, linkedin) rather than as hardcoded top-level fields. Events are NOT company-based — "company"/"name" holds the event title instead, and there are no members/contacts.
 - partners: partner organisations. Two portfolios. Portfolio 1 (Revenue) stages: ${STAGES.partners1.join(' → ')}. Categories: Marketing Agencies, SaaS & E-commerce Platforms, Operational Touchpoint. Portfolio 2 (Ecosystem, measured on workshops/founders not revenue) stages: ${STAGES.partners2.join(' → ')}. Categories: Startup Development Orgs, Government & National Dev.
-- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Segment (SaaS or Enterprise) is only decided once the deal closes, so it's null/unset for every stage before Active Client — don't guess it earlier. Some are referred by partners. Enterprise customers track a subscriptionPeriod (must be exactly one of ${SUBSCRIPTION_PERIODS.join('/')}); SaaS customers track a subscriptionDate (yyyy-mm-dd). Archived means a former Active Client whose subscription period ended and who did not renew — like Rejected, it's excluded from every pipeline-value metric.
+- customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Segment (SaaS or Enterprise) is only decided once the deal closes, so it's null/unset for every stage before Active Client — don't guess it earlier. Some are referred by partners. Enterprise customers track a subscriptionPeriod (must be exactly one of ${SUBSCRIPTION_PERIODS.join('/')}) and a subscriptionDate (yyyy-mm-dd); SaaS customers track only a subscriptionDate. Archived means a former Active Client whose subscription period ended and who did not renew — like Rejected, it's excluded from every pipeline-value metric.
 - investors: fundraising firms. Stages: ${STAGES.investors.join(' → ')}.
 - events: webinars, trade shows, demos, meetings, conferences, etc. Status (used as its stage): ${STAGES.events.join(' → ')}. Each has an eventType (extensible list), description, startAt/endAt (ISO timestamps), timezone, and format (Virtual or In-Person) — Virtual events track meetingUrl/meetingPasscode/dialIn, In-Person events track venueName/address/mapUrl/capacity. No monetary value.
 
@@ -5174,8 +5252,8 @@ function syncNote(ok){ return ok?'.':' (locally only — it failed to sync to Su
 async function execTool(name,input){
   try{
     if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;const entry={t:`Stage: ${old} → ${match}`,d:new Date().toISOString()};if(input.note)entry.note=(''+input.note).trim();r.activity.push(entry);const ok=await saveRecord(r);refreshView();return `Moved ${r.company} to ${match}${syncNote(ok)}`;}
-    if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','aiScore','score','workshops','founders','tier'].includes(f))v=Number(v);else if(f==='tag')v=matchInList(TAG_VALUES,v)||null;else if(f==='subscriptionPeriod'){const matched=matchSubscriptionPeriod(v);if(!matched)return `"${v}" is not a valid subscription period. Valid: ${SUBSCRIPTION_PERIODS.join(', ')}.`;v=matched;}else if(f==='subscriptionDate')v=normalizeSubscriptionDate(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:new Date().toISOString()});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
-    if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=Number(input.portfolio)||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const src=(''+(input.source||'')).trim()||'Assistant';const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:src,date:'Today',notes:(''+(input.notes||'')).trim(),value:Number(input.value)||0,activity:[{t:'Added via assistant',d:new Date().toISOString()}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model=(''+(input.model||'')).trim();r.tier=input.tier!=null&&input.tier!==''?Number(input.tier):null;r.score=null;r.region=(''+(input.region||'')).trim();r.website=(''+(input.website||'')).trim();r.clients=(''+(input.clients||'')).trim();if(r.portfolio===2){r.workshops=Number(input.workshops)||0;r.founders=Number(input.founders)||0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource=src;r.segment=matchInList(['SaaS','Enterprise'],input.segment)||null;r.aiScore=null;r.package=(''+(input.package||'')).trim()||'—';r.website=(''+(input.website||'')).trim();r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?matchSubscriptionPeriod(input.subscriptionPeriod):'';r.subscriptionDate=r.segment==='SaaS'?normalizeSubscriptionDate(input.subscriptionDate):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'&&input.capacity!=null&&input.capacity!==''?Number(input.capacity):null;delete r.value;delete r.source;}else{r.fundSize=(''+(input.fundSize||'')).trim();r.thesis=(''+(input.thesis||'')).trim();}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
+    if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','score','workshops','founders','tier'].includes(f))v=Number(v);else if(f==='tag')v=matchInList(TAG_VALUES,v)||null;else if(f==='subscriptionPeriod'){const matched=matchSubscriptionPeriod(v);if(!matched)return `"${v}" is not a valid subscription period. Valid: ${SUBSCRIPTION_PERIODS.join(', ')}.`;v=matched;}else if(f==='subscriptionDate')v=normalizeSubscriptionDate(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:new Date().toISOString()});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
+    if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=Number(input.portfolio)||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const src=(''+(input.source||'')).trim()||'Assistant';const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:src,date:'Today',notes:(''+(input.notes||'')).trim(),value:Number(input.value)||0,activity:[{t:'Added via assistant',d:new Date().toISOString()}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model=(''+(input.model||'')).trim();r.tier=input.tier!=null&&input.tier!==''?Number(input.tier):null;r.score=null;r.region=(''+(input.region||'')).trim();r.website=(''+(input.website||'')).trim();r.clients=(''+(input.clients||'')).trim();if(r.portfolio===2){r.workshops=Number(input.workshops)||0;r.founders=Number(input.founders)||0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource=src;r.segment=matchInList(['SaaS','Enterprise'],input.segment)||null;r.website=(''+(input.website||'')).trim();r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?matchSubscriptionPeriod(input.subscriptionPeriod):'';r.subscriptionDate=(r.segment==='SaaS'||r.segment==='Enterprise')?normalizeSubscriptionDate(input.subscriptionDate):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'&&input.capacity!=null&&input.capacity!==''?Number(input.capacity):null;delete r.value;delete r.source;}else{r.fundSize=(''+(input.fundSize||'')).trim();r.thesis=(''+(input.thesis||'')).trim();}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
     if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);records=records.filter(x=>x.id!==r.id);const ok=await deleteRecordRemote(r.id,r.pipeline);refreshView();return `Deleted ${r.company}${syncNote(ok)}`;}
     if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const text=(''+(input.text||'')).trim();if(!text)return 'No note text given.';r.activity.push({t:'Note',d:new Date().toISOString(),note:text});const ok=await saveRecord(r);refreshView();if(currentId===r.id&&currentPipeline===r.pipeline)renderDetail();return `Logged on ${r.company}: "${text}"${syncNote(ok)}`;}
     if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}
