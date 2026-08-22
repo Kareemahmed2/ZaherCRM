@@ -1327,6 +1327,12 @@ function computePipelineValue(stagesArr,recs){
   return recs.filter(r=>stagesArr.indexOf(r.stage)>=thresholdIdx && !TERMINAL.has(r.stage)).reduce((s,r)=>s+(r.value||0),0);
 }
 function computeWonValue(recs){ return recs.filter(r=>isWonStage(r.stage)).reduce((s,r)=>s+(r.value||0),0); }
+// "Signed ARR" for partners specifically — contractedArr (what was actually signed) replaces
+// the pre-close `value` estimate once it's filled in, but falls back to `value` so a deal that's
+// already won doesn't drop to $0 the moment this field exists and just hasn't been backfilled.
+function computePartnersSignedArr(recs){
+  return recs.filter(r=>isWonStage(r.stage)).reduce((s,r)=>s+((r.contractedArr!=null&&r.contractedArr!=='')?Number(r.contractedArr):(r.value||0)),0);
+}
 function computeRejectedValue(recs){ return recs.filter(r=>r.stage===REJECTED_STAGE).reduce((s,r)=>s+(r.value||0),0); }
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('show'),2400);}
 // Returns a record, null (no match), or {ambiguous:true,candidates:[...]} when a member-name
@@ -1875,6 +1881,24 @@ function normalizeSubscriptionDate(raw){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
+// ══════════════ PARTNER AGREEMENT (partners) ══════════════
+// Describes the partnership once it exists, not just the lead that led to it — agreementType
+// covers the pre-close documents too (NDA/MoU get signed well before a deal reaches Revenue/
+// Strategic), so unlike customers' segment this isn't gated behind reaching a terminal stage;
+// it's a regular always-editable field. revSharePct/contractedArr are Portfolio 1 (Revenue)
+// only — Portfolio 2 (Ecosystem) partners don't have a monetized relationship.
+const AGREEMENT_TYPES=['None','NDA','MoU','Pilot Agreement','Commercial Contract'];
+function agreementTypeSelectHtml(selected){
+  return AGREEMENT_TYPES.map(o=>`<option value="${o}" ${o===selected?'selected':''}>${o}</option>`).join('');
+}
+const HEALTH_STATUSES=['Healthy','Watch','At risk'];
+const HEALTH_COLOR={Healthy:'#639922',Watch:'#EF9F27','At risk':'#E24B4A'};
+function healthStatusSelectHtml(selected){
+  return `<option value="" ${!selected?'selected':''}>Not set</option>`
+    +HEALTH_STATUSES.map(o=>`<option value="${o}" ${o===selected?'selected':''}>${o}</option>`).join('');
+}
+function healthPill(v){ if(!v) return ''; const c=HEALTH_COLOR[v]||'#888780'; return `<span class="chip" style="background:${c}1F;color:${c};">${escHtml(v)}</span>`; }
+
 // ══════════════ CUSTOMER REVENUE (Dashboard/Analytics ARR card) ══════════════
 // A customer's `value` field is their MRR. Revenue actually realized from them is tied to
 // how long they're actually subscribed for — a Quarterly Enterprise deal only ever pays 3
@@ -2141,7 +2165,7 @@ function renderDashboard(){
     cards=[[l1,total,'All'],['In pipeline',active.length,'Active'],[l3,won.length,total?((won.length/total)*100).toFixed(0)+'% rate':'0%'],[isCust?'Open pipeline (/mo)':'Open pipeline',ff(pipeVal),thresholdStage+'+']];
     const wonVal=computeWonValue(recs);
     if(isCust) cards.push(['MRR',ff(wonVal),'Active clients'],[null,null,null,arrCardHtml(recs)]);
-    else if(state.pipeline==='partners') cards.push(['Signed ARR',ff(wonVal),'Revenue/Strategic partners']);
+    else if(state.pipeline==='partners') cards.push(['Signed ARR',ff(computePartnersSignedArr(recs)),'Revenue/Strategic partners']);
     else if(state.pipeline==='investors') cards.push(['Capital raised',ff(wonVal),'Closed deals']);
     // Lost pipeline = Rejected value only -- Won already has its own card (MRR/ARR/Signed
     // ARR/Capital raised above), so folding it into "Lost" too would double-count it there.
@@ -2253,8 +2277,8 @@ function changeRecordTag(id,value){
 }
 function buildCard(r){
   let extra='';
-  if(state.pipeline==='partners'&&!isP2()) extra=`<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap;">${catChip(r.category)}${tierPill(r.tier)}</div>`;
-  else if(isP2()) extra=`<div style="margin-bottom:8px;">${catChip(r.category)}</div>`;
+  if(state.pipeline==='partners'&&!isP2()) extra=`<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap;">${catChip(r.category)}${tierPill(r.tier)}${healthPill(r.healthStatus)}</div>`;
+  else if(isP2()) extra=`<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap;">${catChip(r.category)}${healthPill(r.healthStatus)}</div>`;
   else if(state.pipeline==='customers') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;"><span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.sector)}</span>${r.segment?`<span class="chip" style="background:var(--purple-50);color:var(--purple-600);">${escHtml(r.segment)}</span>`:''}${r.nextStep?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.nextStep)}</span>`:''}</div>`;
   else if(state.pipeline==='investors') extra=`<div style="font-size:10px;color:var(--gray-500);margin-bottom:6px;">${escHtml(r.fundSize||'')} · ${escHtml(r.thesis||'')}</div>`;
   else if(state.pipeline==='events') extra=`<div style="margin-bottom:8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">${r.eventType?`<span class="chip" style="background:var(--amber-50);color:var(--amber-600);">${escHtml(r.eventType)}</span>`:''}${r.format?`<span class="chip" style="background:var(--gray-100);color:var(--gray-700);">${escHtml(r.format)}</span>`:''}${regionPill(r.outsideEgypt||'Egypt')}</div>`;
@@ -3007,7 +3031,10 @@ function findFuzzyEventDuplicate(pool,company,rawStart){
 }
 const IMPORT_FIELD_MAP_EXTRA={
   partners:{portfolio:['portfolio'], category:['category'], model:['model'], tier:['tier'], score:['score'],
-    website:['website'], region:['region'], clients:['clients'], workshops:['workshops'], founders:['founders']},
+    website:['website'], region:['region'], clients:['clients'], workshops:['workshops'], founders:['founders'],
+    agreementType:['agreement type','agreementtype'], agreementSignedAt:['agreement signed','agreementsignedat','signed at'],
+    agreementRenewalAt:['agreement renewal','agreementrenewalat','renewal at'], revSharePct:['rev share','revshare','revsharepct'],
+    contractedArr:['contracted arr','contractedarr'], healthStatus:['health status','healthstatus']},
   customers:{sector:['sector','industry','field','field of work','vertical','business type','business sector'], website:['website'],
     leadSource:['lead source','leadsource'], referredBy:['referred by','referredby'],
     segment:['segment','customer type'], nextStep:['next step','nextstep'],
@@ -3073,7 +3100,7 @@ function hideImportLoading(){
 // restore it precisely, including cases where the import only ever fills blanks.
 function importUndoSnapshot(pipeline,rec){
   const snap={members:JSON.parse(JSON.stringify(rec.members||[])), activityLen:(rec.activity||[]).length, notes:rec.notes, tag:rec.tag, stage:rec.stage};
-  if(pipeline==='partners') Object.assign(snap,{category:rec.category,model:rec.model,tier:rec.tier,score:rec.score,website:rec.website,region:rec.region,clients:rec.clients,workshops:rec.workshops,founders:rec.founders});
+  if(pipeline==='partners') Object.assign(snap,{category:rec.category,model:rec.model,tier:rec.tier,score:rec.score,website:rec.website,region:rec.region,clients:rec.clients,workshops:rec.workshops,founders:rec.founders,agreementType:rec.agreementType,agreementSignedAt:rec.agreementSignedAt,agreementRenewalAt:rec.agreementRenewalAt,revSharePct:rec.revSharePct,contractedArr:rec.contractedArr,healthStatus:rec.healthStatus});
   else if(pipeline==='customers') Object.assign(snap,{sector:rec.sector,website:rec.website,leadSource:rec.leadSource,segment:rec.segment,nextStep:rec.nextStep,subscriptionPeriod:rec.subscriptionPeriod,subscriptionDate:rec.subscriptionDate});
   else if(pipeline==='events') Object.assign(snap,{eventType:rec.eventType,description:rec.description,startAt:rec.startAt,endAt:rec.endAt,timezone:rec.timezone,format:rec.format,outsideEgypt:rec.outsideEgypt,meetingUrl:rec.meetingUrl,meetingPasscode:rec.meetingPasscode,dialIn:rec.dialIn,venueName:rec.venueName,address:rec.address,mapUrl:rec.mapUrl,capacity:rec.capacity});
   else Object.assign(snap,{fundSize:rec.fundSize,thesis:rec.thesis,website:rec.website});
@@ -3203,6 +3230,9 @@ async function handleImportFile(ev){
         // field a re-import is allowed to move in either direction, not just fill in.
         const fillStr=(field,raw)=>{ if((existing[field]==null||existing[field]==='')&&raw!==undefined&&(''+raw).trim()!==''){ existing[field]=(''+raw).toString(); return true; } return false; };
         const fillNum=(field,raw)=>{ if(existing[field]==null&&raw!==undefined&&raw!==''&&!isNaN(Number(raw))){ existing[field]=Math.round(Number(raw)); return true; } return false; };
+        // Unrounded numeric fill — revSharePct/contractedArr can be fractional (12.5%, cents),
+        // unlike fillNum's integer fields (tier/score/workshops/founders).
+        const fillNumRaw=(field,raw)=>{ if(existing[field]==null&&raw!==undefined&&raw!==''&&!isNaN(Number(raw))){ existing[field]=Number(raw); return true; } return false; };
         let fieldsFilled=false;
         fieldsFilled=fillStr('notes',get('notes'))||fieldsFilled;
         fieldsFilled=fillStr('tag',matchTagValue(get('tag')))||fieldsFilled;
@@ -3216,6 +3246,20 @@ async function handleImportFile(ev){
           fieldsFilled=fillStr('clients',get('clients'))||fieldsFilled;
           fieldsFilled=fillNum('workshops',get('workshops'))||fieldsFilled;
           fieldsFilled=fillNum('founders',get('founders'))||fieldsFilled;
+          const matchedAgreementType=matchInList(AGREEMENT_TYPES,get('agreementType'));
+          if(matchedAgreementType&&(existing.agreementType==null||existing.agreementType===''||existing.agreementType==='None')){
+            existing.agreementType=matchedAgreementType; fieldsFilled=true;
+          }
+          const matchedHealthStatus=matchInList(HEALTH_STATUSES,get('healthStatus'));
+          if(matchedHealthStatus&&(existing.healthStatus==null||existing.healthStatus==='')){
+            existing.healthStatus=matchedHealthStatus; fieldsFilled=true;
+          }
+          fieldsFilled=fillStr('agreementSignedAt',normalizeSubscriptionDate(get('agreementSignedAt')))||fieldsFilled;
+          fieldsFilled=fillStr('agreementRenewalAt',normalizeSubscriptionDate(get('agreementRenewalAt')))||fieldsFilled;
+          if(existing.portfolio===1){
+            fieldsFilled=fillNumRaw('revSharePct',get('revSharePct'))||fieldsFilled;
+            fieldsFilled=fillNumRaw('contractedArr',get('contractedArr'))||fieldsFilled;
+          }
         } else if(pipeline==='customers'){
           // sector/segment get one extra "fixable" case beyond genuinely blank: a prior
           // import bug let raw Segment text flow through unvalidated (instead of being
@@ -3302,6 +3346,12 @@ async function handleImportFile(ev){
         r.model=(get('model')||'').toString();r.tier=Math.round(Number(get('tier')))||null;r.score=Math.round(Number(get('score')))||null;
         r.website=(get('website')||'').toString();r.region=(get('region')||'').toString();r.clients=(get('clients')||'').toString();
         if(portfolio===2){r.workshops=Math.round(Number(get('workshops')))||0;r.founders=Math.round(Number(get('founders')))||0;}
+        r.agreementType=matchInList(AGREEMENT_TYPES,get('agreementType'))||'None';
+        r.agreementSignedAt=normalizeSubscriptionDate(get('agreementSignedAt'));
+        r.agreementRenewalAt=normalizeSubscriptionDate(get('agreementRenewalAt'));
+        r.healthStatus=matchInList(HEALTH_STATUSES,get('healthStatus'))||null;
+        r.revSharePct=(portfolio===1&&get('revSharePct')!==undefined&&!isNaN(Number(get('revSharePct'))))?Number(get('revSharePct')):null;
+        r.contractedArr=(portfolio===1&&get('contractedArr')!==undefined&&!isNaN(Number(get('contractedArr'))))?Number(get('contractedArr')):null;
       } else if(pipeline==='customers'){
         r.sector=(get('sector')||'General').toString();r.website=(get('website')||'').toString();
         r.leadSource=(get('leadSource')||get('source')||'Import').toString();
@@ -3670,6 +3720,7 @@ function exportRecords(fmt){
     id:r.id, pipeline:r.pipeline, name:r.name, company:r.company, role:r.role||'', email:r.email||'',
     phone:r.phone||'', website:r.website||'', stage:r.stage, value:r.value||0, source:r.pipeline==='customers'?(r.leadSource||''):(r.source||''), date:r.date||'', notes:r.notes||'',
     category:r.category||'', model:r.model||'', tier:r.tier||'', score:r.score!=null?r.score:'', region:r.region||'',
+    agreementType:r.agreementType||'', agreementSignedAt:r.agreementSignedAt||'', agreementRenewalAt:r.agreementRenewalAt||'', revSharePct:r.revSharePct!=null?r.revSharePct:'', contractedArr:r.contractedArr!=null?r.contractedArr:'', healthStatus:r.healthStatus||'',
     sector:r.sector||'', segment:r.segment||'', nextStep:r.nextStep||'',
     subscriptionPeriod:r.subscriptionPeriod||'', subscriptionDate:r.subscriptionDate||'',
     members:(r.members||[]).map(m=>`${m.name}${m.title?' ('+m.title+')':''}${m.email?' <'+m.email+'>':''}`).join('; '),
@@ -3893,7 +3944,8 @@ function renderAnalytics(){
   } else {
     const isCust=state.pipeline==='customers';
     const allVal=recs.reduce((s,r)=>s+(r.value||0),0),wonVal=won.reduce((s,r)=>s+(r.value||0),0);
-    kpis=[['Total value',ff(allVal)],[{partners:'Signed ARR',customers:'MRR',investors:'Capital raised'}[state.pipeline],ff(wonVal)],['Avg deal',ff(recs.length?allVal/recs.length:0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
+    const wonCardVal=state.pipeline==='partners'?computePartnersSignedArr(recs):wonVal;
+    kpis=[['Total value',ff(allVal)],[{partners:'Signed ARR',customers:'MRR',investors:'Capital raised'}[state.pipeline],ff(wonCardVal)],['Avg deal',ff(recs.length?allVal/recs.length:0)],['Win rate',(recs.length?((won.length/recs.length)*100).toFixed(0):0)+'%']];
     if(isCust) kpis.push([null,null,arrCardHtml(recs)]);
     const pipeVal=computePipelineValue(stages,recs), rejectedVal=computeRejectedValue(recs);
     kpis.push([isCust?'Open pipeline (/mo)':'Open pipeline',ff(pipeVal)],['Lost Pipeline',ff(rejectedVal)],['Total pipeline',ff(wonVal+rejectedVal+pipeVal)]);
@@ -3948,7 +4000,7 @@ function renderAnalytics(){
     s1=['#3B6D11',recs.reduce((s,r)=>s+(r.workshops||0),0),'Workshops delivered',won.length+' recurring'];
     s2=['#0E7474',recs.reduce((s,r)=>s+(r.founders||0),0),'Founders educated','Leading indicator'];
   } else {
-    s1=['#3B6D11',ff(won.reduce((s,r)=>s+(r.value||0),0)),{partners:'Signed ARR',customers:'Won revenue',investors:'Capital raised'}[state.pipeline],won.length+' closed'];
+    s1=['#3B6D11',ff(state.pipeline==='partners'?computePartnersSignedArr(recs):won.reduce((s,r)=>s+(r.value||0),0)),{partners:'Signed ARR',customers:'Won revenue',investors:'Capital raised'}[state.pipeline],won.length+' closed'];
     s2=['#EF9F27',ff(active.reduce((s,r)=>s+(r.value||0),0)),state.pipeline==='customers'?'Open pipeline (/mo)':'Open pipeline',active.length+' active'];
   }
   document.getElementById('an-stat-1').innerHTML=`<div class="val" style="color:${s1[0]}">${s1[1]}</div><div class="lbl">${s1[2]}</div><div class="sub">${s1[3]}</div>`;
@@ -4554,6 +4606,8 @@ function renderDetail(){
     if(!isP2())fields.push(['Potential ARR',ff(r.value),false],['Tier',r.tier?'Tier '+r.tier+(r.score!=null?' ('+r.score+')':''):'—',false]);
     else fields.push(['Workshops',(r.workshops||0)+'',false],['Founders reached',(r.founders||0)+'',false]);
     if(r.website)fields.push(['Website',r.website,true]);
+    fields.push(['Agreement type',r.agreementType||'None',false],['Agreement signed',r.agreementSignedAt||'—',false],['Agreement renewal',r.agreementRenewalAt||'—',false],['Health status',r.healthStatus||'—',false]);
+    if(!isP2())fields.push(['Rev share',r.revSharePct!=null?r.revSharePct+'%':'—',false],['Contracted ARR',r.contractedArr!=null?ff(r.contractedArr):'—',false]);
   } else if(state.pipeline==='customers'){
     const ref=r.referredBy?records.find(x=>x.id===r.referredBy&&x.pipeline==='customers'):null;
     fields.push(['Sector',r.sector,false],['Segment',r.segment||'—',false],['MRR / yr',ff(r.value),false],['Lead source',r.leadSource+(ref?' · '+ref.company:''),false]);
@@ -4675,6 +4729,13 @@ function toggleSubscriptionFields(segment){
   document.getElementById('f-subperiod-group').style.display=segment==='Enterprise'?'':'none';
   document.getElementById('f-subdate-group').style.display=(segment==='SaaS'||segment==='Enterprise')?'':'none';
 }
+// revSharePct/contractedArr are Portfolio 1 (Revenue) only — Portfolio 2 (Ecosystem) partners
+// have no monetized relationship to attach a rev-share/contracted figure to.
+function togglePartnerRevFields(portfolio){
+  const show=Number(portfolio)===1;
+  document.getElementById('f-revshare-group').style.display=show?'':'none';
+  document.getElementById('f-contractedarr-group').style.display=show?'':'none';
+}
 // Every segment value already in use across customers (plus the two baseline types), so a
 // value set via import/chat — which can write any free text to r.segment — stays pickable
 // here instead of being clobbered back to just SaaS/Enterprise.
@@ -4687,7 +4748,7 @@ function extraFieldsHtml(p,r){
   if(p==='partners'){
     const portfolio=r?r.portfolio:state.portfolio;
     return `<div class="form-row">
-      <div class="form-group"><label class="form-label">Portfolio</label><select class="form-input" id="f-portfolio"><option value="1" ${portfolio===1?'selected':''}>1 · Revenue</option><option value="2" ${portfolio===2?'selected':''}>2 · Ecosystem</option></select></div>
+      <div class="form-group"><label class="form-label">Portfolio</label><select class="form-input" id="f-portfolio" onchange="togglePartnerRevFields(this.value)"><option value="1" ${portfolio===1?'selected':''}>1 · Revenue</option><option value="2" ${portfolio===2?'selected':''}>2 · Ecosystem</option></select></div>
       <div class="form-group"><label class="form-label">Category</label><select class="form-input" id="f-category">${Object.keys(CAT_META).map(c=>`<option ${r&&r.category===c?'selected':''}>${c}</option>`).join('')}</select></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">Model</label><input class="form-input" id="f-model" placeholder="Referral / Reseller / ..." value="${escAttr(r?r.model:'')}"></div>
       <div class="form-group"><label class="form-label">Potential ARR ($)</label><input class="form-input" type="number" min="0" id="f-value" placeholder="20000" value="${r&&r.value?r.value:''}"></div></div>
@@ -4698,7 +4759,13 @@ function extraFieldsHtml(p,r){
         <option value="1" ${r&&r.tier===1?'selected':''}>Tier 1</option>
         <option value="2" ${r&&r.tier===2?'selected':''}>Tier 2</option>
         <option value="3" ${r&&r.tier===3?'selected':''}>Tier 3</option>
-      </select></div>`;
+      </select></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Agreement type</label><select class="form-input" id="f-agreementtype">${agreementTypeSelectHtml(r?r.agreementType:'None')}</select></div>
+      <div class="form-group"><label class="form-label">Health status</label><select class="form-input" id="f-health">${healthStatusSelectHtml(r?r.healthStatus:'')}</select></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Agreement signed</label><input class="form-input" type="date" id="f-agreementsigned" value="${escAttr(r?r.agreementSignedAt:'')}"></div>
+      <div class="form-group"><label class="form-label">Agreement renewal</label><input class="form-input" type="date" id="f-agreementrenewal" value="${escAttr(r?r.agreementRenewalAt:'')}"></div></div>
+      <div class="form-row"><div class="form-group" id="f-revshare-group" style="display:${portfolio===1?'':'none'};"><label class="form-label">Rev share (%)</label><input class="form-input" type="number" min="0" max="100" step="0.1" id="f-revshare" placeholder="15" value="${r&&r.revSharePct!=null?r.revSharePct:''}"></div>
+      <div class="form-group" id="f-contractedarr-group" style="display:${portfolio===1?'':'none'};"><label class="form-label">Contracted ARR ($)</label><input class="form-input" type="number" min="0" id="f-contractedarr" placeholder="20000" value="${r&&r.contractedArr!=null?r.contractedArr:''}"></div></div>`;
   } else if(p==='customers'){
     // Segment is editable at any stage (moving a customer to Active Client outside this form
     // still separately prompts for it via the stage-change modal — see stageNeedsSegment).
@@ -4819,7 +4886,9 @@ async function addRecord(){
   const notesVal=val('f-notes');
   const addedEntry={t:'Added to CRM',d:new Date().toISOString()}; if(notesVal)addedEntry.note=notesVal;
   const r={pipeline:p,name:company,company,role:'',email:'',phone:'',members,stage:val('f-stage'),source:val('f-source')||'Manual',date:'Today',notes:notesVal,value:nonNegativeNum('f-value'),activity:[addedEntry]};
-  if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.website=val('f-website');r.region=val('f-region');r.tier=val('f-tier')?Number(val('f-tier')):null;r.score=null;if(r.portfolio===2){r.workshops=0;r.founders=0;}}
+  if(p==='partners'){r.portfolio=Number(val('f-portfolio'))||1;r.category=val('f-category');r.model=val('f-model');r.website=val('f-website');r.region=val('f-region');r.tier=val('f-tier')?Number(val('f-tier')):null;r.score=null;if(r.portfolio===2){r.workshops=0;r.founders=0;}
+    r.agreementType=val('f-agreementtype')||'None';r.agreementSignedAt=val('f-agreementsigned');r.agreementRenewalAt=val('f-agreementrenewal');r.healthStatus=val('f-health')||null;
+    r.revSharePct=(r.portfolio===1&&val('f-revshare'))?Number(val('f-revshare')):null;r.contractedArr=(r.portfolio===1&&val('f-contractedarr'))?Number(val('f-contractedarr')):null;}
   else if(p==='customers'){
     r.segment=val('f-segment')||null;
     r.sector=val('f-sector')||'General';r.website=val('f-website');r.leadSource=val('f-leadsource')||'Manual';r.referredBy=null;r.nextStep=val('f-nextstep')||nextStepOptions[0]||'';delete r.source;
@@ -4848,7 +4917,9 @@ function saveEditedRecord(){
   if(!company){showToast((p==='events'?'Event title':'Organisation name')+' is required');return;}
   r.company=company; r.name=company; r.stage=val('f-stage'); r.notes=val('f-notes');
   if(p!=='events') r.value=nonNegativeNum('f-value');
-  if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); r.website=val('f-website'); r.region=val('f-region'); r.tier=val('f-tier')?Number(val('f-tier')):null; }
+  if(p==='partners'){ r.source=val('f-source')||r.source; r.portfolio=Number(val('f-portfolio'))||r.portfolio; r.category=val('f-category'); r.model=val('f-model'); r.website=val('f-website'); r.region=val('f-region'); r.tier=val('f-tier')?Number(val('f-tier')):null;
+    r.agreementType=val('f-agreementtype')||'None'; r.agreementSignedAt=val('f-agreementsigned'); r.agreementRenewalAt=val('f-agreementrenewal'); r.healthStatus=val('f-health')||null;
+    r.revSharePct=(r.portfolio===1&&val('f-revshare'))?Number(val('f-revshare')):null; r.contractedArr=(r.portfolio===1&&val('f-contractedarr'))?Number(val('f-contractedarr')):null; }
   else if(p==='customers'){
     r.segment=val('f-segment')||null;
     r.subscriptionPeriod=r.segment==='Enterprise'?val('f-subperiod'):'';
@@ -5115,7 +5186,7 @@ const SUGGESTIONS=[
 const TOOLS=[
   {type:'function',function:{name:'move_stage',description:'Move a record to a different stage in its pipeline.',parameters:{type:'object',properties:{record:{type:'string',description:'Company or contact name'},stage:{type:'string',description:'Target stage name'},note:{type:'string',description:'Optional note explaining the move, shown as a breadcrumb on the stage-change timeline'}},required:['record','stage']}}},
   {type:'function',function:{name:'update_record',description:'Update fields on a record (value, notes, model, tier, nextStep, etc.).',parameters:{type:'object',properties:{record:{type:'string'},field:{type:'string',description:'field name e.g. value, notes, model, region, nextStep'},value:{type:'string'}},required:['record','field','value']}}},
-  {type:'function',function:{name:'add_record',description:'Add a new record — including from messy, unstructured text the user just pastes or describes in prose (notes from a call, a forwarded bio, a rambling description). Pull every field below you can confidently infer from it; don\'t ask the user to restructure their own text first. Whatever doesn\'t map to a specific field, put in notes rather than dropping it. category/model/stage/segment/etc. only need to be your best guess at the closest valid option, not an exact match. partners/customers/investors are company-based (company = identity; pass contactName/contactTitle/contactEmail/contactPhone to add a first member). events use company as the event title, no members. Fields irrelevant to the chosen pipeline are ignored, so it\'s fine to omit any that don\'t apply.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors','events']},company:{type:'string',description:'Company name, or event title'},stage:{type:'string',description:'Stage, or event status'},category:{type:'string',description:'Partners only'},portfolio:{type:['number','string'],description:'Partners only — 1 (revenue) or 2 (ecosystem)'},value:{type:['number','string'],description:'Deal/ticket value — not events'},source:{type:'string',description:'How this came in, e.g. LinkedIn, Referral, Cold Outreach, Inbound, Event — not events'},notes:{type:'string',description:'Any context from the user\'s message that doesn\'t fit another field'},model:{type:'string',description:'Partners only — e.g. Reseller, Referral, Merchant Education'},tier:{type:['number','string'],description:'Partners only — 1, 2, or 3'},region:{type:'string',description:'Partners only'},website:{type:'string',description:'Partners/customers only'},clients:{type:'string',description:'Partners only — free text describing their client roster'},workshops:{type:['number','string'],description:'Partners portfolio 2 only'},founders:{type:['number','string'],description:'Partners portfolio 2 only'},sector:{type:'string',description:'Customers only'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only'},subscriptionPeriod:{type:'string',description:'Customers only, Enterprise segment'},subscriptionDate:{type:'string',description:'Customers only, SaaS or Enterprise segment'},fundSize:{type:'string',description:'Investors only, e.g. $80M'},thesis:{type:'string',description:'Investors only'},contactName:{type:'string'},contactTitle:{type:'string'},contactEmail:{type:'string'},contactPhone:{type:'string'},eventType:{type:'string',description:'e.g. Webinar, Conference'},description:{type:'string'},startAt:{type:'string',description:'ISO 8601 start timestamp'},endAt:{type:'string',description:'ISO 8601 end timestamp'},timezone:{type:'string',description:'IANA tz, e.g. Asia/Riyadh'},format:{type:'string',enum:['Virtual','In-Person']},meetingUrl:{type:'string'},meetingPasscode:{type:'string'},dialIn:{type:'string'},venueName:{type:'string'},address:{type:'string'},mapUrl:{type:'string'},capacity:{type:['number','string']}},required:['pipeline','company']}}},
+  {type:'function',function:{name:'add_record',description:'Add a new record — including from messy, unstructured text the user just pastes or describes in prose (notes from a call, a forwarded bio, a rambling description). Pull every field below you can confidently infer from it; don\'t ask the user to restructure their own text first. Whatever doesn\'t map to a specific field, put in notes rather than dropping it. category/model/stage/segment/etc. only need to be your best guess at the closest valid option, not an exact match. partners/customers/investors are company-based (company = identity; pass contactName/contactTitle/contactEmail/contactPhone to add a first member). events use company as the event title, no members. Fields irrelevant to the chosen pipeline are ignored, so it\'s fine to omit any that don\'t apply.',parameters:{type:'object',properties:{pipeline:{type:'string',enum:['partners','customers','investors','events']},company:{type:'string',description:'Company name, or event title'},stage:{type:'string',description:'Stage, or event status'},category:{type:'string',description:'Partners only'},portfolio:{type:['number','string'],description:'Partners only — 1 (revenue) or 2 (ecosystem)'},value:{type:['number','string'],description:'Deal/ticket value — not events'},source:{type:'string',description:'How this came in, e.g. LinkedIn, Referral, Cold Outreach, Inbound, Event — not events'},notes:{type:'string',description:'Any context from the user\'s message that doesn\'t fit another field'},model:{type:'string',description:'Partners only — e.g. Reseller, Referral, Merchant Education'},tier:{type:['number','string'],description:'Partners only — 1, 2, or 3'},region:{type:'string',description:'Partners only'},website:{type:'string',description:'Partners/customers only'},clients:{type:'string',description:'Partners only — free text describing their client roster'},workshops:{type:['number','string'],description:'Partners portfolio 2 only'},founders:{type:['number','string'],description:'Partners portfolio 2 only'},agreementType:{type:'string',enum:['None','NDA','MoU','Pilot Agreement','Commercial Contract'],description:'Partners only'},agreementSignedAt:{type:'string',description:'Partners only, yyyy-mm-dd'},agreementRenewalAt:{type:'string',description:'Partners only, yyyy-mm-dd'},revSharePct:{type:['number','string'],description:'Partners only, Portfolio 1 (Revenue)'},contractedArr:{type:['number','string'],description:'Partners only, Portfolio 1 (Revenue) — the actually-signed ARR, distinct from value (the pre-close estimate)'},healthStatus:{type:'string',enum:['Healthy','Watch','At risk'],description:'Partners only'},sector:{type:'string',description:'Customers only'},segment:{type:'string',enum:['SaaS','Enterprise'],description:'Customers only'},subscriptionPeriod:{type:'string',description:'Customers only, Enterprise segment'},subscriptionDate:{type:'string',description:'Customers only, SaaS or Enterprise segment'},fundSize:{type:'string',description:'Investors only, e.g. $80M'},thesis:{type:'string',description:'Investors only'},contactName:{type:'string'},contactTitle:{type:'string'},contactEmail:{type:'string'},contactPhone:{type:'string'},eventType:{type:'string',description:'e.g. Webinar, Conference'},description:{type:'string'},startAt:{type:'string',description:'ISO 8601 start timestamp'},endAt:{type:'string',description:'ISO 8601 end timestamp'},timezone:{type:'string',description:'IANA tz, e.g. Asia/Riyadh'},format:{type:'string',enum:['Virtual','In-Person']},meetingUrl:{type:'string'},meetingPasscode:{type:'string'},dialIn:{type:'string'},venueName:{type:'string'},address:{type:'string'},mapUrl:{type:'string'},capacity:{type:['number','string']}},required:['pipeline','company']}}},
   {type:'function',function:{name:'delete_record',description:'Delete a record from the CRM.',parameters:{type:'object',properties:{record:{type:'string'}},required:['record']}}},
   {type:'function',function:{name:'log_activity',description:'Log an activity note on a record.',parameters:{type:'object',properties:{record:{type:'string'},text:{type:'string'}},required:['record','text']}}},
   {type:'function',function:{name:'score_agency',description:'Run the agency qualification scoring rubric and return score + tier.',parameters:{type:'object',properties:{clientType:{type:'string',enum:['b2c','mixed','b2b']},services:{type:'array',items:{type:'string',enum:['seo','content','ads','brand']}},rosterSize:{type:['number','string']},namedSeoTeam:{type:'boolean'},listsGeo:{type:'boolean'},offlineOnly:{type:'boolean'},leadgenOnly:{type:'boolean'}},required:['clientType']}}},
@@ -5136,7 +5207,7 @@ const TOOLS=[
 // for that (checks the value against the pipeline's real stage list).
 const UPDATE_FIELD_ALLOWLIST={
   common:['value','notes','source','date','tag'],
-  partners:['category','model','tier','score','website','region','clients','workshops','founders'],
+  partners:['category','model','tier','score','website','region','clients','workshops','founders','agreementType','agreementSignedAt','agreementRenewalAt','revSharePct','contractedArr','healthStatus'],
   customers:['sector','website','leadSource','referredBy','segment','nextStep','subscriptionPeriod','subscriptionDate'],
   investors:['fundSize','thesis','website'],
   events:['eventType','description','startAt','endAt','timezone','format','meetingUrl','meetingPasscode','dialIn','venueName','address','mapUrl','capacity']
@@ -5144,7 +5215,7 @@ const UPDATE_FIELD_ALLOWLIST={
 function snapshotRecord(r){
   const o={id:r.id,pipeline:r.pipeline,company:r.company,stage:r.stage};
   o.members=(r.members||[]).map(m=>({name:m.name,title:m.title}));
-  if(r.pipeline==='partners'){o.portfolio=r.portfolio;o.category=r.category;o.model=r.model;o.tier=r.tier;o.score=r.score;if(r.portfolio===2){o.workshops=r.workshops;o.founders=r.founders;}else o.value=r.value;}
+  if(r.pipeline==='partners'){o.portfolio=r.portfolio;o.category=r.category;o.model=r.model;o.tier=r.tier;o.score=r.score;if(r.portfolio===2){o.workshops=r.workshops;o.founders=r.founders;}else{o.value=r.value;o.revSharePct=r.revSharePct;o.contractedArr=r.contractedArr;}o.agreementType=r.agreementType;o.agreementSignedAt=r.agreementSignedAt;o.agreementRenewalAt=r.agreementRenewalAt;o.healthStatus=r.healthStatus;}
   else if(r.pipeline==='customers'){
     o.sector=r.sector;o.segment=r.segment;o.value=r.value;o.leadSource=r.leadSource;o.nextStep=r.nextStep;
     if(r.segment==='Enterprise')o.subscriptionPeriod=r.subscriptionPeriod;
@@ -5207,7 +5278,7 @@ function buildSystem(){
 
 The CRM has FOUR pipelines:
 Partners/customers/investors are company-based: the company/organisation is each record's identity, and any contacts at that company live in a \`members\` list (name, title, email, phone, linkedin) rather than as hardcoded top-level fields. Events are NOT company-based — "company"/"name" holds the event title instead, and there are no members/contacts.
-- partners: partner organisations. Two portfolios. Portfolio 1 (Revenue) stages: ${STAGES.partners1.join(' → ')}. Categories: Marketing Agencies, SaaS & E-commerce Platforms, Operational Touchpoint. Portfolio 2 (Ecosystem, measured on workshops/founders not revenue) stages: ${STAGES.partners2.join(' → ')}. Categories: Startup Development Orgs, Government & National Dev.
+- partners: partner organisations. Two portfolios. Portfolio 1 (Revenue) stages: ${STAGES.partners1.join(' → ')}. Categories: Marketing Agencies, SaaS & E-commerce Platforms, Operational Touchpoint. Portfolio 2 (Ecosystem, measured on workshops/founders not revenue) stages: ${STAGES.partners2.join(' → ')}. Categories: Startup Development Orgs, Government & National Dev. Both portfolios track agreementType (${AGREEMENT_TYPES.join('/')}), agreementSignedAt/agreementRenewalAt (yyyy-mm-dd), and healthStatus (${HEALTH_STATUSES.join('/')}) — healthStatus is the only field that describes the relationship after it reaches a terminal stage. revSharePct and contractedArr (the actually-signed ARR, separate from value which stays the pre-close estimate) are Portfolio 1 only.
 - customers: brands buying the AI Visibility service. Stages: ${STAGES.customers.join(' → ')}. Segment (SaaS or Enterprise) is only decided once the deal closes, so it's null/unset for every stage before Active Client — don't guess it earlier. Some are referred by partners. Enterprise customers track a subscriptionPeriod (must be exactly one of ${SUBSCRIPTION_PERIODS.join('/')}) and a subscriptionDate (yyyy-mm-dd); SaaS customers track only a subscriptionDate. Archived means a former Active Client whose subscription period ended and who did not renew — like Rejected, it's excluded from every pipeline-value metric.
 - investors: fundraising firms. Stages: ${STAGES.investors.join(' → ')}.
 - events: webinars, trade shows, demos, meetings, conferences, etc. Status (used as its stage): ${STAGES.events.join(' → ')}. Each has an eventType (extensible list), description, startAt/endAt (ISO timestamps), timezone, and format (Virtual or In-Person) — Virtual events track meetingUrl/meetingPasscode/dialIn, In-Person events track venueName/address/mapUrl/capacity. No monetary value.
@@ -5252,8 +5323,8 @@ function syncNote(ok){ return ok?'.':' (locally only — it failed to sync to Su
 async function execTool(name,input){
   try{
     if(name==='move_stage'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const stages=r.pipeline==='partners'?STAGES['partners'+r.portfolio]:STAGES[r.pipeline];const match=matchInList(stages,input.stage);if(!match)return `"${input.stage}" is not a valid stage. Valid: ${stages.join(', ')}.`;const old=r.stage;r.stage=match;const entry={t:`Stage: ${old} → ${match}`,d:new Date().toISOString()};if(input.note)entry.note=(''+input.note).trim();r.activity.push(entry);const ok=await saveRecord(r);refreshView();return `Moved ${r.company} to ${match}${syncNote(ok)}`;}
-    if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','score','workshops','founders','tier'].includes(f))v=Number(v);else if(f==='tag')v=matchInList(TAG_VALUES,v)||null;else if(f==='subscriptionPeriod'){const matched=matchSubscriptionPeriod(v);if(!matched)return `"${v}" is not a valid subscription period. Valid: ${SUBSCRIPTION_PERIODS.join(', ')}.`;v=matched;}else if(f==='subscriptionDate')v=normalizeSubscriptionDate(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:new Date().toISOString()});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
-    if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=Number(input.portfolio)||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const src=(''+(input.source||'')).trim()||'Assistant';const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:src,date:'Today',notes:(''+(input.notes||'')).trim(),value:Number(input.value)||0,activity:[{t:'Added via assistant',d:new Date().toISOString()}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model=(''+(input.model||'')).trim();r.tier=input.tier!=null&&input.tier!==''?Number(input.tier):null;r.score=null;r.region=(''+(input.region||'')).trim();r.website=(''+(input.website||'')).trim();r.clients=(''+(input.clients||'')).trim();if(r.portfolio===2){r.workshops=Number(input.workshops)||0;r.founders=Number(input.founders)||0;}}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource=src;r.segment=matchInList(['SaaS','Enterprise'],input.segment)||null;r.website=(''+(input.website||'')).trim();r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?matchSubscriptionPeriod(input.subscriptionPeriod):'';r.subscriptionDate=(r.segment==='SaaS'||r.segment==='Enterprise')?normalizeSubscriptionDate(input.subscriptionDate):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'&&input.capacity!=null&&input.capacity!==''?Number(input.capacity):null;delete r.value;delete r.source;}else{r.fundSize=(''+(input.fundSize||'')).trim();r.thesis=(''+(input.thesis||'')).trim();}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
+    if(name==='update_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const allowed=[...UPDATE_FIELD_ALLOWLIST.common,...(UPDATE_FIELD_ALLOWLIST[r.pipeline]||[])];let f=input.field,v=input.value;if(!allowed.includes(f))return `Can't update "${f}" via chat. Updatable fields: ${allowed.join(', ')}.`;if(['value','score','workshops','founders','tier','revSharePct','contractedArr'].includes(f))v=Number(v);else if(f==='tag')v=matchInList(TAG_VALUES,v)||null;else if(f==='subscriptionPeriod'){const matched=matchSubscriptionPeriod(v);if(!matched)return `"${v}" is not a valid subscription period. Valid: ${SUBSCRIPTION_PERIODS.join(', ')}.`;v=matched;}else if(f==='subscriptionDate')v=normalizeSubscriptionDate(v);else if(f==='agreementType'){const matched=matchInList(AGREEMENT_TYPES,v);if(!matched)return `"${v}" is not a valid agreement type. Valid: ${AGREEMENT_TYPES.join(', ')}.`;v=matched;}else if(f==='healthStatus'){const matched=matchInList(HEALTH_STATUSES,v);if(!matched)return `"${v}" is not a valid health status. Valid: ${HEALTH_STATUSES.join(', ')}.`;v=matched;}else if(f==='agreementSignedAt'||f==='agreementRenewalAt')v=normalizeSubscriptionDate(v);r[f]=v;r.activity.push({t:`Updated ${f}`,d:new Date().toISOString()});const ok=await saveRecord(r);refreshView();return `Updated ${f} on ${r.company}${syncNote(ok)}`;}
+    if(name==='add_record'){const pipeline=['partners','customers','investors','events'].includes(input.pipeline)?input.pipeline:null;if(!pipeline)return `"${input.pipeline}" is not a valid pipeline. Valid: partners, customers, investors, events.`;const portfolio=Number(input.portfolio)||1;const stageList=pipeline==='partners'?STAGES['partners'+portfolio]:STAGES[pipeline];const stage=matchInList(stageList,input.stage)||stageList[0];const hasContact=input.contactName||input.contactTitle||input.contactEmail||input.contactPhone;const members=hasContact?[{name:input.contactName||input.company,title:input.contactTitle||'',email:input.contactEmail||'',phone:input.contactPhone||'',linkedin:''}]:[];const src=(''+(input.source||'')).trim()||'Assistant';const r={pipeline,company:input.company,name:input.company,role:'',email:'',phone:'',members,stage,source:src,date:'Today',notes:(''+(input.notes||'')).trim(),value:Number(input.value)||0,activity:[{t:'Added via assistant',d:new Date().toISOString()}]};if(pipeline==='partners'){const cats=Object.keys(CAT_META);r.portfolio=portfolio;r.category=matchInList(cats,input.category)||cats[0];r.model=(''+(input.model||'')).trim();r.tier=input.tier!=null&&input.tier!==''?Number(input.tier):null;r.score=null;r.region=(''+(input.region||'')).trim();r.website=(''+(input.website||'')).trim();r.clients=(''+(input.clients||'')).trim();if(r.portfolio===2){r.workshops=Number(input.workshops)||0;r.founders=Number(input.founders)||0;}r.agreementType=matchInList(AGREEMENT_TYPES,input.agreementType)||'None';r.agreementSignedAt=normalizeSubscriptionDate(input.agreementSignedAt||'');r.agreementRenewalAt=normalizeSubscriptionDate(input.agreementRenewalAt||'');r.healthStatus=matchInList(HEALTH_STATUSES,input.healthStatus)||null;r.revSharePct=(r.portfolio===1&&input.revSharePct!=null&&input.revSharePct!==''&&!isNaN(Number(input.revSharePct)))?Number(input.revSharePct):null;r.contractedArr=(r.portfolio===1&&input.contractedArr!=null&&input.contractedArr!==''&&!isNaN(Number(input.contractedArr)))?Number(input.contractedArr):null;}else if(pipeline==='customers'){r.sector=input.sector||'General';r.leadSource=src;r.segment=matchInList(['SaaS','Enterprise'],input.segment)||null;r.website=(''+(input.website||'')).trim();r.referredBy=null;r.nextStep=nextStepOptions[0]||'';delete r.source;r.subscriptionPeriod=r.segment==='Enterprise'?matchSubscriptionPeriod(input.subscriptionPeriod):'';r.subscriptionDate=(r.segment==='SaaS'||r.segment==='Enterprise')?normalizeSubscriptionDate(input.subscriptionDate):'';}else if(pipeline==='events'){r.eventType=input.eventType||eventTypeOptions[0]||'';r.description=input.description||'';r.startAt=input.startAt?(isNaN(new Date(input.startAt))?null:new Date(input.startAt).toISOString()):null;r.endAt=input.endAt?(isNaN(new Date(input.endAt))?null:new Date(input.endAt).toISOString()):null;r.timezone=input.timezone||'UTC';r.format=(input.format==='In-Person')?'In-Person':'Virtual';r.meetingUrl=r.format==='Virtual'?(input.meetingUrl||''):'';r.meetingPasscode=r.format==='Virtual'?(input.meetingPasscode||''):'';r.dialIn=r.format==='Virtual'?(input.dialIn||''):'';r.venueName=r.format==='In-Person'?(input.venueName||''):'';r.address=r.format==='In-Person'?(input.address||''):'';r.mapUrl=r.format==='In-Person'?(input.mapUrl||''):'';r.capacity=r.format==='In-Person'&&input.capacity!=null&&input.capacity!==''?Number(input.capacity):null;delete r.value;delete r.source;}else{r.fundSize=(''+(input.fundSize||'')).trim();r.thesis=(''+(input.thesis||'')).trim();}const ok=await createRecord(r);records.push(r);refreshView();return `Added ${r.company} to ${pipeline}${syncNote(ok)}`;}
     if(name==='delete_record'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);records=records.filter(x=>x.id!==r.id);const ok=await deleteRecordRemote(r.id,r.pipeline);refreshView();return `Deleted ${r.company}${syncNote(ok)}`;}
     if(name==='log_activity'){const r=findRecord(input.record);if(!r)return `No record matching "${input.record}".`;if(r.ambiguous)return describeAmbiguous(r,input.record);const text=(''+(input.text||'')).trim();if(!text)return 'No note text given.';r.activity.push({t:'Note',d:new Date().toISOString(),note:text});const ok=await saveRecord(r);refreshView();if(currentId===r.id&&currentPipeline===r.pipeline)renderDetail();return `Logged on ${r.company}: "${text}"${syncNote(ok)}`;}
     if(name==='score_agency'){const res=scoreAgency(input);if(res.skip)return `Skip — ${res.reason}.`;if(res.gate)return `Auto Tier 2 (pure B2B, scoring skipped).`;return `Score ${res.score} → Tier ${res.tier}. Breakdown: ${res.lines.map(l=>l[0]+' '+l[1]).join('; ')}.`;}

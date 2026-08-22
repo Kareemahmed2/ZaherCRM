@@ -926,4 +926,22 @@ alter table competitors add column if not exists "radarSurfaceCoverage" smallint
 alter table competitors add column if not exists "radarTechnicalGeo" smallint check ("radarTechnicalGeo" between 0 and 10);
 alter table competitors add column if not exists "radarAdoptionAccess" smallint check ("radarAdoptionAccess" between 0 and 10);
 alter table competitors add column if not exists "radarProvenOutcomes" smallint check ("radarProvenOutcomes" between 0 and 10);
+
+-- Partner agreement & relationship-health fields (added 2026-08-23) -- a partner record only
+-- ever tracked acquisition data (category/tier/stage/one aspirational ARR value); nothing
+-- described the partnership once it was actually won. agreementType/agreementSignedAt/
+-- agreementRenewalAt/revSharePct/contractedArr are the commercial terms once an agreement is
+-- in place; healthStatus is the one field that lets a record be tracked *after* it reaches a
+-- terminal stage (Revenue/Strategic/Recurring/Ecosystem), which the stage funnel alone doesn't
+-- do. contractedArr is deliberately separate from the existing `value` (potential ARR) rather
+-- than overwriting it, so "Signed ARR" can report what was actually contracted instead of the
+-- pre-close estimate once it's filled in -- see computePartnersSignedArr() in zaher_crm.html.
+-- agreementSignedAt/agreementRenewalAt are real `date` columns (unlike the older, text-typed
+-- subscriptionDate on customers) so a future renewals view can query/sort on them directly.
+alter table partners add column if not exists "agreementType" text not null default 'None' check ("agreementType" in ('None','NDA','MoU','Pilot Agreement','Commercial Contract'));
+alter table partners add column if not exists "agreementSignedAt" date;
+alter table partners add column if not exists "agreementRenewalAt" date;
+alter table partners add column if not exists "revSharePct" numeric;
+alter table partners add column if not exists "contractedArr" numeric;
+alter table partners add column if not exists "healthStatus" text check ("healthStatus" in ('Healthy','Watch','At risk'));
 alter table competitors add column if not exists "radarScoredAt" timestamptz;
